@@ -1,0 +1,3 @@
+# inside the source_folder_path are several folders named with beginning and end GPS times of the data
+source_folder_path: "/home/ryan.raikman/s22/anomaly/data2/glitches/"
+already_finished_path: "/home/ryan.raikman/s22/anomaly/generated_timeslides/"
