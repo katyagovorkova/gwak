@@ -3,6 +3,7 @@ from .plotting import main as plotting_main
 from .plotting import KDE_plotting as kde_plotting_main
 from .kde_analysis import main as kde_main
 from .autoencoder_prediction import main as autoencoder_prediction_main
+from .autoencoder_prediction import main_limited as autoencoder_prediction_main_limited
 from .full_data_runthrough import main as runthrough_main
 from .kde_runthrough import main as kde_runthrough_main
 from .kde_eval import main as kde_eval_main
@@ -12,3 +13,8 @@ from .utils.data_segment import main as data_segment
 from .utils.NN_predict import main as NN_predict
 from .utils.KDE_train import main as KDE_train
 from .utils.KDE_train import main_bkg as KDE_train_BKG
+from .utils.smooth import main as smooth_data
+from .utils.pearson_QUAK_stats_v3 import main as pearson_QUAK_stats
+from .utils.pearson_QUAK_stats_v3 import build_model_from_save as pQUAK_build_model_from_save
+from .utils.QUAK_stats import main as QUAK_stats
+from .utils.QUAK_stats import build_model_from_save as QUAK_build_model_from_save

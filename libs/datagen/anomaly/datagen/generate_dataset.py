@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import time
-from anomaly.datagen.injection_2d import main_all3, main_big_bkg_segs
+from anomaly.datagen.injection_2d import main_all3, main_big_bkg_segs, main_BNS
 from anomaly.datagen.timeslides import main_timeslides
 #def main_X(savedir, N = 20, folder_path = None, prior_file = None): (format for arguments)
 
@@ -9,7 +9,7 @@ from anomaly.datagen.timeslides import main_timeslides
 available_folders_full = []
 available_folders = []
 source_folder_path = "/home/ryan.raikman/s22/anomaly/data2/glitches/"
-already_finished_path = "/home/ryan.raikman/s22/anomaly/generated_timeslides/"
+already_finished_path = "/home/ryan.raikman/s22/ES_files/signals_snr_15 /"
 
 save_path = already_finished_path
 try:
@@ -39,11 +39,12 @@ p = np.random.permutation(len(available_folders))
 available_folders_full = list(np.array(available_folders_full)[p])
 available_folders = list(np.array(available_folders)[p])
 
-do_timeslides = Fakse
+do_timeslides = False
 if do_timeslides:
     #if 1:
     for i, folder in enumerate(available_folders_full):
         #i=0; folder = available_folders_full[0]
+
         savedir = save_path + available_folders[i]
         start, end = [int(elem) for elem in available_folders[i].split("_")]
         seg_len = end-start
@@ -56,14 +57,75 @@ if do_timeslides:
         #main_big_bkg_segs(savedir, folder)
 
  #   assert 0
-if not do_timeslides:
-    for i, folder in enumerate(available_folders_full):
+
+#print("available folders full", available_folders_full)
+bestlen = 1e7
+bestelem = None
+bestelemind = None
+#print("available_folders_full", available_folders_full)
+for i, elem in enumerate(available_folders_full):
+    a, b = elem.split("/")[-1].split("_")
+    a, b = int(a), int(b)
+    lenseg = b-a
+    if lenseg < bestlen:
+        bestlen=lenseg
+        bestelem = elem
+        bestelemind = i
+
+processed = []
+for elem in available_folders_full:
+    a, b = elem.split("/")[-1].split("_")
+    a, b = int(a), int(b)
+    lenseg = b-a
+    processed.append(lenseg)
+
+processed = np.array(processed)
+p = np.argsort(processed)
+
+do_just_shortest = False
+
+do_BNS = False
+if do_BNS:
+    #if do_just_shortest:
+    print("shortest folder has bestlen", bestlen, "is", bestelem)
+    
+    i=p[0]
+    folder = available_folders_full[i]
+
+    savedir = save_path + available_folders[i]
+    start, end = [int(elem) for elem in available_folders[i].split("_")]
+    seg_len = end-start
+    N = seg_len//20 #just going to try with more data files...
+    print("starting folder", folder.split("/")[-1]) #just the last part of the path is the folder, don't need the rest
+
+    #main_all3(savedir, N, folder, None)
+    polarization_files = "/home/ryan.raikman/s22/BNS_pols/"
+    savedir = "/home/ryan.raikman/s22/BNS_waveforms/"
+    main_BNS(savedir, folder, polarization_files)
+
+if not do_timeslides and not do_BNS:
+    if do_just_shortest:
+        print("shortest folder has bestlen", bestlen, "is", bestelem)
+        i=p[0]
+        folder = available_folders_full[i]
+
         savedir = save_path + available_folders[i]
         start, end = [int(elem) for elem in available_folders[i].split("_")]
         seg_len = end-start
-        N = seg_len//5 #just going to try with more data files...
+        N = seg_len//20 #just going to try with more data files...
         print("starting folder", folder.split("/")[-1]) #just the last part of the path is the folder, don't need the rest
 
         main_all3(savedir, N, folder, None)
+
+    else:
+        for i, folder in enumerate(available_folders_full):
             
-    print("done with all")
+            savedir = save_path + available_folders[i]
+            start, end = [int(elem) for elem in available_folders[i].split("_")]
+            seg_len = end-start
+            N = seg_len//5 #just going to try with more data files...
+            print("starting folder", folder.split("/")[-1]) #just the last part of the path is the folder, don't need the rest
+
+            main_all3(savedir, N, folder, None, impose_SNR=False)
+                
+        print("done with all")

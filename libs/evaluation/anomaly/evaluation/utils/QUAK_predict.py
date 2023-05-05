@@ -54,7 +54,8 @@ def main(savedir, datae, preprocess=True):
         #print("95, data_class, QUAK_class", data_class, QUAK_class)
         #print("data", data)
         
-        pred = QUAK_models[QUAK_class].predict(data)
+        #pred = QUAK_models[QUAK_class].predict(data)
+        pred = QUAK_models[QUAK_class].__call__(data)
         QUAK_evals[QUAK_class] = mae(data, pred)
         #print("99, mae from autoencoder", QUAK_evals[data_class][QUAK_class])
         #out_len = len(mae(data_dict[data_class], pred))

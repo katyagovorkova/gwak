@@ -58,7 +58,7 @@ def main(savedir, manual_bkg_data=None):
             data = manual_bkg_data
         else:
             data = np.load(f"{savedir}/DATA_PREDICTION/TEST/{CN}/QUAK_evals.npy")
-        kde_trained = gaussian_kde(data.T)
+        kde_trained = gaussian_kde(data.T, 1)
         kde_trained_map[CN] = kde_trained
 
     final_model = KDE_supermodel(kde_trained_map, index_map, index_map_inv)
@@ -103,7 +103,7 @@ def main_bkg(savedir):
     data = np.vstack(datae)
 
     print("100 DEBUG", data.shape)
-    kde_trained = gaussian_kde(data.T)
+    kde_trained = gaussian_kde(data.T, 10)
     kde_trained_map["FULL_BKG"] = kde_trained
 
     new_index_map = {"FULL_BKG":0}

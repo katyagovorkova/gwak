@@ -39,12 +39,19 @@ for elem in available_folders_full:
         bestval = elem
 
 print("bestval", bestval)
-save_path = "/home/ryan.raikman/s22/generated_SNs_noise/"
+save_path = "/home/ryan.raikman/s22/generated_SNs_noise_5/"
 polarization_path = "/home/ryan.raikman/s22/SN_polarizations/"
-for folder in os.listdir(polarization_path):
-    print("working on folder,", folder)
-    try:
-        os.makedirs(save_path + folder)
-    except FileExistsError:
-        None
-    main_SNGW(savedir=save_path + folder, folder_path=bestval, polarization_files=polarization_path + folder)
+if 0:
+    for folder in os.listdir(polarization_path):
+        print("working on folder,", folder)
+        try:
+            os.makedirs(save_path + folder)
+        except FileExistsError:
+            None
+        main_SNGW(savedir=save_path + folder, folder_path=bestval, polarization_files=polarization_path + folder)
+folder = "Powell_2020/"
+try:
+    os.makedirs(save_path + folder)
+except FileExistsError:
+    None
+main_SNGW(savedir=save_path + folder, folder_path=bestval, polarization_files=polarization_path + folder)

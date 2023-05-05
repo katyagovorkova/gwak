@@ -72,14 +72,12 @@ def corner_plotting(data:list[np.ndarray],
             else:
                 LBL = labels[i]
             axs[i, i].hist(class_data[:, i], **oneD_hist_kwargs, label = LBL)
+            np.save(f"{plot_savedir}/one_d_hist_{i}_{j}.npy", class_data[:, i])
             if loglog:
                 axs[i, i].loglog()
             if enforce_lim:
-                axs[i, i].set_xlim(0, 3)
-            #else:
-            #    axs[i, i].set_xlim(-50, 10)
-            #axs[i, i].set_yscale("log")
-        axs[i, i].legend()
+                axs[i, i].set_xlim(0, 1.5)
+        #axs[i, i].legend()
 
     
     
@@ -98,7 +96,6 @@ def corner_plotting(data:list[np.ndarray],
 
             for k, class_data in enumerate(data):
 
-                log_sacling = False
                 if log_scaling: #modify the data being plotted
                     epsilon = 1 #so we can take log10 of min value
                     A = class_data[:, i] - norm_factor_i + epsilon
