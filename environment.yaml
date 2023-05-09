@@ -6,4 +6,8 @@ dependencies:
     - keras=2.9.0
     - numpy=1.23.0
     - matplotlib=3.5.2
-    - scipy=1.8.1       
+    - scipy=1.8.1
+    - snakemake=7.25.3
+    - h5py=3.8.0
+    - bilby=2.1.1
+    - gwpy=3.0.4
