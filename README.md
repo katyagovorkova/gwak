@@ -53,10 +53,15 @@ There are several steps starting with downloading and generating data samples,
 pre-processing them and training the QUAK space using these samples.
 Followed by the Pearson correlation calculation and the evaluation step.
 The details of all the available rules are given below.
-
-## Data Generation
+## Downloading LIGO data
 We use real data from the 03A run of LIGO.
-To generate all the samples necessary for the analysis just run
+[O3a Data Release](https://gwosc.org/data/)
+O3a Time Range: April 1, 2019 through October 1, 2019
+Dataset: O3a_16KHZ_R1
+GPS Time Interval: [1239134846, 1239140924]
+Detector: L1, H1
+## Data Generation
+To generate all the necessary samples for the analysis from downloaded data just run
 ```
 snakemake -c1 generate_data
 ```
