@@ -1,20 +1,17 @@
 import os
-import h5py
 import argparse
-import bilby
+import h5py
 import numpy as np
-import scipy.signal as sig
-from scipy.stats import cosine as cosine_distribution
+
+import bilby
 from gwpy.timeseries import TimeSeries
 from typing import Callable
 from libs.datagen.anomaly.datagen.waveforms import olib_time_domain_sine_gaussian
 
-
-FS = 4096
-SEGMENT_LENGTH = 5 #seconds
 IFOS = ['H1', 'L1']
 
-def find_h5(path):
+def find_h5(
+    path:str):
     h5_file = None
     if not  os.path.exists(path): return None
     for file in os.listdir(path):
@@ -25,7 +22,9 @@ def find_h5(path):
     assert h5_file is not None #did not find h5 file
     return h5_file
 
-def load_folder(path:str, IFOS:list[str]):
+def load_folder(
+    path:str,
+    IFOS:list[str]):
     '''
     load the glitch times and data associated with a "save" folder
     '''
@@ -88,10 +87,14 @@ def load_folder(path:str, IFOS:list[str]):
 
     return loaded_data
 
-def get_bkg_segs(loaded_data, data, N, segment_length):
+def get_bkg_segs(
+    loaded_data,
+    data,
+    N,
+    args.segment_length):
     # note - by here, N samples have NOT been drawn
-    quiet_times_H1 = get_quiet_segments(loaded_data["H1"], N, segment_length)
-    quiet_times_L1 = get_quiet_segments(loaded_data["L1"], N, segment_length)
+    quiet_times_H1 = get_quiet_segments(loaded_data["H1"], N, args.segment_length)
+    quiet_times_L1 = get_quiet_segments(loaded_data["L1"], N, args.segment_length)
 
     quiet_times = np.intersect1d(quiet_times_H1, quiet_times_L1)
     N = min(N, len(quiet_times))
@@ -99,23 +102,24 @@ def get_bkg_segs(loaded_data, data, N, segment_length):
 
     # passing loaded_data here for reference to values like t0 and fs
     bkg_segs, _ = slice_bkg_segments(loaded_data['H1'], data, quiet_times,
-                                    segment_length)
+                                    args.segment_length)
     return bkg_segs
 
-def inject_waveforms(waveform:Callable,
-                    bkg_segs_2d:np.ndarray,
-                    sample_rate:int,
-                    t0:int,
-                    segment_length:int,
-                    prior_file,
-                    waveform_arguments=None,
-                    domain:str='time',
-                    center_type:str=None):
-    N_datapoints = segment_length * sample_rate
+def inject_waveforms(
+    waveform:Callable,
+    bkg_segs_2d:np.ndarray,
+    sample_rate:int,
+    t0:int,
+    args.segment_length:int,
+    prior_file,
+    waveform_arguments=None,
+    domain:str='time',
+    center_type:str=None):
+    N_datapoints = args.segment_length * sample_rate
 
     if domain == 'time':
         waveform_generator = bilby.gw.WaveformGenerator(
-                duration=segment_length,
+                duration=args.segment_length,
                 sampling_frequency=sample_rate,
                 time_domain_source_model=waveform,
                 waveform_arguments=waveform_arguments
@@ -123,7 +127,7 @@ def inject_waveforms(waveform:Callable,
     else:
         assert domain in ['freq', 'frequency']
         waveform_generator = bilby.gw.WaveformGenerator(
-                duration=segment_length,
+                duration=args.segment_length,
                 sampling_frequency=sample_rate,
                 frequency_domain_source_model=waveform,
                 waveform_arguments=waveform_arguments
@@ -161,9 +165,9 @@ def inject_waveforms(waveform:Callable,
             p['luminosity_distance']=np.random.uniform(50, 200)
             ra = p['ra']
             dec = p['dec']
-            start_time = (i * segment_length)*sample_rate # start of the segment to be injected into
+            start_time = (i * args.segment_length)*sample_rate # start of the segment to be injected into
             geocent_time = t0 + start_time
-            p['geocent_time'] = 0 * sample_rate * segment_length / 2 # center the injection in the middle of the signal
+            p['geocent_time'] = 0 * sample_rate * args.segment_length / 2 # center the injection in the middle of the signal
             psi = p['psi']
 
             # get hplus, hcross
@@ -185,7 +189,7 @@ def inject_waveforms(waveform:Callable,
                     injection[inj_slice] += response * polarization[:centre*2]
                 elif center_type in ['BBH', 'bbh']:
                     # better idea, put the end of the BBH at the middle? that way clipping isn'ty an issue
-                    injection[start_time:start_time+segment_length*sample_rate//2] += response*polarization[-(segment_length*sample_rate//2):]
+                    injection[start_time:start_time+args.segment_length*sample_rate//2] += response*polarization[-(args.segment_length*sample_rate//2):]
 
             signal = TimeSeries(injection, times = full_seg.times, unit=full_seg.unit)
             # maybe need to do the shifting stuff here
@@ -239,7 +243,7 @@ def main(args):
     if signal_type=='bbh':
         # Injection
         assert loaded_data['H1']['data'].t0.value == loaded_data['L1']['data'].t0.value
-        bkg_segs = get_bkg_segs(loaded_data, data, N, SEGMENT_LENGTH)
+        bkg_segs = get_bkg_segs(loaded_data, data, N, args.segment_length)
 
         BBH_waveform_args = dict(
             waveform_approximant='IMRPhenomPv2',
@@ -248,51 +252,51 @@ def main(args):
 
         # BBH injection
         injected_segs = inject_waveforms(bilby.gw.source.lal_binary_black_hole,
-            bkg_segs, FS, loaded_data['H1']['data'].t0.value ,SEGMENT_LENGTH,
+            bkg_segs, args.fs, loaded_data['H1']['data'].t0.value ,args.segment_length,
             prior_file=bilby.gw.prior.BBHPriorDict(),
             waveform_arguments=BBH_waveform_args,
             domain='freq',
             center_type='BBH')
 
         # need both ASDs here
-        whitened_segs = whiten_bkgs(injected_segs, FS, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+        whitened_segs = whiten_bkgs(injected_segs, args.fs, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
 
         np.save(args.output, whitened_segs)
 
     elif signal_type=='sg':
-        bkg_segs = get_bkg_segs(loaded_data, data, N, SEGMENT_LENGTH)
+        bkg_segs = get_bkg_segs(loaded_data, data, N, args.segment_length)
         injected_segs = inject_waveforms(olib_time_domain_sine_gaussian,
-                bkg_segs, FS, loaded_data['H1']['data'].t0.value ,SEGMENT_LENGTH, prior_file)
+                bkg_segs, args.fs, loaded_data['H1']['data'].t0.value ,args.segment_length, prior_file)
 
-        whitened_segs = whiten_bkgs(injected_segs, FS, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+        whitened_segs = whiten_bkgs(injected_segs, args.fs, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
 
         np.save(args.output, whitened_segs)
 
     elif signal_type=='wnb':
-        bkg_segs = get_bkg_segs(loaded_data, data, N, SEGMENT_LENGTH)
+        bkg_segs = get_bkg_segs(loaded_data, data, N, args.segment_length)
         injected_segs = inject_waveforms(olib_time_domain_sine_gaussian,
-                bkg_segs, FS, loaded_data['H1']['data'].t0.value ,SEGMENT_LENGTH, prior_file)
+                bkg_segs, args.fs, loaded_data['H1']['data'].t0.value ,args.segment_length, prior_file)
 
-        whitened_segs = whiten_bkgs(injected_segs, FS, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+        whitened_segs = whiten_bkgs(injected_segs, args.fs, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
 
         np.save(args.output, whitened_segs)
 
     elif signal_type=='background':
-        bkg_segs = get_bkg_segs(loaded_data, data, N, SEGMENT_LENGTH)
+        bkg_segs = get_bkg_segs(loaded_data, data, N, args.segment_length)
 
-        whitened_segs = whiten_bkgs(bkg_segs, FS, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+        whitened_segs = whiten_bkgs(bkg_segs, args.fs, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
         np.save(args.output, whitened_segs)
 
     elif signal_type=='glitch':
-        loud_times_H1 = get_loud_segments(loaded_data['H1'], N, SEGMENT_LENGTH)
-        loud_times_L1 = get_loud_segments(loaded_data['H1'], N, SEGMENT_LENGTH)
+        loud_times_H1 = get_loud_segments(loaded_data['H1'], N, args.segment_length)
+        loud_times_L1 = get_loud_segments(loaded_data['H1'], N, args.segment_length)
 
         loud_times = np.union1d(loud_times_H1, loud_times_L1)
 
         glitch_segs, _ = slice_bkg_segments(loaded_data['H1'], data, loud_times,
-                                        SEGMENT_LENGTH)
+                                        args.segment_length)
 
-        whitened_segs = whiten_bkgs(glitch_segs, FS, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+        whitened_segs = whiten_bkgs(glitch_segs, args.fs, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
 
         np.save(args.output, whitened_segs)
 
@@ -307,8 +311,10 @@ if __name__ == '__main__':
         type=str,
         choices=['bbh','sg','background','glitch','wnb'])
 
-    parser.add_argument('--N', help='Some parameter',
-        type=int, default=20)
+    parser.add_argument('--fs', help='Sampling rate',
+        type=int, default=4096)
+    parser.add_argument(' --segment-length', help='Overlapping part of the segments',
+        type=int, default=5)
     parser.add_argument('--folder-path', help='Path to the raw detector data',
         type=str,
         default="Users/katya/Library/CloudStorage/GoogleDrive-likemetooo@gmail.com/.shortcut-targets-by-id/1meSQdJObNYt4y3CtpG1NzKbDVM-ESyTg/1240624412_1240654372/")

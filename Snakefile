@@ -15,41 +15,57 @@ rule generate_background:
     input:
         script = 'scripts/generate.py',
     params:
-        stype = 'background'
+        stype = 'background',
+        fs = config['fs'],
+        segment_length = config['segment_length']
     output:
         file = 'output/background_segs.npy'
     shell:
-        'python {input.script} {output.file} {params.stype}'
+        'python {input.script} {output.file} {params.stype} \
+            --fs {params.fs} \
+            --segment-length {params.segment_length}'
 
 rule generate_glitch:
     input:
         script = 'scripts/generate.py',
     params:
-        stype = 'glitch'
+        stype = 'glitch',
+        fs = config['fs'],
+        segment_length = config['segment_length']
     output:
         file = 'output/glitch_segs.npy'
     shell:
-        'python {input.script} {output.file} {params.stype}'
+        'python {input.script} {output.file} {params.stype} \
+            --fs {params.fs} \
+            --segment-length {params.segment_length}'
 
 rule generate_bbh:
     input:
         script = 'scripts/generate.py',
     params:
-        stype = 'bbh'
+        stype = 'bbh',
+        fs = config['fs'],
+        segment_length = config['segment_length']
     output:
         file = 'output/bbh_segs.npy'
     shell:
-        'python {input.script} {output.file} {params.stype}'
+        'python {input.script} {output.file} {params.stype} \
+            --fs {params.fs} \
+            --segment-length {params.segment_length}'
 
 rule generate_sg:
     input:
         script = 'scripts/generate.py',
     params:
-        stype = 'sg'
+        stype = 'sg',
+        fs = config['fs'],
+        segment_length = config['segment_length']
     output:
         file = 'output/sg_segs.npy'
     shell:
-        'python {input.script} {output.file} {params.stype}'
+        'python {input.script} {output.file} {params.stype} \
+            --fs {params.fs} \
+            --segment-length {params.segment_length}'
 
 rule generate_data:
     output:

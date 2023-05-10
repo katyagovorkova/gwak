@@ -59,7 +59,7 @@ def split_data(data, overlap, seglen=100):
     return final
 
 def pre_processing_method_NOT_IN_USE(data):
-	#individually normalize each segment
+    #individually normalize each segment
     #data -= np.average(data, axis=1)[:, np.newaxis] #doesn't seem right to do
     std_vals = np.std(data, axis=1)
     data /= std_vals[:, np.newaxis]
@@ -67,7 +67,7 @@ def pre_processing_method_NOT_IN_USE(data):
 
 def pre_processing_method(data): #for two detectors at once
     print("DATA SHAPE", data.shape)
-	#individually normalize each segment
+    #individually normalize each segment
     #data -= np.average(data, axis=1)[:, np.newaxis] #doesn't seem right to do
     std_vals = np.std(data, axis=2)
     print("std vals shape", std_vals.shape)
@@ -79,11 +79,13 @@ def pre_processing_method(data): #for two detectors at once
     #return (data, std_vals)
     #return (data[:, :, np.newaxis], std_vals) #for the LSTM stuff, the extra axis is needed
     return data #unless using 2 detector streams!
-def main(data_dir:str,
-        savedir:str,
-        overlap:int,
-        KDE_models:dict=None,
-        NN_quak:bool=False):
+
+def main(args):
+    # data_dir:str,
+    #     savedir:str,
+    #     overlap:int,
+    #     KDE_models:dict=None,
+    #     NN_quak:bool=False):
 
     do_KDE = False
     if KDE_models is not None:
@@ -689,3 +691,25 @@ def main(data_dir:str,
                 print("this many images:", len(RT_all)//step)
                 for i in range(0, len(RT_all), step): #go 50 by 50 evaluations
                     make_quakker(RT_all[i], i//step, TI[i])
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('output', help='Where to save the injections',
+        type=str)
+    parser.add_argument('signal-type', help='Which injection to generate?',
+        type=str,
+        choices=['bbh','sg','background','glitch','wnb'])
+
+    parser.add_argument('--N', help='Some parameter',
+        type=int, default=20)
+    parser.add_argument('--folder-path', help='Path to the raw detector data',
+        type=str,
+        default="Users/katya/Library/CloudStorage/GoogleDrive-likemetooo@gmail.com/.shortcut-targets-by-id/1meSQdJObNYt4y3CtpG1NzKbDVM-ESyTg/1240624412_1240654372/")
+    parser.add_argument('--prior-file', help='Path to the prior file for SG injection',
+        type=str,
+        default="/home/ryan.raikman/s22/forks/gw-anomaly/libs/datagen/anomaly/datagen/prior.prior")
+
+    args = parser.parse_args()
+    main(args)

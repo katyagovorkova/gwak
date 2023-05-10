@@ -1,12 +1,31 @@
-
 import os
-#import setGPU
+import argparse
 import numpy as np
+
+import tensorflow as tf
+from tensorflow import keras
 from keras import losses, callbacks
 from keras.optimizers import Adam
-from anomaly.training.train_perf_plot import main as perf_plot_main
-from anomaly.evaluation import plotting_main
-import tensorflow as tf
+
+from scripts.plotting import main as plotting
+
+
+def perf_plot(history, savedir):
+    loss = history['loss']
+    val_loss = history['val_loss']
+    N_epochs = len(loss)
+    assert len(val_loss) == N_epochs
+
+    plt.figure(figsize=(15, 10))
+    plt.plot(loss, label = "loss")
+    plt.plot(val_loss, label = "val loss")
+    plt.legend()
+    plt.xlabel("number of epochs", fontsize=17)
+    plt.ylabel("loss", fontsize=17)
+    plt.title("Loss curve for training network", fontsize=17)
+    #plt.yscale("log")
+    plt.savefig(f"{savedir}/loss.png", dpi=300)
+    plt.show()
 
 def split_data(data, frac = 0.9):
     split = int(len(data)*frac)
@@ -16,14 +35,15 @@ def split_data(data, frac = 0.9):
 
     return train_data, test_data
 
-def train_model_main(models: tuple,
-        data: np.ndarray,
-        savedir: str,
-        batch_size:int,
-        epochs:int,
-        valid_data_2:str=None,
-        temp_direc:str=None,
-        alpha:float=0):
+def train_model_main(
+    models: tuple,
+    data: np.ndarray,
+    savedir: str,
+    batch_size:int,
+    epochs:int,
+    valid_data_2:str=None,
+    temp_direc:str=None,
+    alpha:float=0):
     '''
     Function to train autoencoder based on some input data,
     save the models to some path
@@ -94,11 +114,11 @@ def train_model_main(models: tuple,
                         np.save(f"{temp_direc}/TEMP/{class_labels[i]}/LS_evals.npy",EN.predict(X))
                     #num = len(os.listdir(f"{temp_direc}/TEMP_PLOTS/"))
                     num = N_epochs
-                    plotting_main(f"{temp_direc}/TEMP/",
-                                f"{temp_direc}/TEMP_PLOTS/{num}/",
-                                class_labels,
-                                make_QUAK=False,
-                                do_LS=True)
+                    plotting(f"{temp_direc}/TEMP/",
+                             f"{temp_direc}/TEMP_PLOTS/{num}/",
+                             class_labels,
+                             make_QUAK=False,
+                             do_LS=True)
 
             np.save(f"{temp_direc}/TEMP_PLOTS/n_epochs.npy", np.array([N_epochs+1]))
 
@@ -115,7 +135,7 @@ def train_model_main(models: tuple,
     except FileExistsError:
         None
 
-    perf_plot_main(history.history, savedir)
+    perf_plot(history.history, savedir)
 
     #outdir for saving the models and training history should be a folder
     AE.save(f"{savedir}/AE.h5",include_optimizer=False)
@@ -137,13 +157,14 @@ from anomaly.training.train_model import main as train_model_main
 from anomaly.autoencoder_models import main as make_AE_model
 from keras.models import load_model
 
-def main(data:list[np.ndarray], 
-        model_choice:str,
-        savedir:str,
-        batch_size:int,
-        epochs:int,
-        bottleneck:int,
-        class_labels:list[str]):
+def main(args):
+    # data:list[np.ndarray],
+    # model_choice:str,
+    # savedir:str,
+    # batch_size:int,
+    # epochs:int,
+    # bottleneck:int,
+    # class_labels:list[str]):
 
     #print("ALL CLASS LABELS HERE HEREH HERERHERERE", class_labels)
 
@@ -221,3 +242,21 @@ def main(data:list[np.ndarray],
                 epochs - num_epochs_trained,
                 alpha=-0.2
             )
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    # Required arguments
+    parser.add_argument('train_dir', help='Required output directory for train dataset',
+        type=str)
+    parser.add_argument('test_dir', help='Required output directory for test dataset',
+        type=str)
+
+    # Additional arguments
+    parser.add_argument('--test-split', help='Part of the dataset that is going to be used for training',
+        type=float, default=0.9)
+    parser.add_argument('--data-path', help='Where is the data to do train/test split on',
+        type=str)
+    args = parser.parse_args()
+    main(args)

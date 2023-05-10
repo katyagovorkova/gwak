@@ -21,7 +21,8 @@ def MAE(a, b):
     #sum across all axes except the first one
     return np.sum(diff)/len(diff)
 
-def main(savedir, do_LS, override_savedir=None, limit_data=False):
+def main(args):
+    # savedir, do_LS, override_savedir=None, limit_data=False):
     #assuming that the ordering of data stays the same, which it should
     N_samples = 3
 
@@ -498,4 +499,24 @@ def main_limited(savedir, do_LS, override_savedir=None, limit_data=False):
         else:
             fig.savefig(f"{override_savedir}/{data_class}_QUAK2QUAK_121.png", dpi=300)
 
-#main("/home/ryan.raikman/s22/anomaly/march23_nets/", False)
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('output', help='Where to save the injections',
+        type=str)
+    parser.add_argument('signal-type', help='Which injection to generate?',
+        type=str,
+        choices=['bbh','sg','background','glitch','wnb'])
+
+    parser.add_argument('--N', help='Some parameter',
+        type=int, default=20)
+    parser.add_argument('--folder-path', help='Path to the raw detector data',
+        type=str,
+        default="Users/katya/Library/CloudStorage/GoogleDrive-likemetooo@gmail.com/.shortcut-targets-by-id/1meSQdJObNYt4y3CtpG1NzKbDVM-ESyTg/1240624412_1240654372/")
+    parser.add_argument('--prior-file', help='Path to the prior file for SG injection',
+        type=str,
+        default="/home/ryan.raikman/s22/forks/gw-anomaly/libs/datagen/anomaly/datagen/prior.prior")
+
+    args = parser.parse_args()
+    main(args)

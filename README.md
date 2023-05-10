@@ -1,5 +1,5 @@
 # Introduction
-This repo contains complimentary code for the paper about QUAK LIGO studies.
+This repo contains complimentary code for the QUAK LIGO paper.
 
 # Set up
 To start, install [`Miniconda`](https://docs.conda.io/en/latest/miniconda.html)

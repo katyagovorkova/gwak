@@ -1,3 +1,6 @@
+fs: 4096
+segment_length: 5 #seconds
+
 data_preprocessing_method: "full"
 test_split: 0.9
 

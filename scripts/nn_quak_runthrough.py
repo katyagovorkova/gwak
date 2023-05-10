@@ -39,7 +39,8 @@ def make_model(input_shape):
 
     return model
 
-def main(savedir:str):
+def main(args):
+    # savedir:str):
 
     comb_data = dict()
     for data_class_name in os.listdir(f"{savedir}/DATA_PREDICTION/TEST/"):
@@ -138,3 +139,21 @@ def main(savedir:str):
 
         
     return model
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    # Required arguments
+    parser.add_argument('train_dir', help='Required output directory for train dataset',
+        type=str)
+    parser.add_argument('test_dir', help='Required output directory for test dataset',
+        type=str)
+
+    # Additional arguments
+    parser.add_argument('--test-split', help='Part of the dataset that is going to be used for training',
+        type=float, default=0.9)
+    parser.add_argument('--data-path', help='Where is the data to do train/test split on',
+        type=str)
+    args = parser.parse_args()
+    main(args)

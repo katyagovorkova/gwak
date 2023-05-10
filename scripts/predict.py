@@ -123,11 +123,12 @@ def QUAK_edit_predict_data(data:np.ndarray, path: str, class_labels:list[str]):
 
     return QUAK_errors
 
-def main(testdata:list[np.ndarray],
-        model_paths:str, 
-        savedir:str,
-        class_labels:list[str],
-        do_LS:bool):
+def main(args):
+    # testdata:list[np.ndarray],
+    #     model_paths:str,
+    #     savedir:str,
+    #     class_labels:list[str],
+    #     do_LS:bool):
 
     #model_paths should be a folder with two folders in it:
     #AE_models, LS_models
@@ -175,3 +176,21 @@ def main(testdata:list[np.ndarray],
         np.save(folder_path + "QUAK_evals.npy", QUAK_eval_slice)
         if do_std:  np.save(folder_path + "QUAK_evals_STD.npy", QUAK_eval_STD_slice)
         if do_LS: np.save(folder_path + "LS_evals.npy", LS_eval_slice)
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    # Required arguments
+    parser.add_argument('train_dir', help='Required output directory for train dataset',
+        type=str)
+    parser.add_argument('test_dir', help='Required output directory for test dataset',
+        type=str)
+
+    # Additional arguments
+    parser.add_argument('--test-split', help='Part of the dataset that is going to be used for training',
+        type=float, default=0.9)
+    parser.add_argument('--data-path', help='Where is the data to do train/test split on',
+        type=str)
+    args = parser.parse_args()
+    main(args)
