@@ -1,4 +1,4 @@
-from lalinference import BurstSineGaussian, BurstSineGaussianF
+# from lalinference import BurstSineGaussian, BurstSineGaussianF
 import numpy as np
 
 """

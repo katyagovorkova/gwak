@@ -1,5 +1,10 @@
 configfile: 'config.yaml'
 
+# rule create_output_folder:
+#     output:
+#         directory('output/')
+#     shell:
+#         'mkdir -p {output};'
 
 rule generate_background:
     input:
@@ -8,6 +13,16 @@ rule generate_background:
         stype = 'background'
     output:
         file = 'output/background_segs.npy'
+    shell:
+        'python {input.script} {output.file} {params.stype}'
+
+rule generate_glitch:
+    input:
+        script = 'generate.py',
+    params:
+        stype = 'glitch'
+    output:
+        file = 'output/glitch_segs.npy'
     shell:
         'python {input.script} {output.file} {params.stype}'
 
@@ -31,42 +46,12 @@ rule generate_sg:
     shell:
         'python {input.script} {output.file} {params.stype}'
 
-rule generate_glitch:
-    input:
-        script = 'generate.py',
-    params:
-        stype = 'glitch'
-    output:
-        file = 'output/glitch_segs.npy'
-    shell:
-        'python {input.script} {output.file} {params.stype}'
-
 rule generate_data:
     output:
         rules.generate_background.output,
         rules.generate_bbh.output,
         rules.generate_sg.output,
         rules.generate_glitch.output
-
-# rule train_quak:
-#     input:
-#     output:
-#     shell:
-
-# rule calculate_pearson:
-#     input:
-#     output:
-#     shell:
-
-# rule calculate_metric:
-#     input:
-#     output:
-#     shell:
-
-# rule plot_results:
-#     input:
-#     output:
-#     shell:
 
 rule train_test_split:
     input:
@@ -86,7 +71,7 @@ rule train_test_split:
 
 rule pre_processing_step:
     input:
-        script = 'libs/pre_processing/anomaly/pre_processing/pre_processing.py',
+        script = 'pre_processing.py',
         train_dir = rules.train_test_split.output.train_dir,
         test_dir = rules.train_test_split.output.test_dir
     params:
@@ -102,26 +87,9 @@ rule pre_processing_step:
                           {params.method} \
                           {output.test_dir_process}; '
 
-rule train_LS_main:
+rule train_quak:
     input:
-        script = 'anomaly/evaluation/train_LS_main.py'
-    output:
-    shell:
-        'python3 {script}'
-
-        # train_LS_main(datae,
-        #             V['network_type'],
-        #             f"{trained_model_path}/LS/",
-        #             V['batch_size'],
-        #             V['epochs'],
-        #             V['bottleneck'],
-        #             f"{config['save_path']}/DATA/TEST_PROCESS/")
-        # #don't want it to run through the rest of the analysis, since something will break
-        # assert False
-
-rule train_QUAK_main:
-    input:
-        script = 'anomaly/evaluation/train_QUAK_main.py'
+        script = 'train_quak.py'
 
         # #load training data
         # datae = []
@@ -143,9 +111,9 @@ rule train_QUAK_main:
             #             V['bottleneck'],
             #             class_labels)
 
-rule eval_data_prediction_step:
+rule data_prediction:
     input:
-        script = 'anomaly/evaluation/predict_main.py'
+        script = 'predict.py'
         # datae = []
         # #class_labels = []
         # for file in sorted(os.listdir(f"{config['save_path']}/DATA/TEST_PROCESS/")):
@@ -161,7 +129,7 @@ rule eval_data_prediction_step:
         #             class_labels,
         #         V['train_LS'])
 
-rule eval_plotting_step:
+rule eval_plotting:
     input:
         script = 'anomaly/evaluation/plotting_main.py'
     output:
@@ -173,7 +141,7 @@ rule eval_plotting_step:
         #               True,
         #               V['train_LS'])
 
-rule roc_plotting_step:
+rule roc_plotting:
     input:
         script = 'anomaly/evaluation/kde_main.py'
     output:
@@ -185,17 +153,32 @@ rule roc_plotting_step:
         #         class_labels,
         #         V['train_LS'])
 
-rule ae_prediction_step:
+rule ae_prediction:
     input:
         script = 'anomaly/evaluation/autoencoder_prediction_main.py'
         # autoencoder_prediction_main(config['save_path'], V['train_LS'])
 
-rule nn_quak_runthrough_step:
+rule nn_quak_runthrough:
     input:
         script = 'anomaly/evaluation/nn_quak_runthrough_main.py'
         # nn_quak_runthrough_main(config['save_path'])
 
-rule data_runthrough_step:
+rule data_runthrough:
     input:
         script = 'anomaly/evaluation/runthrough_main.py'
         # runthrough_main(V['runthrough_path'], config['save_path'], 5, kde_models, NN_quak=True)
+
+# rule calculate_pearson:
+#     input:
+#     output:
+#     shell:
+
+# rule calculate_metric:
+#     input:
+#     output:
+#     shell:
+
+# rule plot_results:
+#     input:
+#     output:
+#     shell:
