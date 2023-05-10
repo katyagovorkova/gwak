@@ -1,10 +1,15 @@
 configfile: 'config.yaml'
 
-# rule create_output_folder:
-#     output:
-#         directory('output/')
-#     shell:
-#         'mkdir -p {output};'
+
+rule download_data:
+    input:
+    output:
+    shell:
+
+rule run_omicron:
+    input:
+    output:
+    shell:
 
 rule generate_background:
     input:
@@ -153,7 +158,7 @@ rule nn_quak_runthrough:
 
 rule data_runthrough:
     input:
-        script = 'anomaly/evaluation/runthrough.py'
+        script = 'scripts/full_data_runthrough.py'
         # runthrough_main(V['runthrough_path'], config['save_path'], 5, kde_models, NN_quak=True)
 
 # rule calculate_pearson:

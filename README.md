@@ -48,6 +48,11 @@ If you want to run a rule, but Snakemake tells you `Nothing to be done`, use `-f
 to force it. Use `-F` to also force all the upstream rules to be re-run.
 
 # Analysis Pipeline
+Each step of the analysis is represented as a corresponding rule in the `Snakefile`.
+There are several steps starting with downloading and generating data samples,
+pre-processing them and training the QUAK space using these samples.
+Followed by the Pearson correlation calculation and the evaluation step.
+The details of all the available rules are given below.
 
 ## Data Generation
 We use real data from the 03A run of LIGO.
