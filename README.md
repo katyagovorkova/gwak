@@ -66,9 +66,10 @@ Dataset: O3a_16KHZ_R1
 
 The following interval
 
+```
 GPS Time Interval: [1239134846, 1239140924]
-
 Detector: L1, H1
+```
 
 ## Data Generation
 To generate all the necessary samples for the analysis from downloaded data just run
