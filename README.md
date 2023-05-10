@@ -57,14 +57,17 @@ The details of all the available rules are given below.
 We use real data from the 03A run of LIGO.
 To get the initial data go to
 [O3a Data Release](https://gwosc.org/data/)
+and download from [the following dataset](https://gwosc.org/archive/O3a_16KHZ_R1/)
 
-And download from [the following dataset](https://gwosc.org/archive/O3a_16KHZ_R1/)
-
+```
 O3a Time Range: April 1, 2019 through October 1, 2019
-Dataset: `O3a_16KHZ_R1`
+Dataset: O3a_16KHZ_R1
+```
 
 The following interval
+
 GPS Time Interval: [1239134846, 1239140924]
+
 Detector: L1, H1
 
 ## Data Generation
