@@ -8,7 +8,7 @@ configfile: 'config.yaml'
 
 rule generate_background:
     input:
-        script = 'generate.py',
+        script = 'scripts/generate.py',
     params:
         stype = 'background'
     output:
@@ -18,7 +18,7 @@ rule generate_background:
 
 rule generate_glitch:
     input:
-        script = 'generate.py',
+        script = 'scripts/generate.py',
     params:
         stype = 'glitch'
     output:
@@ -28,7 +28,7 @@ rule generate_glitch:
 
 rule generate_bbh:
     input:
-        script = 'generate.py',
+        script = 'scripts/generate.py',
     params:
         stype = 'bbh'
     output:
@@ -38,7 +38,7 @@ rule generate_bbh:
 
 rule generate_sg:
     input:
-        script = 'generate.py',
+        script = 'scripts/generate.py',
     params:
         stype = 'sg'
     output:
@@ -55,7 +55,7 @@ rule generate_data:
 
 rule train_test_split:
     input:
-        script = 'train_test_split.py'
+        script = 'scripts/train_test_split.py'
     params:
         test_split = config['test_split'],
         data_path = config['data_path']
@@ -71,7 +71,7 @@ rule train_test_split:
 
 rule pre_processing_step:
     input:
-        script = 'pre_processing.py',
+        script = 'scripts/pre_processing.py',
         train_dir = rules.train_test_split.output.train_dir,
         test_dir = rules.train_test_split.output.test_dir
     params:
@@ -89,7 +89,7 @@ rule pre_processing_step:
 
 rule train_quak:
     input:
-        script = 'train_quak.py'
+        script = 'scripts/train_quak.py'
 
         # #load training data
         # datae = []
@@ -113,7 +113,7 @@ rule train_quak:
 
 rule data_prediction:
     input:
-        script = 'predict.py'
+        script = 'scripts/predict.py'
         # datae = []
         # #class_labels = []
         # for file in sorted(os.listdir(f"{config['save_path']}/DATA/TEST_PROCESS/")):
@@ -131,7 +131,7 @@ rule data_prediction:
 
 rule eval_plotting:
     input:
-        script = 'anomaly/evaluation/plotting_main.py'
+        script = 'scripts/plotting.py'
     output:
     shell:
         'python3 {script}'
@@ -141,31 +141,19 @@ rule eval_plotting:
         #               True,
         #               V['train_LS'])
 
-rule roc_plotting:
-    input:
-        script = 'anomaly/evaluation/kde_main.py'
-    output:
-    shell:
-        'python3 {script}'
-        # kde_main(f"{config['save_path']}/DATA_PREDICTION/TRAIN/",
-        #         f"{config['save_path']}/DATA_PREDICTION/TEST/",
-        #         f"{config['save_path']}/PLOTS/",
-        #         class_labels,
-        #         V['train_LS'])
-
 rule ae_prediction:
     input:
-        script = 'anomaly/evaluation/autoencoder_prediction_main.py'
+        script = 'scripts/autoencoder_prediction.py'
         # autoencoder_prediction_main(config['save_path'], V['train_LS'])
 
 rule nn_quak_runthrough:
     input:
-        script = 'anomaly/evaluation/nn_quak_runthrough_main.py'
+        script = 'scripts/nn_quak_runthrough.py'
         # nn_quak_runthrough_main(config['save_path'])
 
 rule data_runthrough:
     input:
-        script = 'anomaly/evaluation/runthrough_main.py'
+        script = 'anomaly/evaluation/runthrough.py'
         # runthrough_main(V['runthrough_path'], config['save_path'], 5, kde_models, NN_quak=True)
 
 # rule calculate_pearson:
