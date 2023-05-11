@@ -5,7 +5,6 @@ import argparse
 
 from typing import Callable
 from helper_functions import (
-<<<<<<< HEAD
     load_folder,
     whiten_bandpass_bkgs,
     olib_time_domain_sine_gaussian,
@@ -19,25 +18,12 @@ from constants import (
     SAMPLE_RATE,
     N_INJECTIONS
     )
-=======
-    olib_time_domain_sine_gaussian,
-    inject_hplus_hcross,
-)
 
-SAMPLE_RATE = 4096
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
 def bbh_polarization_generator(
     n_injections,
     segment_length=2):
 
-<<<<<<< HEAD
-=======
-def bbh_polarization_generator(
-    n_injections,
-    segment_length=2):
-
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
     bbh_waveform_args = dict(waveform_approximant='IMRPhenomPv2',
                              reference_frequency=50., minimum_frequency=20.)
     waveform = bilby.gw.source.lal_binary_black_hole
@@ -90,11 +76,7 @@ def sg_polarization_generator(
         time_domain_source_model=waveform,
         waveform_arguments=None
     )
-<<<<<<< HEAD
     prior_file = "SG.prior"
-=======
-    prior_file = "/home/ryan.raikman/s22/forks/gw-anomaly/libs/datagen/anomaly/datagen/SG_prior2.prior"
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
     priors = bilby.gw.prior.PriorDict(prior_file)
     injection_parameters = priors.sample(n_injections)
     injection_parameters = [
@@ -122,7 +104,6 @@ def sg_polarization_generator(
     plusses = np.vstack(plusses)
 
     return [crosses, plusses]
-<<<<<<< HEAD
 
 def wnb_polarization_generator(
     n_injections,
@@ -208,83 +189,6 @@ def generate_backgrounds(
         loaded_data, detector_data, n_backgrounds, segment_length)
     whitened_segs = whiten_bandpass_bkgs(bkg_segs, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
     return whitened_segs
-=======
-
-
-def inject_signal(
-        folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
-        # source of the polarization files to be injected into the data
-        data=None,
-        segment_length=4):  # length of background segment to fetch for each injection
-
-    loaded_data = load_folder(folder_path, IFOS)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
-
-    polarizations = []
-    crosses, plusses = data
-    for i in range(len(plusses)):
-        polarizations.append({'plus': plusses[i], 'cross': crosses[i]})
-    print('requested shape', len(polarizations) * 1)
-    bkg_segs = get_bkg_segs(loaded_data, detector_data, len(
-        polarizations) * 1, segment_length)
-    detector_psds = inject_hplus_hcross(bkg_segs[:, 0, :],
-                                        polarizations[0],
-                                        SAMPLE_RATE,
-                                        segment_length, return_loc=False, SNR=1, background=loaded_data, get_psds=True)
-    print('bkg segs shape', bkg_segs.shape)
-    final_data = []
-    for i, pols in enumerate(polarizations):
-        # didn't generate enough bkg samples, this is generally fine unless
-        # small overall samples
-        if i >= bkg_segs.shape[1]:
-            break
-        for j in range(1):
-            injected_waveform, _ = inject_hplus_hcross(bkg_segs[:, i, :],
-                                                       pols,
-                                                       SAMPLE_RATE,
-                                                       segment_length, return_loc=False, SNR=None, background=loaded_data, detector_psds=detector_psds)
-
-            bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data[
-                                                 'H1']['asd'], loaded_data['L1']['asd'])
-            final_data.append(bandpass_segs)
-
-    return np.hstack(final_data)
-
-
-def main_backgrounds(
-        n_backgrounds: int,
-        folder_path: str,
-        run_background: bool=True,
-        run_glitch: bool=False):
-
-    loaded_data = load_folder(folder_path, IFOS)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
-    returns = []
-    segment_length = 4
-    if run_background:
-        bkg_segs = get_bkg_segs(
-            loaded_data, detector_data, n_backgrounds, segment_length)
-        whitened_segs = whiten_bandpass_bkgs(bkg_segs, SAMPLE_RATE, loaded_data['H1'][
-                                             'asd'], loaded_data['L1']['asd'])
-
-        if save_dir is None:
-            returns.append(whitened_segs)
-        else:
-            np.save(f'{save_dir}/bkg_segs.npy', whitened_segs)
-
-    if run_glitch:
-        loud_times_H1 = get_loud_segments(loaded_data['H1'], N, segment_length)
-        loud_times_L1 = get_loud_segments(loaded_data['L1'], N, segment_length)
-        loud_times = np.union1d(loud_times_H1, loud_times_L1)
-
-        glitch_segs, _ = slice_bkg_segments(loaded_data['H1'], detector_data, loud_times,
-                                            segment_length)
-        whitened_segs = whiten_bandpass_bkgs(glitch_segs, SAMPLE_RATE, loaded_data['H1'][
-                                             'asd'], loaded_data['L1']['asd'])
-        returns.append(whitened_segs)
-
-    return returns
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
 
 def sampler(
@@ -321,7 +225,6 @@ def sampler(
 
 def sample_injections_main(
         source: str,  # directory containing the injection files
-<<<<<<< HEAD
         # list of classes on which you would like to perform preparation for
         # training
         target_class: str,
@@ -333,21 +236,6 @@ def sample_injections_main(
         'SG': [5, -200, 200, 5],
         'background': [5, None, None, 0],
         }
-=======
-        save_dir: str,  # directory to which save the training files
-        # list of classes on which you would like to perform preparation for
-        # training
-        target_class: str,
-        data=None):
-
-    sample_len = 100
-    sampler_args = {
-        'BBH': [5, -150, 30, 5],
-        'SG': [5, -200, 200, 5],
-        'BKG': [5, None, None, 0],
-        'GLITCH': [20, -100, 100, 5]
-    }
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
     data = data.swapaxes(0, 1)
     N_samples, bound_low, bound_high, amplitude_bar = sampler_args[
@@ -360,31 +248,20 @@ def sample_injections_main(
 
     training_data = sampler(
         data, N_samples, bound_low, bound_high, amplitude_bar)
-<<<<<<< HEAD
 
     return training_data
-=======
-    np.save(f'{save_dir}/{target_class}.npy', training_data)
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
 
 def main(args):
 
-<<<<<<< HEAD
     if args.stype == 'bbh':
         # 1: generate the polarization files for the signal classes of interest
         BBH_cross, BBH_plus = bbh_polarization_generator(N_INJECTIONS)
-=======
-    if args.stype == 'BBH':
-        # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(args.n_injections)
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
         # 2: create the injections with those signal classes
         BBH_injections = inject_signal(folder_path=args.folder_path,
                                       data=[BBH_cross, BBH_plus])
         # 3: Turn the injections into segments, ready for training
-<<<<<<< HEAD
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,
                                data=BBH_injections)
@@ -392,21 +269,11 @@ def main(args):
     elif args.stype == 'sg':
         # 1: generate the polarization files for the signal classes of interest
         SG_cross, SG_plus = sg_polarization_generator(N_INJECTIONS)
-=======
-        sample_injections_main(source=None, save_dir=args.save_dir,
-                               target_classes='BBH',
-                               data=BBH_injections)
-
-    elif args.stype == 'SG':
-        # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(args.n_injections)
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
         # 2: create the injections with those signal classes
         SG_injections = inject_signal(folder_path=args.folder_path,
                                      data=[SG_cross, SG_plus])
         # 3: Turn the injections into segments, ready for training
-<<<<<<< HEAD
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,
                                data=SG_injections)
@@ -436,29 +303,6 @@ def main(args):
             '/home/ryan.raikman/s22/training_files/3_26_train/GLITCH.npy')
 
     np.save(args.save_file, training_data)
-=======
-        sample_injections_main(source=None, save_dir=args.save_dir,
-                               target_classes='SG',
-                               data=SG_injections)
-
-    elif args.stype == 'background':
-
-        # 2.5: generate/fetch the background classes
-        backgrounds = main_backgrounds(save_dir=None, folder_path=args.folder_path,
-                                       n_backgrounds=args.n_injections,
-                                       run_background=True, run_glitch=False)[0]
-        # 3: Turn the injections into segments, ready for training
-        sample_injections_main(source=None, save_dir=args.save_dir,
-                               target_classes='BKG',
-                               direct_data=backgrounds)
-
-    elif args.stype == 'glitch':
-        # 3.5: additionally, save the previously generated glitches to that same
-        # destination
-        GLITCHES = np.load(
-            '/home/ryan.raikman/s22/training_files/3_26_train/GLITCH.npy')
-        np.save(f'{save_dir}/GLITCHES.npy', GLITCHES)
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
 
 
 if __name__ == '__main__':
@@ -466,7 +310,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Required arguments
-<<<<<<< HEAD
     parser.add_argument('folder_path', help='Path to the Omicron output',
                         type=str)
     parser.add_argument('save_file', help='Where to save the file with injections',
@@ -475,19 +318,4 @@ if __name__ == '__main__':
     parser.add_argument('--stype', help='Which type of the injection to generate',
                         type=str, choices=['bbh', 'sg', 'background', 'glitch', 'wnb', 'ccsn'])
     args = parser.parse_args()
-=======
-    parser.add_argument('folder_path', help='-',
-                        type=str)
-    parser.add_argument('save_dir', help='Where to save injections',
-                        type=str)
-    parser.add_argument('stype', help='Which type of the injection to generate',
-                        type=str, choices=['bbh', 'sg', 'background', 'glitch', 'wnb', 'ccsn'])
-
-    # Additional arguments
-    parser.add_argument('--n-injections', help='How many injections to generate',
-                        type=int, default=500)
-    # parser.add_argument('--data-path', help='Where is the data to do train/test split on',
-    #     type=str)
-    # args = parser.parse_args()
->>>>>>> de51ac6ce5815e66547b5478cf90dae4b89f19cc
     main(args)
