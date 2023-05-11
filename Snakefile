@@ -1,78 +1,26 @@
 configfile: 'config.yaml'
 
 
-rule download_data:
-    input:
-    output:
-    shell:
-
 rule run_omicron:
     input:
+        script = 'scripts/omicron.py'
     output:
+        folder_path = directory('output/omicron/')
     shell:
 
-rule generate_background:
+rule generate_dataset:
     input:
         script = 'scripts/generate.py',
-    params:
-        stype = 'background',
-        fs = config['fs'],
-        segment_length = config['segment_length']
+        omicron_output = rules.run_omicron.output.folder_path
     output:
-        file = 'output/background_segs.npy'
+        file = 'output/{dataset}_segs.npy',
     shell:
-        'python {input.script} {output.file} {params.stype} \
-            --fs {params.fs} \
-            --segment-length {params.segment_length}'
+        'python3 {input.script} {input.omicron_output} {output.file} \
+            --stype {wildcards.dataset}'
 
-rule generate_glitch:
+rule generate_all_data:
     input:
-        script = 'scripts/generate.py',
-    params:
-        stype = 'glitch',
-        fs = config['fs'],
-        segment_length = config['segment_length']
-    output:
-        file = 'output/glitch_segs.npy'
-    shell:
-        'python {input.script} {output.file} {params.stype} \
-            --fs {params.fs} \
-            --segment-length {params.segment_length}'
-
-rule generate_bbh:
-    input:
-        script = 'scripts/generate.py',
-    params:
-        stype = 'bbh',
-        fs = config['fs'],
-        segment_length = config['segment_length']
-    output:
-        file = 'output/bbh_segs.npy'
-    shell:
-        'python {input.script} {output.file} {params.stype} \
-            --fs {params.fs} \
-            --segment-length {params.segment_length}'
-
-rule generate_sg:
-    input:
-        script = 'scripts/generate.py',
-    params:
-        stype = 'sg',
-        fs = config['fs'],
-        segment_length = config['segment_length']
-    output:
-        file = 'output/sg_segs.npy'
-    shell:
-        'python {input.script} {output.file} {params.stype} \
-            --fs {params.fs} \
-            --segment-length {params.segment_length}'
-
-rule generate_data:
-    output:
-        rules.generate_background.output,
-        rules.generate_bbh.output,
-        rules.generate_sg.output,
-        rules.generate_glitch.output
+        expand(rules.generate_dataset.output.file, dataset=['bbh', 'sg', 'background', 'glitch'])
 
 rule train_test_split:
     input:

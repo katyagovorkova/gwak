@@ -10,6 +10,10 @@ Once conda is there, setup a virtual environment using the file from the repo
 conda env create --file environment.yaml
 conda activate anomaly-base
 ```
+We need to install a package to do the signal generation
+```
+conda install -c conda-forge lalinference
+```
 
 Finally, install additional package inside the create virtual environment
 ```

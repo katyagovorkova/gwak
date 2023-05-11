@@ -1,20 +1,17 @@
-fs: 4096
-segment_length: 5 #seconds
-
-data_preprocessing_method: "full"
+data_preprocessing_method: 'full'
 test_split: 0.9
 
 batch_size: 50
 epochs: 5
-network_type: "dense"
+network_type: 'dense'
 bottleneck: 5
 
-train_path: "output/TRAIN/"
-test_path: "output/TEST/"
-train_process_path: "output/TRAIN_PROCESS/"
-test_process_path: "output/TEST_PROCESS/"
-data_path: "data/"
+train_path: 'output/TRAIN/'
+test_path: 'output/TEST/'
+train_process_path: 'output/TRAIN_PROCESS/'
+test_process_path: 'output/TEST_PROCESS/'
+data_path: 'data/'
 
 # inside the source_folder_path are several folders named with beginning and end GPS times of the data
-source_folder_path: "/home/ryan.raikman/s22/anomaly/data2/glitches/"
-already_finished_path: "/home/ryan.raikman/s22/anomaly/generated_timeslides/"
+source_folder_path: '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+already_finished_path: '/home/ryan.raikman/s22/anomaly/generated_timeslides/'
