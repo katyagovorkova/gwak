@@ -1,262 +1,83 @@
 import os
 import argparse
 import numpy as np
+from matplotlib import pyplot as plt
 
 import tensorflow as tf
 from tensorflow import keras
-from keras import losses, callbacks
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from keras import losses, callbacks, regularizers
 from keras.optimizers import Adam
-
-from scripts.plotting import main as plotting
-
-
-def perf_plot(history, savedir):
-    loss = history['loss']
-    val_loss = history['val_loss']
-    N_epochs = len(loss)
-    assert len(val_loss) == N_epochs
-
-    plt.figure(figsize=(15, 10))
-    plt.plot(loss, label = "loss")
-    plt.plot(val_loss, label = "val loss")
-    plt.legend()
-    plt.xlabel("number of epochs", fontsize=17)
-    plt.ylabel("loss", fontsize=17)
-    plt.title("Loss curve for training network", fontsize=17)
-    #plt.yscale("log")
-    plt.savefig(f"{savedir}/loss.png", dpi=300)
-    plt.show()
-
-def split_data(data, frac = 0.9):
-    split = int(len(data)*frac)
-
-    train_data = data[:split]
-    test_data = data[split:]
-
-    return train_data, test_data
-
-def train_model_main(
-    models: tuple,
-    data: np.ndarray,
-    savedir: str,
-    batch_size:int,
-    epochs:int,
-    valid_data_2:str=None,
-    temp_direc:str=None,
-    alpha:float=0):
-    '''
-    Function to train autoencoder based on some input data,
-    save the models to some path
-    '''
-    assert alpha <= 0
-    #global val2_datasets, class_labels
-    if temp_direc is not None:
-        val2_datasets = []
-        if valid_data_2 is not None:
-            #load the data
-            class_labels = []
-            for CL in os.listdir(valid_data_2):
-                val2_datasets.append(np.load(f"{valid_data_2}/{CL}"))
-                class_labels.append(CL[:-4]) #cut off .npy
-    try: #note makedirs is recursive version or mkdir
-        # should incorporate this elsewhere in the codebase
-        os.makedirs(savedir + "/BY_EPOCH/")
-    except FileExistsError:
-        None
-
-    if temp_direc is not None:
-        try:
-            os.makedirs(f"{temp_direc}/TEMP_PLOTS/")
-
-            for CL in class_labels:
-                os.makedirs(f"{temp_direc}/TEMP/{CL}/")
-
-        except FileExistsError:
-            None
-
-        np.save(f"{temp_direc}/TEMP_PLOTS/n_epochs.npy", np.array([0]))
-
-    #pull apart models
-    AE, EN, DE = models
-
-    #split data
-    train_data, test_data = split_data(data)
-
-    #hyperparameters
-    optimizer = "adam"
-    #optimizer = Adam(learning_rate=1e-2)
-    #optimizer = None
-    loss = losses.mean_absolute_error
-    def weird_loss_fn(y_true, y_pred):
-        return tf.math.reduce_mean( (tf.math.abs(y_true - y_pred) + tf.math.scalar_mul(alpha, tf.math.abs(y_pred) )) )
-    loss = weird_loss_fn
-    loss = losses.mean_absolute_error
-    #train
-    if optimizer is not None:
-        AE.compile(optimizer = optimizer,
-                    loss=loss)
-    else:
-        AE.compile(loss=loss)
-
-    class CustomCallback(callbacks.Callback):
-        def on_epoch_end(self, batch, logs=None):
-            #save the model at each epoch
-            num = len(os.listdir(f"{savedir}/BY_EPOCH/"))
-            AE.save(f"{savedir}/BY_EPOCH/AE_{num}.h5")
-
-            if temp_direc is None: return None
-            make_procedural_plots = 1
-            N_epochs = np.load(f"{temp_direc}/TEMP_PLOTS/n_epochs.npy")[0]
-            if N_epochs % 20 == 0:
-                if temp_direc is not None and make_procedural_plots:
-
-                    for i, X in enumerate(val2_datasets):
-                        np.save(f"{temp_direc}/TEMP/{class_labels[i]}/LS_evals.npy",EN.predict(X))
-                    #num = len(os.listdir(f"{temp_direc}/TEMP_PLOTS/"))
-                    num = N_epochs
-                    plotting(f"{temp_direc}/TEMP/",
-                             f"{temp_direc}/TEMP_PLOTS/{num}/",
-                             class_labels,
-                             make_QUAK=False,
-                             do_LS=True)
-
-            np.save(f"{temp_direc}/TEMP_PLOTS/n_epochs.npy", np.array([N_epochs+1]))
+from keras.models import load_model, Model
+from keras.layers import Input, Dense, LSTM, TimeDistributed, RepeatVector
 
 
-    history = AE.fit(train_data, train_data,
-                    batch_size = batch_size,
-                    epochs=epochs,
-                    validation_data=(test_data, test_data),#),
-                    callbacks = [CustomCallback()])
+def main(args):
+    # read the input data
+    data = np.load(args.data)
+    input_shape = data.shape[1:]
+    print('Loading new model')
+    inputs = Input(shape=(input_shape[0], input_shape[1]))
+    L1 = LSTM(64*args.factor, activation='tanh', return_sequences=True,
+              kernel_regularizer=regularizers.l2(0.00))(inputs)
+    L2 = LSTM(args.bottleneck*args.factor, activation='tanh', return_sequences=False)(L1)
+    L3 = RepeatVector(input_shape[0])(L2)
+    L4 = LSTM(args.bottleneck*args.factor, activation='tanh', return_sequences=True)(L3)
+    L5 = LSTM(64*args.factor, activation='tanh', return_sequences=True)(L4)
+    output = TimeDistributed(Dense(input_shape[1]))(L5)
+    AE = Model(inputs=inputs, outputs=output)
+    AE.compile(optimizer=args.optimizer, loss=args.loss)
 
-    try: #note makedirs is recursive version or mkdir
-        # should incorporate this elsewhere in the codebase
-        os.makedirs(savedir)
-    except FileExistsError:
-        None
+    # define callbacks
+    callbacks=[]
+        # EarlyStopping(monitor='val_loss', patience=10, verbose=1),
+        # ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1)
+        # ]
 
-    perf_plot(history.history, savedir)
-
-    #outdir for saving the models and training history should be a folder
-    AE.save(f"{savedir}/AE.h5",include_optimizer=False)
+    history = AE.fit(data, data,
+                    batch_size=args.batch_size,
+                    epochs=args.epochs,
+                    validation_split=0.15,
+                    callbacks=callbacks)
+    AE.save(f'{args.savedir}/AE.h5', include_optimizer=False)
 
     loss_hist = history.history['loss']
     val_loss_hist = history.history['val_loss']
-    np.save(f"{savedir}/loss_hist.npy", loss_hist)
-    np.save(f"{savedir}/val_loss_hist.npy", val_loss_hist)
+    np.save(f'{args.savedir}/loss_hist.npy', loss_hist)
+    np.save(f'{args.savedir}/val_loss_hist.npy', val_loss_hist)
 
-    if EN is not None:
-        EN.save(f"{savedir}/EN.h5",include_optimizer=False)
-    if DE is not None:
-        DE.save(f"{savedir}/DE.h5",include_optimizer=False)
-    #np.save(f"{savedir}/history.npy", history)
+    plt.figure(figsize=(15, 10))
+    plt.plot(loss_hist, label='loss')
+    plt.plot(val_loss_hist, label='val loss')
+    plt.legend()
+    plt.xlabel('Number of epochs', fontsize=17)
+    plt.ylabel('Loss', fontsize=17)
+    plt.title('Loss curve for training network', fontsize=17)
+    plt.savefig(f'{args.savedir}/loss.pdf', dpi=300)
 
-import os
-import numpy as np
-from anomaly.training.train_model import main as train_model_main
-from anomaly.autoencoder_models import main as make_AE_model
-from keras.models import load_model
-
-def main(args):
-    # data:list[np.ndarray],
-    # model_choice:str,
-    # savedir:str,
-    # batch_size:int,
-    # epochs:int,
-    # bottleneck:int,
-    # class_labels:list[str]):
-
-    #print("ALL CLASS LABELS HERE HEREH HERERHERERE", class_labels)
-
-    input_shape = data[0].shape[1:]
-
-    #train the QUAK networks on each class
-    N_classes = len(data)
-    for i, oneclass_data in enumerate(data):
-        
-        #Go through each class and train the QUAK networks
-        oneclass_savedir = f"{savedir}/{class_labels[i]}/"
-        try:
-            os.makedirs(oneclass_savedir)
-        except FileExistsError:
-            None
-
-        continue_where_left_off=True
-        load_new_model = True
-        num_epochs_trained = 0
-        if continue_where_left_off:
-            #check if models exist in the savedir
-            try:
-                os.listdir(f"{savedir}/{class_labels[i]}/BY_EPOCH/")
-            except:
-                load_new_model = True
-            if not load_new_model:
-                num_epochs_trained = len(os.listdir(f"{savedir}/{class_labels[i]}/BY_EPOCH/"))
-                AE = load_model(f"{savedir}/{class_labels[i]}/BY_EPOCH/AE_{num_epochs_trained-1}.h5")
-                print('original number of epochs:', epochs)
-                print(f"loaded most recent model, {epochs - num_epochs_trained}")
-                print(f"{epochs - num_epochs_trained} more epochs to train")
-                load_new_model=False
-        
-        if load_new_model:
-            print("loading new model")
-            #don't care about latent space
-            AE, _, __ = make_AE_model(model_choice, 
-                            input_shape, bottleneck)
-        print(f"training QUAK network,  {class_labels[i]}   ")
-
-        #if class_labels[i] != "SG":
-         #   print("skipping this one", class_labels[i])
-         #   continue
-        
-        print("ive continued with the class", class_labels[i])
-        
-        if class_labels[i] == "BKG" or class_labels[i] == "bkg": #just a particular thing
-            print("got to alternate argument")
-            train_model_main(
-            (AE, None, None),
-            oneclass_data,
-            oneclass_savedir,
-            batch_size,
-            epochs=epochs - num_epochs_trained, #usually setting this to 5
-            alpha=0
-            )
-        '''
-        if class_labels[i] == "BBH": #special case, already done
-            print("already finished bbh, continuing (one time thing)")
-            continue
-        elif class_labels[i] == "BKG": #special case, already done
-            print("already finished bkg, continuing (one time thing)")
-            continue
-        elif class_labels[i] == "GLITCH": #special case, already done
-            print("already finished glitch, continuing (one time thing)")
-            continue
-        '''
-        if class_labels[i] != "BKG":
-            print('training model with', epochs-num_epochs_trained, "epochs")
-            train_model_main(
-                (AE, None, None),
-                oneclass_data,
-                oneclass_savedir,
-                batch_size,
-                epochs - num_epochs_trained,
-                alpha=-0.2
-            )
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
     # Required arguments
-    parser.add_argument('train_dir', help='Required output directory for train dataset',
+    parser.add_argument('data', help='Input dataset',
         type=str)
-    parser.add_argument('test_dir', help='Required output directory for test dataset',
+    parser.add_argument('savedir', help='Where to save the plots and the trained model',
         type=str)
 
     # Additional arguments
-    parser.add_argument('--test-split', help='Part of the dataset that is going to be used for training',
-        type=float, default=0.9)
-    parser.add_argument('--data-path', help='Where is the data to do train/test split on',
-        type=str)
+    parser.add_argument('--optimizer', help='Which optimizer to use',
+        type=str, default='adam')
+    parser.add_argument('--loss', help='Which loss function to use',
+        type=str, default='MAE')
+    parser.add_argument('--batch-size', help='What batch size to use',
+        type=int, default=100)
+    parser.add_argument('--epochs', help='For how many epochs to train?',
+        type=int, default=100)
+    parser.add_argument('--factor', help='Factor in LSTM architecture',
+        type=int, default=2)
+    parser.add_argument('--bottleneck', help='Size of the bottleneck of the autoencoder',
+        type=int, default=2)
     args = parser.parse_args()
     main(args)

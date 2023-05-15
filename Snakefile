@@ -6,7 +6,7 @@ rule run_omicron:
         script = 'scripts/omicron.py'
     output:
         folder_path = directory('output/omicron/')
-    shell:
+    # shell:
 
 rule generate_dataset:
     input:
@@ -44,7 +44,7 @@ rule pre_processing_step:
         train_dir = rules.train_test_split.output.train_dir,
         test_dir = rules.train_test_split.output.test_dir
     params:
-        method = {config["data_preprocessing_method"]}
+        method = config['data_preprocessing_method']
     output:
         train_dir_process = directory(config['train_process_path']),
         test_dir_process = directory(config['test_process_path'])
@@ -58,27 +58,18 @@ rule pre_processing_step:
 
 rule train_quak:
     input:
-        script = 'scripts/train_quak.py'
-
-        # #load training data
-        # datae = []
-
-        # for file in sorted(os.listdir(f"{config['save_path']}/DATA/TRAIN_PROCESS/")):
-        #     data = np.load(f"{config['save_path']}/DATA/TRAIN_PROCESS/" + file)
-        #     print(f"loaded data from file: {file}, shape is: {data.shape}")
-        #     datae.append(data)
-        #     print("after process, indiv shape", data.shape)
-        # trained_model_path = f"{config['save_path']}/TRAINED_MODELS/"
+        script = 'scripts/train_quak.py',
+    params:
+        data = lambda wildcards: f'data/TRAIN_PROCESS/{wildcards.dataclass}.npy'
     output:
+        savedir = directory('output/{dataclass}')
     shell:
-        'python3 {script}'
-            # train_QUAK_main(datae,
-            #             V['network_type'],
-            #             f"{trained_model_path}/QUAK/",
-            #             V['batch_size'],
-            #             V['epochs'],
-            #             V['bottleneck'],
-            #             class_labels)
+        'mkdir -p {output.savedir}; '
+        'python3 {input.script} {params.data} {output.savedir}'
+
+rule train_all_quak:
+    input:
+        expand(rules.train_quak.output.savedir, dataclass=['BBH', 'SG', 'BKG', 'GLITCH'])
 
 rule data_prediction:
     input:
@@ -91,7 +82,7 @@ rule data_prediction:
 
     output:
     shell:
-        'python3 {script}'
+        'python3 {input.script}'
         # predict_main(datae,
         #             f"{config['save_path']}/TRAINED_MODELS/",
         #             f"{config['save_path']}/DATA_PREDICTION/TEST/",
@@ -103,7 +94,7 @@ rule eval_plotting:
         script = 'scripts/plotting.py'
     output:
     shell:
-        'python3 {script}'
+        'python3 {input.script}'
         # plotting_main(f"{config['save_path']}/DATA_PREDICTION/TEST/",
         #               f"{config['save_path']}/PLOTS/",
         #               class_labels,
