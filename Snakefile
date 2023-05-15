@@ -26,7 +26,6 @@ rule train_test_split:
     input:
         script = 'scripts/train_test_split.py'
     params:
-        test_split = config['test_split'],
         data_path = config['data_path']
     output:
         train_dir = directory(config['train_path']),
@@ -35,7 +34,6 @@ rule train_test_split:
         'mkdir -p {output.train_dir};'
         'mkdir -p {output.test_dir};'
         'python3 {input.script} {output.train_dir} {output.test_dir} \
-            --test-split {params.test_split} \
             --data-path {params.data_path} '
 
 rule pre_processing_step:
@@ -62,7 +60,7 @@ rule train_quak:
     params:
         data = lambda wildcards: f'data/TRAIN_PROCESS/{wildcards.dataclass}.npy'
     output:
-        savedir = directory('output/{dataclass}')
+        savedir = directory('output/trained/{dataclass}')
     shell:
         'mkdir -p {output.savedir}; '
         'python3 {input.script} {params.data} {output.savedir}'

@@ -1,15 +1,7 @@
-data_preprocessing_method: 'full'
-test_split: 0.9
-
-batch_size: 50
-epochs: 5
-network_type: 'dense'
-bottleneck: 5
-
-train_path: 'output/train/'
-test_path: 'output/test/'
-train_process_path: 'output/train_processed/'
-test_process_path: 'output/test_pocessed/'
+train_path: 'output/train_data/'
+test_path: 'output/test_data/'
+train_process_path: 'output/train_data_processed/'
+test_process_path: 'output/test_data_pocessed/'
 data_path: 'data/'
 
 # inside the source_folder_path are several folders named with beginning and end GPS times of the data
