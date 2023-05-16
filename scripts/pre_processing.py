@@ -1,9 +1,11 @@
 import os
 import numpy as np
 
+from constants import TEST_SPLIT
+
 
 def process(data):
-    print("DATA SHAPE", data.shape)
+    print('Data shape', data.shape)
     # individually normalize each segment
     # find the bigger axis to average over
     time_axis = 2
@@ -11,45 +13,37 @@ def process(data):
     if data.shape[1] > data.shape[2]:
         time_axis = 1
         feature_axis = 2
-    print("time axis, feature axis:", time_axis, feature_axis)
+    print('time axis, feature axis:', time_axis, feature_axis)
 
     std_vals = np.std(data, axis=time_axis)
-    print("std vals shape", std_vals.shape)
+    print('std vals shape', std_vals.shape)
     if time_axis == 2:
         data /= std_vals[:,:, np.newaxis]
     else:
         assert time_axis == 1
         data /= std_vals[:,np.newaxis, :]
 
-    print("now data shape:", data.shape)
+    print('now data shape:', data.shape)
 
-    #return (data, std_vals)
-    #return (data[:, :, np.newaxis], std_vals) #for the LSTM stuff, the extra axis is needed
-    return (data, std_vals) # unless using 2 detector streams!
+    return data # unless using 2 detector streams!
 
 
 def main(args):
 
-    # extract all of the classes from the folder
-    file_paths = []
-    filenames = []
-    print(os.getcwd())
-    for filename in os.listdir(folder_path):
-        file_paths.append(f"{folder_path}/{filename}")
-        filenames.append(filename)
+    data = np.load(input_file)
+    p = np.random.permutation(len(data))
+    data = data[p]
 
-    data_paths, names = file_paths, filenames
+    print('before pre-processing', data.shape)
+    split_index = int(TEST_SPLIT * len(data))
+    train_data = data[:split_index]
+    test_data = data[split_index:]
 
-    loaded_data = []
-    for path in data_paths:
-        loaded_data.append(np.load(path))
+    train_pdata = process(train_data)
+    test_pdata = process(test_data)
 
-    # pre-process the data
-    for i, data in enumerate(loaded_data):
-        pdata, stds = process(data)
-        indiv_name = names[i][:-4] # cut off .npy
-        print('before save', pdata.shape)
-        np.save(f'{savedir}/{indiv_name}.npy', pdata)
+    np.save(args.train_file, train_pdata)
+    np.save(args.test_file, test_pdata)
 
 
 if __name__ == '__main__':
@@ -57,15 +51,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Required arguments
-    parser.add_argument('train_dir', help='Required output directory for train dataset',
+    parser.add_argument('input_file', help='Required input data file location',
         type=str)
-    parser.add_argument('test_dir', help='Required output directory for test dataset',
+    parser.add_argument('train_file', help='Required output file for training dataset',
         type=str)
-
-    # Additional arguments
-    parser.add_argument('--test-split', help='Part of the dataset that is going to be used for training',
-        type=float, default=0.9)
-    parser.add_argument('--data-path', help='Where is the data to do train/test split on',
+    parser.add_argument('test_file', help='Required output file for testing dataset',
         type=str)
     args = parser.parse_args()
     main(args)

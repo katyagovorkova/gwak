@@ -299,8 +299,8 @@ def main(args):
 
     elif args.stype == 'glitch':
         # 3.5: additionally, save the previously generated glitches to that same destination
-        training_data = np.load(
-            '/home/ryan.raikman/s22/training_files/3_26_train/GLITCH.npy')
+        print('The glitch generation can only be run with LIGO credentials, therefore we provide a prepared glitch dataset')
+        training_data = np.load('data/glitch.npy')
 
     np.save(args.save_file, training_data)
 

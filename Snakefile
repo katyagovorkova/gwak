@@ -1,54 +1,30 @@
-configfile: 'config.yaml'
-
-
 rule run_omicron:
     input:
-        script = 'scripts/omicron.py'
+        script = 'scripts/run_omicron.py'
     output:
         folder_path = directory('output/omicron/')
-    # shell:
+    shell:
+        'python3 {input.script} {output.folder_path}'
 
 rule generate_dataset:
     input:
         script = 'scripts/generate.py',
-        omicron_output = rules.run_omicron.output.folder_path
+        omicron = rules.run_omicron.output.folder_path
     output:
-        file = 'output/{dataset}_segs.npy',
+        file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 {input.script} {input.omicron_output} {output.file} \
-            --stype {wildcards.dataset}'
-
-rule generate_all_data:
-    input:
-        expand(rules.generate_dataset.output.file, dataset=['bbh', 'sg', 'background', 'glitch'])
-
-rule train_test_split:
-    input:
-        script = 'scripts/train_test_split.py'
-    params:
-        data_path = config['data_path']
-    output:
-        train_dir = directory(config['train_path']),
-        test_dir = directory(config['test_path'])
-    shell:
-        'mkdir -p {output.train_dir};'
-        'mkdir -p {output.test_dir};'
-        'python3 {input.script} {output.train_dir} {output.test_dir} \
-            --data-path {params.data_path} '
+        'python3 {input.script} {output.file} {input.omicron}\
+            --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
     input:
         script = 'scripts/pre_processing.py',
-        train_dir = rules.train_test_split.output.train_dir,
-        test_dir = rules.train_test_split.output.test_dir
+        file = lambda wildcards: expand(rules.generate_dataset.output.file, dataclass={wildcards.dataclass})
     output:
-        train_dir_process = directory(config['train_process_path']),
-        test_dir_process = directory(config['test_process_path'])
+        train_file = 'output/data/train/{dataclass}.npy',
+        test_file = 'output/data/test/{dataclass}.npy'
     shell:
-        'python3 {input.script} {input.train_dir} \
-                          {output.train_dir_process}; '
-        'python3 {input.script} {input.test_dir} \
-                          {output.test_dir_process}; '
+        'python3 {input.script} {input.file} {output.train_file} {output.test_file}'
 
 rule train_quak:
     input:
@@ -63,7 +39,7 @@ rule train_quak:
 
 rule train_all_quak:
     input:
-        expand(rules.train_quak.output.savedir, dataclass=['BBH', 'SG', 'BKG', 'GLITCH'])
+        expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'bkg', 'glitch'])
 
 rule data_prediction:
     input:
@@ -83,7 +59,7 @@ rule data_prediction:
         #             class_labels,
         #         V['train_LS'])
 
-rule eval_plotting:
+rule plotting:
     input:
         script = 'scripts/plotting.py'
     output:

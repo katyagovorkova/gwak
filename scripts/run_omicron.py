@@ -2,7 +2,7 @@
 Script that generates a dataset of glitches from omicron triggers.
 Taken from https://github.com/ML4GW/BBHNet/blob/main/projects/sandbox/datagen/datagen/scripts/glitches.py
 """
-
+import argparse
 import configparser
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,10 +12,25 @@ from typing import Iterable, List
 import h5py
 import numpy as np
 from omicron.cli.process import main as omicron_main
-from typeo import scriptify
 
-from bbhnet.logging import configure_logging
-
+from constants import (
+    SNR_THRESH,
+    START,
+    STOP,
+    Q_MIN,
+    Q_MAX,
+    F_MIN,
+    CLUSTER_DT,
+    CHUNK_DURATION,
+    SEGMENT_DURATION,
+    OVERLAP,
+    MISTMATCH_MAX,
+    WINDOW,
+    CHANNEL,
+    FRAME_TYPE,
+    GLITCH_SAMPLE_RATE,
+    STATE_FLAG,
+    IFOS)
 
 def generate_glitch_dataset(
     snr_thresh: float,
@@ -191,7 +206,6 @@ def omicron_main_wrapper(
     return ifo
 
 
-@scriptify
 def main(
     snr_thresh: float,
     start: int,
@@ -250,13 +264,8 @@ def main(
         ifos: which ifos to generate glitches for
     """
 
-    logdir.mkdir(exist_ok=True, parents=True)
+    datadir = Path(datadir)
     datadir.mkdir(exist_ok=True, parents=True)
-
-    log_file = logdir / "glitches.log"
-    configure_logging(log_file, verbose)
-
-    # output file
     glitch_file = datadir / "glitches.h5"
 
     if glitch_file.exists() and not force_generation:
@@ -348,4 +357,30 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser()
+
+    # Required arguments
+    parser.add_argument('outdir', help='Path to the Omicron output',
+                        type=str)
+    args = parser.parse_args()
+    main(SNR_THRESH,
+        START,
+        STOP,
+        None, # test_stop
+        Q_MIN,
+        Q_MAX,
+        F_MIN,
+        CLUSTER_DT,
+        CHUNK_DURATION,
+        SEGMENT_DURATION,
+        OVERLAP,
+        MISTMATCH_MAX,
+        WINDOW,
+        args.outdir,
+        None, # logdir
+        CHANNEL,
+        FRAME_TYPE,
+        GLITCH_SAMPLE_RATE,
+        STATE_FLAG,
+        IFOS)

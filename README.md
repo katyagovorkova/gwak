@@ -8,13 +8,8 @@ To start, install [`Miniconda`](https://docs.conda.io/en/latest/miniconda.html)
 Once conda is there, setup a virtual environment using the file from the repo
 ```
 conda env create --file environment.yaml
-conda activate anomaly-base
+conda activate quak
 ```
-We need to install a package to do the signal generation
-```
-conda install -c conda-forge lalinference
-```
-
 Finally, install additional package inside the create virtual environment
 ```
 pip install snakemake
