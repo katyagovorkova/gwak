@@ -41,17 +41,13 @@ rule pre_processing_step:
         script = 'scripts/pre_processing.py',
         train_dir = rules.train_test_split.output.train_dir,
         test_dir = rules.train_test_split.output.test_dir
-    params:
-        method = config['data_preprocessing_method']
     output:
         train_dir_process = directory(config['train_process_path']),
         test_dir_process = directory(config['test_process_path'])
     shell:
         'python3 {input.script} {input.train_dir} \
-                          {params.method} \
                           {output.train_dir_process}; '
         'python3 {input.script} {input.test_dir} \
-                          {params.method} \
                           {output.test_dir_process}; '
 
 rule train_quak:
