@@ -1,3 +1,4 @@
 .snakemake/
 *.pyc
 data/*.hdf5
+output/
