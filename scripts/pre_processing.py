@@ -2,7 +2,11 @@ import os
 import numpy as np
 import argparse
 
-from constants import TEST_SPLIT
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+from config import TEST_SPLIT
 
 
 def process(data):

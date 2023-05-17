@@ -13,7 +13,7 @@ import h5py
 import numpy as np
 from omicron.cli.process import main as omicron_main
 
-from constants import (
+from ..config import (
     SNR_THRESH,
     GLITCH_START,
     GLITCH_STOP,

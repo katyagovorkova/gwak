@@ -8,7 +8,11 @@ from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
 from lalinference import BurstSineGaussian, BurstSineGaussianF
 
-from constants import (
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+from config import (
     IFOS,
     SAMPLE_RATE,
     GLITCH_SNR_BAR,

@@ -21,7 +21,11 @@ from keras.layers import (
     TimeDistributed,
     RepeatVector)
 
-from constants import (
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+from config import (
     BOTTLENECK,
     FACTOR,
     EPOCHS,
@@ -58,7 +62,7 @@ def main(args):
                     epochs=EPOCHS,
                     validation_split=VALIDATION_SPLIT,
                     callbacks=callbacks)
-    AE.save(f'{args.savedir}/AE.h5', include_optimizer=False)
+    AE.save(f'{args.savedir}/ae.h5', include_optimizer=False)
 
     loss_hist = history.history['loss']
     val_loss_hist = history.history['val_loss']
