@@ -6,6 +6,22 @@ rule run_omicron:
     shell:
         'python3 {input.script} {output.folder_path}'
 
+rule fetch_site_data:
+    input:
+        script = 'scripts/fetch_data.py'
+    params:
+        lambda wildcards: directory(f'output/omicron/{wildcards.site}/data/')
+    output:
+        temp('tmp/dummy_{site}.txt')
+    shell:
+        'touch {output}; '
+        'mkdir -p {params}; '
+        'python3 {input.script} {params} {wildcards.site}'
+
+rule fetch_data:
+    input:
+        expand(rules.fetch_site_data.output, site=['L1', 'H1'])
+
 rule generate_dataset:
     input:
         script = 'scripts/generate.py',

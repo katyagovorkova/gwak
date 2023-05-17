@@ -76,7 +76,7 @@ def sg_polarization_generator(
         time_domain_source_model=waveform,
         waveform_arguments=None
     )
-    prior_file = "SG.prior"
+    prior_file = "data/SG.prior"
     priors = bilby.gw.prior.PriorDict(prior_file)
     injection_parameters = priors.sample(n_injections)
     injection_parameters = [
