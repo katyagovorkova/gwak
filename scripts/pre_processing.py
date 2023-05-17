@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import argparse
 
 from constants import TEST_SPLIT
 
@@ -30,7 +31,7 @@ def process(data):
 
 def main(args):
 
-    data = np.load(input_file)
+    data = np.load(args.input_file)
     p = np.random.permutation(len(data))
     data = data[p]
 

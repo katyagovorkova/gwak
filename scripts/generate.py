@@ -178,8 +178,8 @@ def inject_signal(
 
 
 def generate_backgrounds(
-        n_backgrounds: int,
         folder_path: str,
+        n_backgrounds: int,
         segment_length=4):
 
     loaded_data = load_folder(folder_path)
@@ -290,8 +290,7 @@ def main(args):
 
         # 2.5: generate/fetch the background classes
         backgrounds = generate_backgrounds(folder_path=args.folder_path,
-                                       n_backgrounds=N_INJECTIONS,
-                                       run_background=True)
+                                       n_backgrounds=N_INJECTIONS)
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,

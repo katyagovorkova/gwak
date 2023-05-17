@@ -29,13 +29,13 @@ rule generate_dataset:
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 {input.script} {output.file} {input.omicron}\
+        'python3 {input.script} {input.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
     input:
         script = 'scripts/pre_processing.py',
-        file = lambda wildcards: expand(rules.generate_dataset.output.file, dataclass={wildcards.dataclass})
+        file = expand(rules.generate_dataset.output.file, dataclass='{dataclass}')
     output:
         train_file = 'output/data/train/{dataclass}.npy',
         test_file = 'output/data/test/{dataclass}.npy'
@@ -45,17 +45,16 @@ rule pre_processing_step:
 rule train_quak:
     input:
         script = 'scripts/train_quak.py',
-    params:
-        data = lambda wildcards: f'data/TRAIN_PROCESS/{wildcards.dataclass}.npy'
+        data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
     output:
         savedir = directory('output/trained/{dataclass}')
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 {input.script} {params.data} {output.savedir}'
+        'python3 {input.script} {input.data} {output.savedir}'
 
 rule train_all_quak:
     input:
-        expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'bkg', 'glitch'])
+        expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule data_prediction:
     input:

@@ -11,7 +11,9 @@ from lalinference import BurstSineGaussian, BurstSineGaussianF
 from constants import (
     IFOS,
     SAMPLE_RATE,
-    GLITCH_SNR_BAR
+    GLITCH_SNR_BAR,
+    STRAIN_START,
+    STRAIN_STOP
     )
 
 
@@ -32,13 +34,8 @@ def load_folder(path: str):
     '''
     load the glitch times and data associated with a "save" folder
     '''
-
-    if path[-1] == '/':
-        path = path[:-1]  # hopefully there aren't two...
-    folder_name = path.split('/')[-1]
-    assert len(folder_name.split('_')) == 2
-    start = int(folder_name.split('_')[0])
-    end = int(folder_name.split('_')[1])
+    start = STRAIN_START
+    end = STRAIN_STOP
 
     loaded_data = dict()
     for ifo in IFOS:
