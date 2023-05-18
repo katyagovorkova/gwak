@@ -242,6 +242,7 @@ def main(timeslide_path, signal_path):
     score_parameters(np.array([ 0.47291488, -0.19085281, -0.14985232,  0.52350923, -0.18645005]), files)
 
     print(cmaes(score_parameters, 5, files))
+    best_sample_vec[-1]
 timeslide_path = "/home/ryan.raikman/s22/anomaly/ES_savedir_short/"
 #path = "/home/ryan.raikman/s22/anomaly/ES_savedir_BBH_SG/"
 signal_path = "/home/ryan.raikman/s22/anomaly/ES_savedir_15SNR/"
