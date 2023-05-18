@@ -86,9 +86,12 @@ from scratch, just run the rule above and `Snakemake` will figure out dependenci
 missing data.
 
 ## Pearson Evaluation
+Then we need to evaluate Pearson correlation between detector sites by running
 ```
-snakemake -c1 pre_processing_step
+snakemake -c1 calculate_pearson
 ```
+the current implementation is quite slow, so prepare yourself to wait a lot...
+
 ## Evolutionary Search training
 ```
 snakemake -c1 pre_processing_step
