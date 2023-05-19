@@ -93,6 +93,13 @@ snakemake -c1 calculate_pearson
 the current implementation is quite slow, so prepare yourself to wait a lot...
 
 ## Evolutionary Search training
+To find the optimal coefficients for the final metric, run the evolutionary search with
 ```
-snakemake -c1 pre_processing_step
+snakemake -c1 train_metric
+```
+
+## Plotting
+Finally, all the plots from the paper can be reproduced with the plotting rule
+```
+snakemake -c1 plot_results
 ```

@@ -66,15 +66,19 @@ rule train_all_quak:
 rule ae_prediction:
     input:
         script = 'scripts/predict.py',
-        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}'),
-        model_path = expand(f'{rules.train_quak.output.savedir}/ae.h5', dataclass='{modelclass}')
-    # params:
-    #     test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
+        model_path = expand(f'{rules.train_quak.output.savedir}/ae.h5', dataclass='{modelclass}'),
+        # test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+    params:
+        test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
     output:
         save_file = 'output/evaluated/model_{modelclass}/{dataclass}.npy'
     shell:
         'mkdir -p output/evaluated/model_{wildcards.modelclass}/; '
-        'python3 {input.script} {input.test_data} {input.model_path} {output.save_file}'
+        'python3 {input.script} {params.test_data} {input.model_path} {output.save_file}'
+
+rule all:
+    input:
+        expand(rules.ae_prediction.output.save_file, modelclass=['bbh', 'sg', 'background', 'glitch'], dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule calculate_pearson:
     input:
@@ -98,12 +102,10 @@ rule train_metric:
 
 rule plot_results:
     input:
-        script = 'scripts/plotting.py'
+        script = 'scripts/plotting.py',
+        evaluation_dir = 'output/evaluated/'
     output:
+        directory('output/plots/')
     shell:
-        'python3 {input.script}'
-        # plotting_main(f"{config['save_path']}/DATA_PREDICTION/TEST/",
-        #               f"{config['save_path']}/PLOTS/",
-        #               class_labels,
-        #               True,
-        #               V['train_LS'])
+        'mkdir -p {output}; '
+        'python3 {input.script} {input.evaluation_dir} {output}'
