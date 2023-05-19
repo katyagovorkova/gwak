@@ -11,6 +11,9 @@ from helper_functions import (
     inject_hplus_hcross,
     get_background_segs,
     WNB,
+    clean_gw_events,
+    timeslide,
+    whiten_bkg
     )
 
 import sys
@@ -22,6 +25,29 @@ from config import (
     SAMPLE_RATE,
     N_INJECTIONS
     )
+
+
+def generate_timeslides(
+    folder_path:str,
+    event_times_path:str):
+
+    loaded_data = load_folder(folder_path)
+    data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+
+    event_times = np.load(event_times_path)
+
+    whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+    whitened = np.swapaxes(whitened, 0, 1)
+    ts = int(folder_path.split('/')[-1].split('_')[0])
+    tend = int(folder_path.split('/')[-1].split('_')[0])
+
+    ts += SAMPLE_RATE
+    tend -= SAMPLE_RATE
+
+    data_sliced = clean_gw_events(event_times, whitened, SAMPLE_RATE, ts, tend)
+    timeslides = timeslide(data_sliced, SAMPLE_RATE)
+
+    return timeslides
 
 
 def bbh_polarization_generator(
@@ -80,7 +106,7 @@ def sg_polarization_generator(
         time_domain_source_model=waveform,
         waveform_arguments=None
     )
-    prior_file = "data/SG.prior"
+    prior_file = 'data/SG.prior'
     priors = bilby.gw.prior.PriorDict(prior_file)
     injection_parameters = priors.sample(n_injections)
     injection_parameters = [
@@ -212,11 +238,9 @@ def sampler(
             attempts = 0
             while max_amp < amplitude_bar and attempts < n_samples * 2:
                 attempts += 1
-                # print("iteration")
                 start_index = int(np.random.uniform(
                     bound_low, bound_high - sample_len))
                 start_index += midp
-                #print("start index", start_index)
                 segment = data[n, :, start_index:start_index + sample_len]
                 max_amp = np.amax(np.abs(segment))
             if max_amp >= amplitude_bar:
@@ -305,6 +329,11 @@ def main(args):
         print('The glitch generation can only be run with LIGO credentials, therefore we provide a prepared glitch dataset')
         training_data = np.load('data/glitch.npy')
 
+    elif args.stype == 'timeslides':
+        event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
+        training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
+
+
     np.save(args.save_file, training_data)
 
 
@@ -319,6 +348,6 @@ if __name__ == '__main__':
                         type=str)
 
     parser.add_argument('--stype', help='Which type of the injection to generate',
-                        type=str, choices=['bbh', 'sg', 'background', 'glitch', 'wnb', 'ccsn'])
+                        type=str, choices=['bbh', 'sg', 'background', 'glitch', 'wnb', 'ccsn', 'timeslides'])
     args = parser.parse_args()
     main(args)

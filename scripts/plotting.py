@@ -96,7 +96,7 @@ def corner_plotting(
 
                 if contour:
                     xx, yy, f = density_plot(A, B)
-                    cset = axs[i, j].contour(yy, xx, f, cmap = cmaps[k])
+                    cset = axs[i, j].contour(yy, xx, f, cmap=cmaps[k])
                     axs[i, j].clabel(cset, inline=1, fontsize=10)
                     if enforce_lim:
                         axs[i, j].set_xlim(0, 1.2)
@@ -114,6 +114,8 @@ def corner_plotting(
                         axs[i, j].set_ylim(0, 1.2)
                     if loglog:
                         axs[i, j].loglog()
+
+
     # axis labels
     for i in range(N):
         if labels[i] == 'glitch':
@@ -129,6 +131,7 @@ def corner_plotting(
         axs[i, 0].set_ylabel(lbl, fontsize=15)
         axs[-1, i].set_xlabel(lbl, fontsize=15)
 
+    fig.legend()
     fig.savefig(plot_savedir+'/quak_plot.pdf')
 
     # save the corner plot hist

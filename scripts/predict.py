@@ -4,19 +4,7 @@ import argparse
 
 from keras.models import load_model
 
-
-def mae(a, b):
-    '''
-    compute MAE across a, b
-    using first dimension as representing each sample
-    '''
-    norm_factor = a[0].size
-    assert a.shape == b.shape
-    diff = np.abs(a - b)
-    N = len(diff)
-
-    # sum across all axes except the first one
-    return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
+from helper_functions import mae
 
 
 def main(args):

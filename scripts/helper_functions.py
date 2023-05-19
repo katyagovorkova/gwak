@@ -21,6 +21,20 @@ from config import (
     )
 
 
+def mae(a, b):
+    '''
+    compute MAE across a, b
+    using first dimension as representing each sample
+    '''
+    norm_factor = a[0].size
+    assert a.shape == b.shape
+    diff = np.abs(a - b)
+    N = len(diff)
+
+    # sum across all axes except the first one
+    return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
+
+
 def find_h5(path: str):
     h5_file = None
     if not os.path.exists(path):
@@ -197,7 +211,9 @@ def clipping(
         seg: TimeSeries,
         sample_rate: int,
         clip_edge: int=1):
+
     clip_edge_datapoints = int(sample_rate * clip_edge)
+
     return seg[clip_edge_datapoints:-clip_edge_datapoints]
 
 
@@ -205,8 +221,9 @@ def whiten_bandpass_bkgs(
         bkg_segs_full: np.ndarray,
         sample_rate: int,
         H1_asd,
-        L1_asd):
-    clip_edge = 1
+        L1_asd,
+        clip_edge: int=1):
+
     ASDs = {'H1': H1_asd,
             'L1': L1_asd}
     all_white_segs = []
@@ -680,3 +697,63 @@ def envelope(strain, option=None, **kwargs):
         env = env / np.abs(np.max(env))
 
     return env * np.array(strain)
+
+
+def clean_gw_events(
+    event_times,
+    data,
+    fs,
+    ts,
+    tend):
+
+    print('shapes into clean_gw_events, event_times, data', event_times.shape, data.shape)
+    convert_index = lambda t: int(fs * (t-ts))
+    bad_times = []
+    for et in event_times:
+        if et > ts+5 and et < tend-5:
+            bad_times.append( convert_index(et))
+
+    print('problematic times with GWs:', bad_times)
+    clean_window = int(5*fs) #seconds
+    if len(bad_times) == 0:
+        return data[clean_window:-clean_window]
+
+    # just cut off the edge instead of dealing with BBH's there
+    sliced_data = np.zeros(shape=( int(data.shape[0]-clean_window*(bad_times) ), 2) )
+
+    start = 0
+    stop = 0
+    marker = 0
+    for time in bad_times:
+        stop = int(time - clean_window//2)
+        seg_len = stop - start
+        sliced_data[marker:marker+seg_len, :] = data[start:stop, :]
+        marker += seg_len
+        start = int(time + clean_window//2)
+
+    # return, while chopping off the first and last 5 seconds
+    return sliced_data[clean_window:-clean_window, :]
+
+
+def timeslide(
+    data,
+    fs):
+
+    timeslide_step = 2 * fs
+    step = timeslide_step
+    n_slides = 10 # could have more, maybe manually increase later
+    width = 8 * fs
+    n_samp = int(len(data)/width) # will round down, important!
+
+    all_slides = np.empty(shape=(n_slides*n_samp, width, 2))
+    for i in range(1, n_slides+1):
+        slid = np.copy(data)
+
+        # sliding the second detector
+        slid[i*step:, 1] = data[:-i*step, 1]
+        slid[:i*step, 1] = data[-i*step:, 1]
+
+        # slicing the data up into samples and putting it into all slides
+        all_slides[(i-1)*n_samp:i*n_samp]=slid[:n_samp*width].reshape(n_samp, width, 2)
+
+    return all_slides
