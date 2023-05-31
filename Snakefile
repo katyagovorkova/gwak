@@ -6,16 +6,16 @@ wildcard_constraints:
 rule run_omicron:
     input:
         script = 'scripts/run_omicron.py'
-    output:
-        directory('output/omicron/')
+    params:
+        'output/'
     shell:
-        'python3 {input.script} {output}'
+        'python3 {input.script} {params}'
 
 rule fetch_site_data:
     input:
         script = 'scripts/fetch_data.py'
     params:
-        lambda wildcards: directory(f'output/omicron/{wildcards.site}/data/')
+        lambda wildcards: directory(f'output/{wildcards.site}/data/')
     output:
         temp('tmp/dummy_{site}.txt')
     shell:

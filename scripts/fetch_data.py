@@ -9,15 +9,15 @@ import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
-    START,
-    STOP,
+    STRAIN_START,
+    STRAIN_STOP,
     CHANNEL
     )
 
 
 def main(args):
 
-    data = TimeSeries.get(f'{args.site}:{CHANNEL}', START, STOP)
+    data = TimeSeries.get(f'{args.site}:{CHANNEL}', STRAIN_START, STRAIN_STOP)
     data.write(f'{args.folder_path}/data.h5')
 
 

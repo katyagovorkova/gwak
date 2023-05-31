@@ -13,7 +13,11 @@ import h5py
 import numpy as np
 from omicron.cli.process import main as omicron_main
 
-from ..config import (
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+from config import (
     SNR_THRESH,
     GLITCH_START,
     GLITCH_STOP,
