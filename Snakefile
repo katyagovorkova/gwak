@@ -30,11 +30,13 @@ rule fetch_data:
 rule generate_dataset:
     input:
         script = 'scripts/generate.py',
-        omicron = rules.run_omicron.output
+        # omicron = rules.run_omicron.output
+    params:
+        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 {input.script} {input.omicron} {output.file} \
+        'python3 {input.script} {params.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
@@ -67,14 +69,14 @@ rule ae_prediction:
     input:
         script = 'scripts/predict.py',
         model_path = expand(f'{rules.train_quak.output.savedir}/ae.h5', dataclass='{modelclass}'),
-        # test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
-    params:
-        test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
+        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+    # params:
+    #     test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
     output:
         save_file = 'output/evaluated/model_{modelclass}/{dataclass}.npy'
     shell:
         'mkdir -p output/evaluated/model_{wildcards.modelclass}/; '
-        'python3 {input.script} {params.test_data} {input.model_path} {output.save_file}'
+        'python3 {input.script} {input.test_data} {input.model_path} {output.save_file}'
 
 rule all:
     input:

@@ -12,8 +12,7 @@ from helper_functions import (
     get_background_segs,
     WNB,
     clean_gw_events,
-    timeslide,
-    whiten_bkg
+    timeslide
     )
 
 import sys
