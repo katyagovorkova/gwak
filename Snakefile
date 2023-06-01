@@ -1,27 +1,23 @@
-dataclass = ['bbh', 'sg', 'background', 'glitch']
+dataclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
 wildcard_constraints:
-    dataclass = '|'.join([x for x in dataclass]),
-    modelclass = '|'.join([x for x in dataclass])
+    dataclass = '|'.join([x for x in dataclasses]),
+    modelclass = '|'.join([x for x in dataclasses])
 
 rule run_omicron:
-    input:
-        script = 'scripts/run_omicron.py'
     params:
         'output/'
     shell:
-        'python3 {input.script} {params}'
+        'python3 scripts/run_omicron.py {params}'
 
 rule fetch_site_data:
-    input:
-        script = 'scripts/fetch_data.py'
     params:
-        lambda wildcards: directory(f'output/{wildcards.site}/data/')
+        lambda wildcards: directory(f'/home/ryan.raikman/s22/anomaly/data2/glitches/{wildcards.site}/data/')
     output:
         temp('tmp/dummy_{site}.txt')
     shell:
         'touch {output}; '
         'mkdir -p {params}; '
-        'python3 {input.script} {params} {wildcards.site}'
+        'python3 scripts/fetch_data.py {params} {wildcards.site}'
 
 rule fetch_data:
     input:
@@ -29,29 +25,26 @@ rule fetch_data:
 
 rule generate_dataset:
     input:
-        script = 'scripts/generate.py',
         # omicron = rules.run_omicron.output
     params:
         omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 {input.script} {params.omicron} {output.file} \
+        'python3 scripts/generate.py {params.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
     input:
-        script = 'scripts/pre_processing.py',
         file = expand(rules.generate_dataset.output.file, dataclass='{dataclass}')
     output:
         train_file = 'output/data/train/{dataclass}.npy',
         test_file = 'output/data/test/{dataclass}.npy'
     shell:
-        'python3 {input.script} {input.file} {output.train_file} {output.test_file}'
+        'python3 scripts/pre_processing.py {input.file} {output.train_file} {output.test_file}'
 
 rule train_quak:
     input:
-        script = 'scripts/train_quak.py',
         data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
     # params:
     #     data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
@@ -59,7 +52,7 @@ rule train_quak:
         savedir = directory('output/trained/{dataclass}')
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 {input.script} {input.data} {output.savedir}'
+        'python3 scripts/train_quak.py {input.data} {output.savedir}'
 
 rule train_all_quak:
     input:
@@ -67,7 +60,6 @@ rule train_all_quak:
 
 rule ae_prediction:
     input:
-        script = 'scripts/predict.py',
         model_path = expand(f'{rules.train_quak.output.savedir}/ae.h5', dataclass='{modelclass}'),
         test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
     # params:
@@ -76,38 +68,49 @@ rule ae_prediction:
         save_file = 'output/evaluated/model_{modelclass}/{dataclass}.npy'
     shell:
         'mkdir -p output/evaluated/model_{wildcards.modelclass}/; '
-        'python3 {input.script} {input.test_data} {input.model_path} {output.save_file}'
+        'python3 scripts/predict.py {input.test_data} {input.model_path} {output.save_file}'
 
-rule all:
+rule merge_ae_predictions:
     input:
-        expand(rules.ae_prediction.output.save_file, modelclass=['bbh', 'sg', 'background', 'glitch'], dataclass=['bbh', 'sg', 'background', 'glitch'])
+        bbh = 'output/evaluated/model_bbh/{dataclass}.npy',
+        sg = 'output/evaluated/model_sg/{dataclass}.npy',
+        background = 'output/evaluated/model_background/{dataclass}.npy',
+        glitch = 'output/evaluated/model_glitch/{dataclass}.npy',
+    output:
+        'output/evaluated/quak_{dataclass}.npz'
+    shell:
+        'python3 scripts/merge_ae_predictions.py {input.bbh} {input.sg} {input.glitch} {input.background} {output}'
 
 rule calculate_pearson:
     input:
-        script = 'scripts/pearson.py',
-        data_path = 'output/data/test/{dataclass}.npy'
-    # params:
-    #     data_path = 'output/data/test/{dataclass}.npy'
+        # data_path = 'output/data/test/{dataclass}.npy'
+    params:
+        data_path = lambda wildcards: "/home/ryan.raikman/s22/anomaly/generated_timeslides/1241093492_1241123810/timeslide_data.npy" \
+            if 'timeslides' in wildcards.dataclass else 'output/data/test/{dataclass}.npy'
     output:
-        save_file = 'output/data/test/correlations/{dataclass}.npy'
+        save_file = 'output/evaluated/pearson_{dataclass}.npy'
     shell:
         'mkdir -p output/data/test/correlations/; '
-        'python3 {input.script} {input.data_path} {output.save_file}'
+        'python3 scripts/pearson.py {params.data_path} {output.save_file}'
 
 rule train_metric:
     input:
-        script = 'scripts/evolutionary_search.py'
+        bbh_quak = 'output/evaluated/quak_bbh.npz',
+        bbh_pearson = 'output/evaluated/pearson_bbh.npy',
+        sg_pearson = 'output/evaluated/pearson_sg.npy',
+        sg_quak = 'output/evaluated/quak_sg.npz',
+        timeslides_pearson = 'output/evaluated/pearson_timeslides.npy',
+        timeslides_quak = 'output/evaluated/quak_timeslides.npz',
     output:
         params_file = 'output/trained/es_params.npy'
     shell:
-        'python3 {input.script}'
+        'python3 scripts/evolutionary_search.py'
 
 rule plot_results:
     input:
-        script = 'scripts/plotting.py',
         evaluation_dir = 'output/evaluated/'
     output:
         directory('output/plots/')
     shell:
         'mkdir -p {output}; '
-        'python3 {input.script} {input.evaluation_dir} {output}'
+        'python3 scripts/plotting.py {input.evaluation_dir} {output}'

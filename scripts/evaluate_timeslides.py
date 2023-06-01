@@ -354,48 +354,12 @@ def get_samples(savedir:str, runthrough_file:str, eval_savedir:str, savedir_list
 
     return None
 
+
 def discriminator(QUAK, pearson, param_vec):
     pearson = np.reshape(pearson, (len(pearson), 1))
     datum = np.hstack([QUAK, pearson])
     return np.dot(datum, param_vec)
 
-def make_fake_ROC(process_data, val_min, val_max, savedir, metric_name, total_duration, order="lessthan"):
-    '''
-    Makes a simple graph of the discriminating value versus background samples
-    passed through
-    '''
-    N_points=300
-    scatter_x = []
-    scatter_y = []
-    print("process data", process_data.shape)
-    for val in np.linspace(val_min, val_max, N_points):
-        if order == "lessthan":
-            scatter_y.append( (process_data<val).sum())
-        else:
-            assert order == "greaterthan"
-            scatter_y.append( (process_data>val).sum())
-        scatter_x.append(val)
-
-    scatter_y = np.array(scatter_y)
-    #print("92 scatter_y shape", scatter_y.shape)
-    #print(scatter_y)
-    scatter_y = scatter_y /len(process_data)
-
-    scatter_y = scatter_y * 6533/8
-
-    plt.figure(figsize=(15, 10))
-    plt.plot(scatter_x, scatter_y)
-    plt.xlabel(f"Discriminating value: {metric_name}", fontsize=15)
-    plt.ylabel("False alarm rate, Hz", fontsize=15)
-    plt.title(f"Fake ROC curve just for BKG, testing discriminator: {metric_name}", fontsize=20)
-    plt.yscale("log")
-    #plt.loglog()
-    plt.savefig(f"{savedir}/PLOTS/BKG_FAKE_ROC_{metric_name}.png", dpi=300)
-    plt.show()
-
-    scatter_x = np.array(scatter_x)
-    np.save(f"{savedir}/PLOTS/scatter_y_{metric_name}.npy", scatter_y)
-    np.save(f"{savedir}/PLOTS/scatter_x_{metric_name}.npy", scatter_x)
 
 def main(savedir:str, runthrough_file:str, eval_savedir:str, savedir_list=None, split_specify=None):
 
@@ -518,4 +482,5 @@ if __name__ == '__main__':
 
         if len(os.listdir(f"{path_of_interest}/{elem}/strain_data/")) != 0:
             all_saves.append(f"{path_of_interest}/{elem}/")
-    main("/home/ryan.raikman/s22/anomaly/march23_nets/bbh_updated/", paths[5], all_saves[0], all_saves)
+    main("/home/ryan.raikman/s22/anomaly/march23_nets/bbh_updated/", "/home/ryan.raikman/s22/anomaly/generated_timeslides/1252150173_1252152348/timeslide_data.npy",
+        all_saves[0], all_saves)
