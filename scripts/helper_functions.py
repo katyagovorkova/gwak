@@ -55,6 +55,8 @@ def load_folder(path: str):
     start = STRAIN_START
     end = STRAIN_STOP
 
+    path = path+f'{start}_{end}/'
+
     loaded_data = dict()
     for ifo in IFOS:
         # get the glitch times first
