@@ -62,7 +62,7 @@ def main(args):
                     epochs=EPOCHS,
                     validation_split=VALIDATION_SPLIT,
                     callbacks=callbacks)
-    AE.save(f'{args.savedir}/ae.h5', include_optimizer=False)
+    AE.save(f'{args.save_file}', include_optimizer=False)
 
     loss_hist = history.history['loss']
     val_loss_hist = history.history['val_loss']
@@ -86,7 +86,9 @@ if __name__ == '__main__':
     # Required arguments
     parser.add_argument('data', help='Input dataset',
         type=str)
-    parser.add_argument('savedir', help='Where to save the plots and the trained model',
+    parser.add_argument('save_file', help='Where to save the trained model',
+        type=str)
+    parser.add_argument('savedir', help='Where to save the plots',
         type=str)
     args = parser.parse_args()
     main(args)

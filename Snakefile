@@ -25,13 +25,13 @@ rule fetch_data:
 
 rule generate_dataset:
     input:
-        # omicron = rules.run_omicron.output
-    params:
-        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+        omicron = rules.run_omicron.output
+    # params:
+    #     omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 scripts/generate.py {params.omicron} {output.file} \
+        'python3 scripts/generate.py {input.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
@@ -49,10 +49,11 @@ rule train_quak:
     # params:
     #     data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
     output:
-        savedir = directory('output/trained/{dataclass}')
+        savedir = directory('output/trained/{dataclass}'),
+        model_file = 'output/trained/{dataclass}/ae.h5'
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/train_quak.py {input.data} {output.savedir}'
+        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
 
 rule train_all_quak:
     input:
@@ -60,7 +61,7 @@ rule train_all_quak:
 
 rule ae_prediction:
     input:
-        model_path = expand(f'{rules.train_quak.output.savedir}/ae.h5', dataclass='{modelclass}'),
+        model_path = expand(rules.train_quak.output.model_file, dataclass='{modelclass}'),
         test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
     # params:
     #     test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
@@ -83,15 +84,15 @@ rule merge_ae_predictions:
 
 rule calculate_pearson:
     input:
-        # data_path = 'output/data/test/{dataclass}.npy'
-    params:
-        data_path = lambda wildcards: "/home/ryan.raikman/s22/anomaly/generated_timeslides/1241093492_1241123810/timeslide_data.npy" \
-            if 'timeslides' in wildcards.dataclass else 'output/data/test/{dataclass}.npy'
+        data_path = 'output/data/test/{dataclass}.npy'
+    # params:
+    #     data_path = lambda wildcards: "/home/ryan.raikman/s22/anomaly/generated_timeslides/1241093492_1241123810/timeslide_data.npy" \
+    #         if 'timeslides' in wildcards.dataclass else 'output/data/test/{dataclass}.npy'
     output:
         save_file = 'output/evaluated/pearson_{dataclass}.npy'
     shell:
         'mkdir -p output/data/test/correlations/; '
-        'python3 scripts/pearson.py {params.data_path} {output.save_file}'
+        'python3 scripts/pearson.py {input.data_path} {output.save_file}'
 
 rule train_metric:
     input:
@@ -108,9 +109,15 @@ rule train_metric:
 
 rule plot_results:
     input:
-        evaluation_dir = 'output/evaluated/'
+        dependencies = rules.train_metric.output.params_file
+    params:
+        evaluation_dir = 'output/evaluated/',
     output:
         directory('output/plots/')
     shell:
         'mkdir -p {output}; '
-        'python3 scripts/plotting.py {input.evaluation_dir} {output}'
+        'python3 scripts/plotting.py {params.evaluation_dir} {output}'
+
+rule make_pipeline_plot:
+    shell:
+        'snakemake plot_results --dag | dot -Tpdf > dag.pdf'
