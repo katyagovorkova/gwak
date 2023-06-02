@@ -24,14 +24,14 @@ rule fetch_data:
         expand(rules.fetch_site_data.output, site=['L1', 'H1'])
 
 rule generate_dataset:
-    input:
-        omicron = rules.run_omicron.output
-    # params:
-    #     omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+    # input:
+    #     omicron = rules.run_omicron.output
+    params:
+        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
-        'python3 scripts/generate.py {input.omicron} {output.file} \
+        'python3 scripts/generate.py {params.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
