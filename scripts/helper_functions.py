@@ -18,7 +18,9 @@ from config import (
     GLITCH_SNR_BAR,
     STRAIN_START,
     STRAIN_STOP,
-    LOADED_DATA_SAMPLE_RATE
+    LOADED_DATA_SAMPLE_RATE,
+    BANDPASS_LOW,
+    BANDPASS_HIGH
     )
 
 
@@ -245,8 +247,15 @@ def whiten_bandpass_bkgs(
                        1] - 2 * int(clip_edge * sample_rate))
         white_segs = np.zeros(final_shape)
         for i, bkg_seg in enumerate(bkg_segs):
-            white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
-                asd=ASDs[ifo]).bandpass(30, 1500)
+            if BANDPASS_HIGH == SAMPLE_RATE//2:
+                # On attempting to bandpass with Nyquist frequency, an
+                # error is thrown. This was only the BANDPASS_LOW is used
+                # with a highpass filter
+                white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
+                    asd=ASDs[ifo]).highpass(BANDPASS_LOW)
+            else:
+                white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
+                    asd=ASDs[ifo]).bandpass(BANDPASS_LOW, BANDPASS_HIGH)
             white_segs[i] = clipping(
                 white_seg, sample_rate, clip_edge=clip_edge)
         all_white_segs.append(white_segs)
