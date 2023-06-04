@@ -21,7 +21,8 @@ from config import (
     STRAIN_STOP,
     LOADED_DATA_SAMPLE_RATE,
     BANDPASS_LOW,
-    BANDPASS_HIGH
+    BANDPASS_HIGH,
+
     )
 
 
@@ -769,73 +770,3 @@ def timeslide(
         all_slides[(i-1)*n_samp:i*n_samp]=slid[:n_samp*width].reshape(n_samp, width, 2)
 
     return all_slides
-
-def pearson_gpu(data, 
-                max_shift=int(10e-3*SAMPLE_RATE), 
-                seg_len=100, 
-                seg_step=5, 
-                shift_step=2):
-    '''
-    INPUTS: 
-
-        data: np.ndarray of shape (N_samples, feature_length, 2)
-                N_samples: number of strain segments over which to compute iterated pearson correlation
-                feature_length: time axis
-                2: corresponds to the number of detectors
-        max_shift: int
-                    maximum time-like shift of the data corresponding to travel time between
-                    Hanford and Livingston detectors
-        seg_len: int
-                    Segment length over which to compute the pearson correlation
-        seg_step: int
-                    Stepping size used to compute centers at which the iterated
-                    pearson correlation will be computed
-        shift_step: int
-                    Step size used for iterate over (-maxshift, maxshift)
-
-    OUTPUTS:
-
-        correlations: np.ndarray of shape (N_samples, num_centeres)
-                array of the iterated correlations corresponding to seg_len and stepsize
-
-        edge_cut : slice object
-                slice object to remove samples on the edge that couldn't have pearson corr computed
-    '''
-
-    N_samples = data.shape[0]
-    feature_length = data.shape[1]
-
-    half_seg_len = seg_len//2
-    centres = np.arange(half_seg_len, feature_length-half_seg_len-seg_step, seg_step)
-    edge_cut = slice(max_shift//seg_step, -max_shift//seg_step)
-    centres = centres[edge_cut]
-
-    data = torch.Tensor(data)
-    device = torch.device("cuda:0")
-    data = data.to(device)
-    data[:, :, 1] = -1 * data[:, :, 1] #inverting livingston
-
-    N_centres = len(centres)
-    correlations = -1 * torch.ones(N_samples, N_centres, device=device) #initializing with minumim possible value
-    
-    for shift_amount in np.arange(-max_shift, max_shift, shift_step):
-        hanford = torch.empty(size=(N_samples, N_centres, 100), device=device)
-        livingston = torch.empty(size=(N_samples, N_centres, 100), device=device)    
-        for i, center in enumerate(centres):
-            
-            left, right = center - half_seg_len, center + half_seg_len
-            hanford[:, i, :] = data[:, left:right, 0]
-            livingston[:, i, :] = data[:, left+shift_amount:right+shift_amount, 1] 
-        
-
-        #reshape into N_samples, 100, 2
-        hanford = torch.transpose(torch.reshape(hanford, (N_samples*N_centres, 100)), 0, 1)
-        livingston = torch.transpose(torch.reshape(livingston, (N_samples*N_centres, 100)), 0, 1)
-        
-        hanford = hanford - torch.mean(hanford, axis=0)
-        livingston = livingston - torch.mean(livingston, axis=0)
-        comp_corrs = torch.sum(hanford*livingston, axis=0) / torch.sqrt( torch.sum(hanford*hanford, axis=0) * torch.sum(livingston * livingston, axis=0) )
-        comp_corrs = torch.reshape(comp_corrs, (N_samples, N_centres))
-        correlations = torch.maximum(correlations, comp_corrs)
-
-    return correlations.cpu().numpy(), edge_cut

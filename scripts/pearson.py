@@ -62,9 +62,8 @@ def main_gpu(args):
     edge_cut = slice(max_shift//seg_step, -max_shift//seg_step)
     centres = centres[edge_cut]
 
-    data = torch.Tensor(data)
     device = torch.device("cuda:0")
-    data = data.to(device)
+    data = torch.from_numpy(data).to(device)
     data[:, :, 1] = -1 * data[:, :, 1] #inverting livingston
 
     N_centres = len(centres)
