@@ -236,11 +236,11 @@ def sampler(
         bound_high: int,
         amplitude_bar: int,
         sample_len=100):
+
     fill = np.empty((len(data) * n_samples, 2, sample_len))
     midp = data.shape[-1] // 2
     filled_count = 0
     for n in range(len(data)):
-        datum = data[n, :, :]
         for j in range(n_samples):
             max_amp = -1
             attempts = 0
@@ -248,7 +248,7 @@ def sampler(
                 attempts += 1
                 start_index = int(np.random.uniform(
                     bound_low, bound_high - sample_len))
-                start_index += midp
+                start_index += midp   
                 segment = data[n, :, start_index:start_index + sample_len]
                 max_amp = np.amax(np.abs(segment))
             if max_amp >= amplitude_bar:
@@ -269,9 +269,9 @@ def sample_injections_main(
 
     sampler_args = {
         'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE), 
-                int(BBH_WINDOW_RIGHT)*SAMPLE_RATE, BBH_AMPLITUDE_BAR],
+                int(BBH_WINDOW_RIGHT*SAMPLE_RATE), BBH_AMPLITUDE_BAR],
         'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE), 
-                int(SG_WINDOW_RIGHT)*SAMPLE_RATE, SG_AMPLITUDE_BAR],
+                int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR],
         'background': [BKG_N_SAMPLES, None, None, 0],
         }
 
