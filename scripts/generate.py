@@ -332,7 +332,7 @@ def main(args):
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,
-                               direct_data=backgrounds)
+                               data=backgrounds)
 
     elif args.stype == 'glitch':
         # 3.5: additionally, save the previously generated glitches to that same destination
