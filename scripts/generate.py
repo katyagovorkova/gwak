@@ -22,7 +22,16 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
-    N_INJECTIONS
+    N_INJECTIONS,
+    BBH_WINDOW_LEFT,
+    BBH_WINDOW_RIGHT,
+    BBH_AMPLITUDE_BAR,
+    BBH_N_SAMPLES, 
+    SG_WINDOW_LEFT,
+    SG_WINDOW_RIGHT,
+    SG_AMPLITUDE_BAR,
+    SG_N_SAMPLES,
+    BKG_N_SAMPLES
     )
 
 
@@ -244,7 +253,7 @@ def sampler(
                 max_amp = np.amax(np.abs(segment))
             if max_amp >= amplitude_bar:
                 # at this point, it's passed the amplitude test
-                fill[n * N_samples + j, :, :] = segment
+                fill[filled_count, :, :] = segment
                 filled_count += 1
 
     return fill[:filled_count]
@@ -259,9 +268,11 @@ def sample_injections_main(
         data=None):
 
     sampler_args = {
-        'BBH': [5, -150, 30, 5],
-        'SG': [5, -200, 200, 5],
-        'background': [5, None, None, 0],
+        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE), 
+                int(BBH_WINDOW_RIGHT)*SAMPLE_RATE, BBH_AMPLITUDE_BAR],
+        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE), 
+                int(SG_WINDOW_RIGHT)*SAMPLE_RATE, SG_AMPLITUDE_BAR],
+        'background': [BKG_N_SAMPLES, None, None, 0],
         }
 
     data = data.swapaxes(0, 1)
