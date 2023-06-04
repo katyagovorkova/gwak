@@ -3,7 +3,28 @@ import numpy as np
 import scipy
 import torch
 
-def main_gpu(data, max_shift=10, seg_len=100, seg_step=5, shift_step=2):
+def main_cpu(args):
+
+    data = np.load(args.data_path)
+
+    args.shift_step = 1
+    args.max_shift = int(10e-3*4096)//5 # 10 ms at 4096 Hz
+    best_pearsons = np.zeros((len(data), 2*args.max_shift//args.shift_step))
+    for shift in np.arange(0, args.max_shift, args.shift_step):
+        data_H = data[:,0, shift:]
+        data_L = data[:,1, :100-shift]
+        for i in range(len(data)):
+            best_pearsons[i, shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
+
+        # augment the other way
+        data_H = data[:,0, :100-shift]
+        data_L = data[:,1, shift: ]
+        for i in range(len(data)):
+            best_pearsons[i, shift//args.shift_step+args.max_shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
+
+    np.save(args.save_file, np.amax(abs(best_pearsons), axis=1))
+
+def main_gpu(args):
     '''
     INPUTS: 
 
@@ -69,29 +90,8 @@ def main_gpu(data, max_shift=10, seg_len=100, seg_step=5, shift_step=2):
         comp_corrs = torch.reshape(comp_corrs, (N_samples, N_centres))
         correlations = torch.maximum(correlations, comp_corrs)
 
-    return correlations.cpu().numpy(), edge_cut
-
-def main_cpu(args):
-
-    data = np.load(args.data_path)
-
-    args.shift_step = 1
-    args.max_shift = int(10e-3*4096)//5 # 10 ms at 4096 Hz
-    best_pearsons = np.zeros((len(data), 2*args.max_shift//args.shift_step))
-    for shift in np.arange(0, args.max_shift, args.shift_step):
-        data_H = data[:,0, shift:]
-        data_L = data[:,1, :100-shift]
-        for i in range(len(data)):
-            best_pearsons[i, shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
-
-        # augment the other way
-        data_H = data[:,0, :100-shift]
-        data_L = data[:,1, shift: ]
-        for i in range(len(data)):
-            best_pearsons[i, shift//args.shift_step+args.max_shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
-
-    np.save(args.save_file, np.amax(abs(best_pearsons), axis=1))
-
+    # Need to do something with the edge cut! - have another savedir?
+    np.save(args.save_file, correlations.cpu().numpy())
 
 if __name__ == '__main__':
 
@@ -114,4 +114,4 @@ if __name__ == '__main__':
     parser.add_argument('--shift-step', type=int, default=2,
         help='Step size used for iterate over (-args.max_shift, args.max_shift)')
     args = parser.parse_args()
-    main(args)
+    main_gpu(args)
