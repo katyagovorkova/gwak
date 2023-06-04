@@ -17,7 +17,8 @@ from config import (
     SAMPLE_RATE,
     GLITCH_SNR_BAR,
     STRAIN_START,
-    STRAIN_STOP
+    STRAIN_STOP,
+    LOADED_DATA_SAMPLE_RATE
     )
 
 
@@ -48,7 +49,10 @@ def find_h5(path: str):
     return h5_file
 
 
-def load_folder(path: str):
+def load_folder(
+        path: str,
+        load_start: int = None,
+        load_stop: int = None):
     '''
     load the glitch times and data associated with a "save" folder
     '''
@@ -65,11 +69,17 @@ def load_folder(path: str):
             return None
 
         with h5py.File(h5_file, 'r') as f:
-            print('loaded data from h5', h5_file)
+            print('loading data from h5', h5_file, "...")
             triggers = f['triggers'][:]
+            
 
         with h5py.File(f'{path}/detec_data_{ifo}.h5', 'r') as f:
-            X = f['ts'][:]
+            if load_start == None or load_stop == None:
+                X = f['ts'][:]
+            else:
+                datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
+                datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
+                X = f['ts'][datapoints_start:datapoints_stop]
 
         # some statistics on the data
         data_statistics = 0
@@ -79,7 +89,7 @@ def load_folder(path: str):
             print(f'data length: {len(X)}')
             print(f'with data sampled at {4*SAMPLE_RATE}, len(data)/duration= {len(X)/4/SAMPLE_RATE}')
 
-        sample_rate = 4 * SAMPLE_RATE
+        sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
         data = TimeSeries(X, sample_rate=sample_rate, t0=start)

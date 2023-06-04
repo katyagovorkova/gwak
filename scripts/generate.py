@@ -23,6 +23,8 @@ from config import (
     IFOS,
     SAMPLE_RATE,
     N_INJECTIONS,
+    DATA_SEGMENT_LOAD_START,
+    DATA_SEGMENT_LOAD_STOP,
     BBH_WINDOW_LEFT,
     BBH_WINDOW_RIGHT,
     BBH_AMPLITUDE_BAR,
@@ -39,7 +41,9 @@ def generate_timeslides(
     folder_path:str,
     event_times_path:str):
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     event_times = np.load(event_times_path)
@@ -176,7 +180,9 @@ def inject_signal(
         data=None,
         segment_length=4):  # length of background segment to fetch for each injection
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     polarizations = []
@@ -220,7 +226,9 @@ def generate_backgrounds(
         n_backgrounds: int,
         segment_length=4):
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     bkg_segs = get_background_segs(
