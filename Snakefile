@@ -53,7 +53,7 @@ rule train_quak:
         model_file = 'output/trained/{dataclass}/ae.h5'
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
+        'python3 scripts/train_quak_torch.py {input.data} {output.model_file} {output.savedir}'
 
 rule train_all_quak:
     input:
