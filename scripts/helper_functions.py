@@ -1,7 +1,7 @@
 import os
 import h5py
 import time
-import bilby
+# import bilby
 import numpy as np
 import torch
 
@@ -207,8 +207,6 @@ def get_quiet_segments(
     open_times = (open_times != 0)
     valid_start_times = valid_start_times[open_times]
 
-    # now just take from valid start times without replacement
-    print('valid start times', valid_start_times)
     return valid_start_times
 
 
