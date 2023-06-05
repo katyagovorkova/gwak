@@ -16,14 +16,18 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
+    INJECT_AT_END,
+    EDGE_INJECT_SPACING,
     GLITCH_SNR_BAR,
     STRAIN_START,
     STRAIN_STOP,
     LOADED_DATA_SAMPLE_RATE,
     BANDPASS_LOW,
     BANDPASS_HIGH,
-
-    )
+    GW_EVENT_CLEANING_WINDOW,
+    SEG_NUM_TIMESTEPS,
+    SEGMENT_OVERLAP,
+    CLASS_ORDER)
 
 
 def mae(a, b):
@@ -39,9 +43,32 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
+def std_normalizer(data):
+    feature = 1
+    if data.shape[1] == 2:
+        feature_axis = 2
+        
+    std_vals = np.std(data, dim=feature_axis)[:, :, np.newaxis]
+    return data / std_vals
+
+def std_normalizer_torch(data):
+    feature = 1
+    if data.shape[1] == 2:
+        feature_axis = 2
+        
+    std_vals = torch.std(data, dim=feature_axis)[:, :, None]
+    return data / std_vals
+
+def order_dict_into_tensor(data_dict):
+    raise NotImplemented
+
+def reduce_to_significance(data):
+    raise NotImplemented
 
 def find_h5(path: str):
     h5_file = None
+    print("looking for", path)
+    assert os.path.exists(path)
     if not os.path.exists(path):
         return None
     for file in os.listdir(path):
@@ -237,7 +264,7 @@ def whiten_bandpass_bkgs(
         final_shape = (bkg_segs.shape[0], bkg_segs.shape[
                        1] - 2 * int(clip_edge * sample_rate))
         white_segs = np.zeros(final_shape)
-        for i, bkg_seg in enumerate(bkg_segs):
+        for j, bkg_seg in enumerate(bkg_segs):
             if BANDPASS_HIGH == SAMPLE_RATE//2:
                 # On attempting to bandpass with Nyquist frequency, an
                 # error is thrown. This was only the BANDPASS_LOW is used
@@ -247,7 +274,7 @@ def whiten_bandpass_bkgs(
             else:
                 white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
                     asd=ASDs[ifo]).bandpass(BANDPASS_LOW, BANDPASS_HIGH)
-            white_segs[i] = clipping(
+            white_segs[j] = clipping(
                 white_seg, sample_rate, clip_edge=clip_edge)
         all_white_segs.append(white_segs)
 
@@ -371,7 +398,13 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
+            if INJECT_AT_END:
+                center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
+                slx = slice(center-half_polar, center+half_polar)
+
             injection[slx] += response * polarization
+
+
 
         signal = TimeSeries(
             injection, times=full_seg.times, unit=full_seg.unit)
@@ -424,6 +457,9 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
+            if INJECT_AT_END:
+                center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
+                slx = slice(center-half_polar, center+half_polar)
             injection[slx] += response * polarization
 
         signal = TimeSeries(
@@ -713,58 +749,100 @@ def envelope(strain, option=None, **kwargs):
 def clean_gw_events(
     event_times,
     data,
-    fs,
     ts,
     tend):
 
-    print('shapes into clean_gw_events, event_times, data', event_times.shape, data.shape)
-    convert_index = lambda t: int(fs * (t-ts))
+    
+    convert_index = lambda t: int(SAMPLE_RATE * (t-ts))
     bad_times = []
     for et in event_times:
-        if et > ts+5 and et < tend-5:
+        # only take the GW events past 5 second edge, otherwise there will 
+        # be problems with removing it from the segment
+        if et > ts+GW_EVENT_CLEANING_WINDOW and et < tend-GW_EVENT_CLEANING_WINDOW:
+            # convert the GPS time of GW events into indicies
             bad_times.append( convert_index(et))
 
-    print('problematic times with GWs:', bad_times)
-    clean_window = int(5*fs) #seconds
+    clean_window = int(GW_EVENT_CLEANING_WINDOW*SAMPLE_RATE) #seconds
+
+    # enforce even clean window so that it is symmetric
+    clean_window = (clean_window // 2) *2
     if len(bad_times) == 0:
-        return data[clean_window:-clean_window]
+        # no GW events to excise
+        return data[:, clean_window:-clean_window]
 
     # just cut off the edge instead of dealing with BBH's there
-    sliced_data = np.zeros(shape=( int(data.shape[0]-clean_window*(bad_times) ), 2) )
+    cleaned_data = np.zeros(shape=(2, int(data.shape[1]-clean_window*len(bad_times) )) )
 
+    # start, stop correspond to the indicies for data (original)
     start = 0
     stop = 0
+    # marker corresponds to indicies for the new cleaned_seg
     marker = 0
-    for time in bad_times:
-        stop = int(time - clean_window//2)
+    for event_time in bad_times:
+        stop = int(event_time - clean_window//2)
         seg_len = stop - start
-        sliced_data[marker:marker+seg_len, :] = data[start:stop, :]
+        # fill in the data up to the start time of BBH event
+        cleaned_data[:, marker:marker+seg_len] = data[:, start:stop]
         marker += seg_len
-        start = int(time + clean_window//2)
+        start = int(event_time + clean_window//2)
 
     # return, while chopping off the first and last 5 seconds
-    return sliced_data[clean_window:-clean_window, :]
+    # since those weren't treated for potential GW events
+    return cleaned_data[:, clean_window:-clean_window]
 
+def split_into_segments(data, 
+                        overlap=SEGMENT_OVERLAP, 
+                        seg_len=SEG_NUM_TIMESTEPS):
+    '''
+    Function to slice up data into overlapping segments
+    seg_len: length of resulting segments
+    overlap: overlap of the windows in units of indicies
 
-def timeslide(
-    data,
-    fs):
+    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    '''
+    print("data segment input shape", data.shape)
+    N_slices = (data.shape[1]-seg_len)//overlap
+    print("N slices,", N_slices)
+    print("going to make it to, ", N_slices*overlap+seg_len)
+    data = data[:, :N_slices*overlap+seg_len]
 
-    timeslide_step = 2 * fs
-    step = timeslide_step
-    n_slides = 10 # could have more, maybe manually increase later
-    width = 8 * fs
-    n_samp = int(len(data)/width) # will round down, important!
+    result = np.empty((data.shape[0], N_slices, seg_len, data.shape[2]))
 
-    all_slides = np.empty(shape=(n_slides*n_samp, width, 2))
-    for i in range(1, n_slides+1):
-        slid = np.copy(data)
+    for i in range(data.shape[0]):
+        for j in range(N_slices):
+            start = j*overlap
+            end = j*overlap + seg_len
+            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
+            result[i, j, :, :] = data[i, start:end, :]
 
-        # sliding the second detector
-        slid[i*step:, 1] = data[:-i*step, 1]
-        slid[:i*step, 1] = data[-i*step:, 1]
+    return result
 
-        # slicing the data up into samples and putting it into all slides
-        all_slides[(i-1)*n_samp:i*n_samp]=slid[:n_samp*width].reshape(n_samp, width, 2)
+def split_into_segments_torch(data, 
+                        overlap=SEGMENT_OVERLAP, 
+                        seg_len=SEG_NUM_TIMESTEPS):
+    '''
+    Function to slice up data into overlapping segments
+    seg_len: length of resulting segments
+    overlap: overlap of the windows in units of indicies
 
-    return all_slides
+    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    '''
+    print("data segment input shape", data.shape)
+    N_slices = (data.shape[1]-seg_len)//overlap
+    print("N slices,", N_slices)
+    print("going to make it to, ", N_slices*overlap+seg_len)
+    data = data[:, :N_slices*overlap+seg_len]
+
+    device = torch.device("cuda:0")
+    result = torch.empty((data.shape[0], N_slices, seg_len, data.shape[2]), 
+                        device=device)
+
+    for i in range(data.shape[0]):
+        for j in range(N_slices):
+            start = j*overlap
+            end = j*overlap + seg_len
+            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
+            result[i, j, :, :] = data[i, start:end, :]
+
+    return result
+

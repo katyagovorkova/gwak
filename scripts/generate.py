@@ -22,9 +22,11 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
+    STRAIN_START,
     N_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
+    INJECTION_SEGMENT_LENGTH,
     BBH_WINDOW_LEFT,
     BBH_WINDOW_RIGHT,
     BBH_AMPLITUDE_BAR,
@@ -40,7 +42,6 @@ from config import (
 def generate_timeslides(
     folder_path:str,
     event_times_path:str):
-
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
                               DATA_SEGMENT_LOAD_STOP)
@@ -48,19 +49,18 @@ def generate_timeslides(
 
     event_times = np.load(event_times_path)
 
+    data = data[:, np.newaxis, :]
     whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
-    whitened = np.swapaxes(whitened, 0, 1)
-    ts = int(folder_path.split('/')[-1].split('_')[0])
-    tend = int(folder_path.split('/')[-1].split('_')[0])
+    whitened = np.swapaxes(whitened, 0, 1)[0] # batch dimension removed
 
-    ts += SAMPLE_RATE
-    tend -= SAMPLE_RATE
+    print("out,", whitened.shape)
+    #assert 0
 
-    data_sliced = clean_gw_events(event_times, whitened, SAMPLE_RATE, ts, tend)
-    timeslides = timeslide(data_sliced, SAMPLE_RATE)
-
-    return timeslides
-
+    data_cleaned = clean_gw_events(event_times, 
+                                  whitened, 
+                                  STRAIN_START+DATA_SEGMENT_LOAD_START, 
+                                  STRAIN_START+DATA_SEGMENT_LOAD_STOP)
+    return data_cleaned
 
 def bbh_polarization_generator(
     n_injections,
@@ -105,7 +105,6 @@ def bbh_polarization_generator(
     plusses = np.hstack([plusses[:, half:], plusses[:, :half]])
 
     return [crosses, plusses]
-
 
 def sg_polarization_generator(
     n_injections,
@@ -178,7 +177,7 @@ def inject_signal(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
-        segment_length=4):  # length of background segment to fetch for each injection
+        segment_length=INJECTION_SEGMENT_LENGTH):  # length of background segment to fetch for each injection
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
@@ -224,7 +223,7 @@ def inject_signal(
 def generate_backgrounds(
         folder_path: str,
         n_backgrounds: int,
-        segment_length=4):
+        segment_length=INJECTION_SEGMENT_LENGTH):
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
