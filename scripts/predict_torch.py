@@ -5,7 +5,7 @@ import argparse
 import torch
 
 from helper_functions import mae
-from autoencoder_model import LSTM_AE
+from models import LSTM_AE
 from config import (NUM_IFOS, 
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
