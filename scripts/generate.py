@@ -56,15 +56,11 @@ def generate_timeslides(
     print("out,", whitened.shape)
     #assert 0
 
-    data_sliced = clean_gw_events(event_times, 
+    data_cleaned = clean_gw_events(event_times, 
                                   whitened, 
                                   STRAIN_START+DATA_SEGMENT_LOAD_START, 
                                   STRAIN_START+DATA_SEGMENT_LOAD_STOP)
-    assert 0
-    timeslides = timeslide(data_sliced, SAMPLE_RATE)
-
-    return timeslides
-
+    return data_cleaned
 
 def bbh_polarization_generator(
     n_injections,
@@ -352,7 +348,6 @@ def main(args):
 
     elif args.stype == 'timeslides':
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
-        event_times_path = '/home/ryan.raikman/s22/temp10/dummy_event_times.npy'
         training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
 
 

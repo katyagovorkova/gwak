@@ -741,17 +741,16 @@ def clean_gw_events(
             # convert the GPS time of GW events into indicies
             bad_times.append( convert_index(et))
 
-    print('problematic times with GWs:', bad_times)
     clean_window = int(5*SAMPLE_RATE) #seconds
 
     # enforce even clean window so that it is symmetric
     clean_window = (clean_window // 2) *2
     if len(bad_times) == 0:
         # no GW events to excise
-        return data[clean_window:-clean_window]
+        return data[:, clean_window:-clean_window]
 
     # just cut off the edge instead of dealing with BBH's there
-    cleaned_data = np.zeros(shape=( int(data.shape[0]-clean_window*len(bad_times) ), 2) )
+    cleaned_data = np.zeros(shape=(2, int(data.shape[1]-clean_window*len(bad_times) )) )
 
     # start, stop correspond to the indicies for data (original)
     start = 0
@@ -762,13 +761,13 @@ def clean_gw_events(
         stop = int(event_time - clean_window//2)
         seg_len = stop - start
         # fill in the data up to the start time of BBH event
-        cleaned_data[marker:marker+seg_len, :] = data[start:stop, :]
+        cleaned_data[:, marker:marker+seg_len] = data[:, start:stop]
         marker += seg_len
-        start = int(time + clean_window//2)
+        start = int(event_time + clean_window//2)
 
     # return, while chopping off the first and last 5 seconds
     # since those weren't treated for potential GW events
-    return cleaned_data[clean_window:-clean_window, :]
+    return cleaned_data[:, clean_window:-clean_window]
 
 
 def timeslide(
