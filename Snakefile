@@ -46,11 +46,9 @@ rule pre_processing_step:
 rule train_quak:
     input:
         data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
-    # params:
-    #     data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
     output:
         savedir = directory('output/trained/{dataclass}'),
-        model_file = 'output/trained/{dataclass}/ae.h5'
+        model_file = 'output/trained/models/{dataclass}.h5'
     shell:
         'mkdir -p {output.savedir}; '
         'python3 scripts/train_quak_torch.py {input.data} {output.model_file} {output.savedir}'
@@ -59,35 +57,18 @@ rule train_all_quak:
     input:
         expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
-rule ae_prediction:
+rule quak_prediction:
     input:
-        model_path = expand(rules.train_quak.output.model_file, dataclass='{modelclass}'),
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
         test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
-    # params:
-    #     test_data = lambda wildcards: f'output/data/test/{wildcards.dataclass}.npy'
     output:
-        save_file = 'output/evaluated/model_{modelclass}/{dataclass}.npy'
+        save_file = 'output/evaluated/quak_{dataclass}.npy'
     shell:
-        'mkdir -p output/evaluated/model_{wildcards.modelclass}/; '
-        'python3 scripts/predict.py {input.test_data} {input.model_path} {output.save_file}'
-
-rule merge_ae_predictions:
-    input:
-        bbh = 'output/evaluated/model_bbh/{dataclass}.npy',
-        sg = 'output/evaluated/model_sg/{dataclass}.npy',
-        background = 'output/evaluated/model_background/{dataclass}.npy',
-        glitch = 'output/evaluated/model_glitch/{dataclass}.npy',
-    output:
-        'output/evaluated/quak_{dataclass}.npz'
-    shell:
-        'python3 scripts/merge_ae_predictions.py {input.bbh} {input.sg} {input.glitch} {input.background} {output}'
+        'python3 scripts/quak_predict.py {input.test_data} {input.model_path} {output.save_file}'
 
 rule calculate_pearson:
     input:
         data_path = 'output/data/test/{dataclass}.npy'
-    # params:
-    #     data_path = lambda wildcards: "/home/ryan.raikman/s22/anomaly/generated_timeslides/1241093492_1241123810/timeslide_data.npy" \
-    #         if 'timeslides' in wildcards.dataclass else 'output/data/test/{dataclass}.npy'
     output:
         save_file = 'output/evaluated/pearson_{dataclass}.npy'
     shell:

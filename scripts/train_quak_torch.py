@@ -31,6 +31,7 @@ from config import (
 def main(args):
     # read the input data
     data = np.load(args.data)
+    print(f'loaded data shape is {data.shape}')
 
     # pick a random GPU device to train model on
     N_GPUs = torch.cuda.device_count()
@@ -53,11 +54,12 @@ def main(args):
         raise Exception("Unknown loss function")
     
     # create the dataset and validation set
-    validation_split_index = int(VALIDATION_SPLIT * len(data))
+    validation_split_index = int((1-VALIDATION_SPLIT) * len(data))
     train_data = data[:validation_split_index]
     validation_data = data[validation_split_index:]
 
     train_data = torch.from_numpy(train_data).float().to(device)
+    print(f'training data shape is {train_data.shape}')
     validation_data = torch.from_numpy(validation_data).float().to(device)
 
     dataloader = []
