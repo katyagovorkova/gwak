@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from quak_predict import quak_eval
-from pearson import main as pearson
+from pearson import pearson_computation
 
 from helper_functions import (
     mae, 
@@ -43,7 +43,7 @@ def main(args):
 
         quak_predictions_dict = quak_eval(segments_normalized)
         quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
-        pearson_values, (edge_start, edge_end) = pearson(segments_normalized)
+        pearson_values, (edge_start, edge_end) = pearson_computation(segments_normalized)
         quak_predictions = quak_predictions[edge_start:edge_end]
 
         final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
@@ -57,7 +57,7 @@ def main(args):
             final_values = torch.matmul(final_values, metric_vals)
 
         final_values = final_values.detach().cpu().numpy()
-
+        assert 0
         # save as a numpy file, with the index of timeslide_num
         np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy")
 

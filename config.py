@@ -28,6 +28,7 @@ NUM_IFOS = 2
 SEG_NUM_TIMESTEPS = 100
 SEGMENT_OVERLAP = 5
 SIGNIFICANCE_NORMALIZATION_DURATION = 10
+BUFFER_WINDOW_DURATION = 0.5    
 
 # Glitch "generation"
 SNR_THRESH = 5
@@ -58,6 +59,11 @@ OPTIMIZER = 'Adam'
 VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
 CLASS_ORDER = ['background', 'bbh', 'glitch', 'sg']
+
+# pearson calculation
+MAX_SHIFT = 10e-3
+SEG_STEP = 5 
+SHIFT_STEP = 2
 
 
 # timeslides
