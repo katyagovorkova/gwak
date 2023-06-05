@@ -10,6 +10,12 @@ Once conda is there, setup a virtual environment using the file from the repo
 conda env create --file environment.yaml
 conda activate quak
 ```
+
+To make pytorch available, do 
+```
+pip install torch==1.11.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+```
+
 Finally, install additional package inside the create virtual environment
 ```
 pip install snakemake
@@ -45,6 +51,14 @@ and afterwards simply run `snakemake {rule_name}`.
 
 If you want to run a rule, but Snakemake tells you `Nothing to be done`, use `-f`
 to force it. Use `-F` to also force all the upstream rules to be re-run.
+
+# Running with Condor
+
+In order to be able to submit jobs to `HTCondor`, install [snakemake-condor-profile](https://github.com/msto/snakemake-condor-profile).
+
+Sending Snakemake process to `HTCondor`:
+ 
+    $ snakemake --profile HTCondor
 
 # Analysis Pipeline
 Each step of the analysis is represented as a corresponding rule in the `Snakefile`.

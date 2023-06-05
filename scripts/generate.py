@@ -22,7 +22,18 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
-    N_INJECTIONS
+    N_INJECTIONS,
+    DATA_SEGMENT_LOAD_START,
+    DATA_SEGMENT_LOAD_STOP,
+    BBH_WINDOW_LEFT,
+    BBH_WINDOW_RIGHT,
+    BBH_AMPLITUDE_BAR,
+    BBH_N_SAMPLES, 
+    SG_WINDOW_LEFT,
+    SG_WINDOW_RIGHT,
+    SG_AMPLITUDE_BAR,
+    SG_N_SAMPLES,
+    BKG_N_SAMPLES
     )
 
 
@@ -30,7 +41,9 @@ def generate_timeslides(
     folder_path:str,
     event_times_path:str):
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     event_times = np.load(event_times_path)
@@ -167,7 +180,9 @@ def inject_signal(
         data=None,
         segment_length=4):  # length of background segment to fetch for each injection
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     polarizations = []
@@ -211,7 +226,9 @@ def generate_backgrounds(
         n_backgrounds: int,
         segment_length=4):
 
-    loaded_data = load_folder(folder_path)
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
     detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     bkg_segs = get_background_segs(
@@ -227,11 +244,11 @@ def sampler(
         bound_high: int,
         amplitude_bar: int,
         sample_len=100):
+
     fill = np.empty((len(data) * n_samples, 2, sample_len))
     midp = data.shape[-1] // 2
     filled_count = 0
     for n in range(len(data)):
-        datum = data[n, :, :]
         for j in range(n_samples):
             max_amp = -1
             attempts = 0
@@ -239,12 +256,12 @@ def sampler(
                 attempts += 1
                 start_index = int(np.random.uniform(
                     bound_low, bound_high - sample_len))
-                start_index += midp
+                start_index += midp   
                 segment = data[n, :, start_index:start_index + sample_len]
                 max_amp = np.amax(np.abs(segment))
             if max_amp >= amplitude_bar:
                 # at this point, it's passed the amplitude test
-                fill[n * N_samples + j, :, :] = segment
+                fill[filled_count, :, :] = segment
                 filled_count += 1
 
     return fill[:filled_count]
@@ -259,9 +276,11 @@ def sample_injections_main(
         data=None):
 
     sampler_args = {
-        'BBH': [5, -150, 30, 5],
-        'SG': [5, -200, 200, 5],
-        'background': [5, None, None, 0],
+        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE), 
+                int(BBH_WINDOW_RIGHT*SAMPLE_RATE), BBH_AMPLITUDE_BAR],
+        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE), 
+                int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR],
+        'background': [BKG_N_SAMPLES, None, None, 0],
         }
 
     data = data.swapaxes(0, 1)
@@ -321,12 +340,12 @@ def main(args):
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,
-                               direct_data=backgrounds)
+                               data=backgrounds)
 
     elif args.stype == 'glitch':
         # 3.5: additionally, save the previously generated glitches to that same destination
         print('The glitch generation can only be run with LIGO credentials, therefore we provide a prepared glitch dataset')
-        training_data = np.load('data/glitch.npy')
+        training_data = np.load('data/GLITCH.npy')
 
     elif args.stype == 'timeslides':
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'

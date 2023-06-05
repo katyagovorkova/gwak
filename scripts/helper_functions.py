@@ -3,6 +3,7 @@ import h5py
 import time
 import bilby
 import numpy as np
+import torch
 
 from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
@@ -17,7 +18,11 @@ from config import (
     SAMPLE_RATE,
     GLITCH_SNR_BAR,
     STRAIN_START,
-    STRAIN_STOP
+    STRAIN_STOP,
+    LOADED_DATA_SAMPLE_RATE,
+    BANDPASS_LOW,
+    BANDPASS_HIGH,
+
     )
 
 
@@ -48,7 +53,10 @@ def find_h5(path: str):
     return h5_file
 
 
-def load_folder(path: str):
+def load_folder(
+        path: str,
+        load_start: int = None,
+        load_stop: int = None):
     '''
     load the glitch times and data associated with a "save" folder
     '''
@@ -65,11 +73,17 @@ def load_folder(path: str):
             return None
 
         with h5py.File(h5_file, 'r') as f:
-            print('loaded data from h5', h5_file)
+            print('loading data from h5', h5_file, "...")
             triggers = f['triggers'][:]
+            
 
         with h5py.File(f'{path}/detec_data_{ifo}.h5', 'r') as f:
-            X = f['ts'][:]
+            if load_start == None or load_stop == None:
+                X = f['ts'][:]
+            else:
+                datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
+                datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
+                X = f['ts'][datapoints_start:datapoints_stop]
 
         # some statistics on the data
         data_statistics = 0
@@ -79,7 +93,7 @@ def load_folder(path: str):
             print(f'data length: {len(X)}')
             print(f'with data sampled at {4*SAMPLE_RATE}, len(data)/duration= {len(X)/4/SAMPLE_RATE}')
 
-        sample_rate = 4 * SAMPLE_RATE
+        sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
         data = TimeSeries(X, sample_rate=sample_rate, t0=start)
@@ -175,15 +189,6 @@ def get_quiet_segments(
     # now just take from valid start times without replacement
     print('valid start times', valid_start_times)
     return valid_start_times
-    quiet_times = np.random.choice(valid_start_times, N, replace=False)
-
-    # one last check
-    for elem in quiet_times:
-
-        assert np.abs(glitch_times - elem).min() >= segment_length
-        assert np.abs(glitch_times - (elem + segment_length)
-                      ).min() >= segment_length
-    return quiet_times
 
 
 def slice_bkg_segments(
@@ -235,8 +240,15 @@ def whiten_bandpass_bkgs(
                        1] - 2 * int(clip_edge * sample_rate))
         white_segs = np.zeros(final_shape)
         for i, bkg_seg in enumerate(bkg_segs):
-            white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
-                asd=ASDs[ifo]).bandpass(30, 1500)
+            if BANDPASS_HIGH == SAMPLE_RATE//2:
+                # On attempting to bandpass with Nyquist frequency, an
+                # error is thrown. This was only the BANDPASS_LOW is used
+                # with a highpass filter
+                white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
+                    asd=ASDs[ifo]).highpass(BANDPASS_LOW)
+            else:
+                white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
+                    asd=ASDs[ifo]).bandpass(BANDPASS_LOW, BANDPASS_HIGH)
             white_segs[i] = clipping(
                 white_seg, sample_rate, clip_edge=clip_edge)
         all_white_segs.append(white_segs)
@@ -351,7 +363,6 @@ def inject_hplus_hcross(
 
         injection = np.zeros(len(bkgX))
         for mode, polarization in pols.items():  # make sure that this is formatted correctly
-            ts = time.time()
             response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
                 ra, dec, geocent_time, psi, mode)  # inclination angle of the detector to the source
 
