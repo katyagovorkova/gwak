@@ -13,47 +13,39 @@ from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
                     FACTOR)
-
-def main(args):
-
-    # load the data
-    data = np.load(args.test_data)
-    print(f'loaded data shape is {data.shape}')
-
-    # pick a random GPU device to train model on
-    N_GPUs = torch.cuda.device_count()
-    chosen_device = np.random.randint(0, N_GPUs)
-    device = torch.device(f"cuda:{chosen_device}")
-
-    data = torch.from_numpy(data).float().to(device)
-
+def quak_eval(data):
+    # data required to be torch tensor at this point
+    device = torch.device(f"cuda:0")
     model = LSTM_AE(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=BOTTLENECK,
                     FACTOR=FACTOR).to(device)
 
     # check if the evaluation has to be done for one model or for several
-    if len(args.model_path) > 1:
+    loss_fn = torch.nn.L1Loss(reduce=None)
+    loss = dict()
 
-        loss_fn = torch.nn.L1Loss(reduce=None)
-        loss = dict()
-
-        for dpath in args.model_path:
-            model.load_state_dict(torch.load(dpath))
-            loss[os.path.basename(dpath).strip('.pt')] = \
-                loss_fn(data, model(data)).detach().cpu().numpy()
-
-        if args.save_file: np.savez(args.save_file, **loss)
-
-    else:
-
-        model = load_model(args.model_path)
-        preds = model.predict(data)
-
-        loss = mae(data, preds)
-        if args.save_file: np.save(args.save_file, loss)
-
+    for dpath in args.model_path:
+        model.load_state_dict(torch.load(dpath))
+        loss[os.path.basename(dpath).strip('.pt')] = \
+            loss_fn(data, model(data))
     return loss
+
+def main(args, torch_data):
+    device = torch.device(f"cuda:0")
+
+    # load the data
+    data = torch.from_numpy(data).float().to(device)
+    data = np.load(args.test_data)
+    print(f'loaded data shape is {data.shape}')
+    loss = quak_eval(data)
+
+    # move to CPU
+    for key in loss.keys():
+        loss[key] = loss[key].detach().cpu().numpy()
+
+
+    if args.save_file: np.savez(args.save_file, **loss)
 
 
 if __name__ == '__main__':
@@ -68,5 +60,5 @@ if __name__ == '__main__':
     parser.add_argument('--model-path', help='Required path to trained model',
                         nargs='+', type=str)
     args = parser.parse_args()
-    loss = main(args)
+    main(args)
 

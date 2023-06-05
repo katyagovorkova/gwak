@@ -26,8 +26,8 @@ from config import (
     BANDPASS_HIGH,
     GW_EVENT_CLEANING_WINDOW,
     SEG_NUM_TIMESTEPS,
-    SEGMENT_OVERLAP
-    )
+    SEGMENT_OVERLAP,
+    CLASS_ORDER)
 
 
 def mae(a, b):
@@ -58,6 +58,12 @@ def std_normalizer_torch(data):
         
     std_vals = torch.std(data, dim=feature_axis)[:, :, None]
     return data / std_vals
+
+def order_dict_into_tensor(data_dict):
+    raise NotImplemented
+
+def reduce_to_significance(data):
+    raise NotImplemented
 
 def find_h5(path: str):
     h5_file = None

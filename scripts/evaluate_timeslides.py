@@ -3,13 +3,15 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from quak_predict import main as quak_predict
+from quak_predict import quak_eval
 from pearson import main as pearson
 
 from helper_functions import (
     mae, 
     std_normalizer_torch, 
-    split_into_segments_torch)
+    split_into_segments_torch,
+    order_dict_into_tensor,
+    reduce_to_significance)
 
 from config import (
     TIMESLIDE_STEP,
@@ -39,12 +41,14 @@ def main(args):
         segments = split_into_segments_torch(timeslide)
         segments_normalized = std_normalizer_torch(segments)
 
-        quak_predictions = quak_predict(segments_normalized)
+        quak_predictions_dict = quak_eval(segments_normalized)
+        quak_predictions = order_dict_into_tensor(quak_predictions_dict)
         pearson_values, (edge_start, edge_end) = pearson(segments_normalized)
         quak_predictions = quak_predictions[edge_start:edge_end]
 
         final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
-        #SIGNIFICANCE CALCULATION!!!!
+
+        final_values = reduce_to_significance(final_values)
 
         if args.metric_coefs_path is not None:
             # compute the dot product and save that instead

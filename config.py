@@ -56,6 +56,7 @@ LOSS = 'MAE'
 OPTIMIZER = 'Adam'
 VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
+CLASS_ORDER = ['background', 'bbh', 'glitch', 'sg']
 
 
 # timeslides
