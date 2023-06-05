@@ -10,7 +10,7 @@ from helper_functions import (
     mae, 
     std_normalizer_torch, 
     split_into_segments_torch,
-    order_dict_into_tensor,
+    stack_dict_into_tensor,
     reduce_to_significance)
 
 from config import (
@@ -42,7 +42,7 @@ def main(args):
         segments_normalized = std_normalizer_torch(segments)
 
         quak_predictions_dict = quak_eval(segments_normalized)
-        quak_predictions = order_dict_into_tensor(quak_predictions_dict)
+        quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
         pearson_values, (edge_start, edge_end) = pearson(segments_normalized)
         quak_predictions = quak_predictions[edge_start:edge_end]
 

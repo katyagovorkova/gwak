@@ -27,7 +27,9 @@ from config import (
     GW_EVENT_CLEANING_WINDOW,
     SEG_NUM_TIMESTEPS,
     SEGMENT_OVERLAP,
-    CLASS_ORDER)
+    CLASS_ORDER,
+    SIGNIFICANCE_NORMALIZATION_DURATION,
+    BUFFER_WINDOW_DURATION)
 
 
 def mae(a, b):
@@ -59,11 +61,50 @@ def std_normalizer_torch(data):
     std_vals = torch.std(data, dim=feature_axis)[:, :, None]
     return data / std_vals
 
-def order_dict_into_tensor(data_dict):
-    raise NotImplemented
+def stack_dict_into_tensor(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into *torch* tensor
+    '''
+    device = torch.device("cuda:0")
+    fill_len = len(data_dict['bbh'])
+    stacked_tensor = torch.empty((fill_len, 4), device=device)
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_tensor[:, stack_index] = data_dict[class_name]
+    
+    return stacked_tensor
 
 def reduce_to_significance(data):
-    raise NotImplemented
+    '''
+    Data is a torch tensor of shape (N_samples, N_features),
+    normalize / calculate significance for each of the axis 
+    by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
+    '''
+    N_samples, N_features = data.shape
+    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE)
+    buffer_datapoints = int(BUFFER_WINDOW_DURATION * SAMPLE_RATE)
+    assert  N_samples > norm_datapoints
+
+    device = torch.device("cuda:0")
+    signif_tensor = torch.empty((N_samples-norm_datapoints, N_features), 
+                                device=device)
+    
+    
+    for i in range(N_samples - norm_datapoints):
+        # iterate over every point which can be validly normalized
+        mean = torch.mean(data[i:norm_datapoints+i-buffer_datapoints], dim=0)
+        std = torch.std(data[i:norm_datapoints+i-buffer_datapoints], dim=0)
+        # add the significance for that datapoint
+        signif_tensor[i, :] = (data[(i+norm_datapoints), :] - mean) / std
+
+        # update mean, std
+
+        # try to figure out how to do this without 
+        # recalculating everything...later
+        # mean = mean - data[i]/norm_datapoints \
+        #        + data[i+norm_datapoints]/norm_datapoints
+
+    return signif_tensor
 
 def find_h5(path: str):
     h5_file = None
