@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
 
-from autoencoder_model import (LSTM_AE)
+from models import (LSTM_AE)
 
 import sys
 import os.path
