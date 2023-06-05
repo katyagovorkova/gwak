@@ -25,6 +25,7 @@ from config import (
     N_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
+    INJECTION_SEGMENT_LENGTH,
     BBH_WINDOW_LEFT,
     BBH_WINDOW_RIGHT,
     BBH_AMPLITUDE_BAR,
@@ -178,7 +179,7 @@ def inject_signal(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
-        segment_length=4):  # length of background segment to fetch for each injection
+        segment_length=INJECTION_SEGMENT_LENGTH):  # length of background segment to fetch for each injection
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
@@ -224,7 +225,7 @@ def inject_signal(
 def generate_backgrounds(
         folder_path: str,
         n_backgrounds: int,
-        segment_length=4):
+        segment_length=INJECTION_SEGMENT_LENGTH):
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
