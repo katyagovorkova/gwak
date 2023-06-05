@@ -12,37 +12,40 @@ sys.path.append(
 from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
-                    FACTOR)
-def quak_eval(data):
+                    FACTOR,
+                    DEVICE)
+
+from helper_functions import mae_torch
+def quak_eval(data, model_path):
     # data required to be torch tensor at this point
-    device = torch.device(f"cuda:0")
+    device = DEVICE
     model = LSTM_AE(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=BOTTLENECK,
                     FACTOR=FACTOR).to(device)
 
     # check if the evaluation has to be done for one model or for several
-    loss_fn = torch.nn.L1Loss(reduce=None)
     loss = dict()
 
-    for dpath in args.model_path:
+    for dpath in model_path:
         model.load_state_dict(torch.load(dpath))
-        loss[os.path.basename(dpath).strip('.pt')] = \
-            loss_fn(data, model(data))
+        print("WARNING: change .strip() to .pt once model properly renamed!")
+        loss[os.path.basename(dpath)[:-3]] = \
+            mae_torch(data, model(data)).detach()
     return loss
 
-def main(args, torch_data):
-    device = torch.device(f"cuda:0")
+def main(args):
+    device = DEVICE
 
     # load the data
     data = torch.from_numpy(data).float().to(device)
     data = np.load(args.test_data)
     print(f'loaded data shape is {data.shape}')
-    loss = quak_eval(data)
+    loss = quak_eval(data, args.model_path)
 
     # move to CPU
     for key in loss.keys():
-        loss[key] = loss[key].detach().cpu().numpy()
+        loss[key] = loss[key].cpu().numpy()
 
 
     if args.save_file: np.savez(args.save_file, **loss)

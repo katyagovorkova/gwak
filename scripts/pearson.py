@@ -7,7 +7,9 @@ from config import (
     MAX_SHIFT,
     SEG_NUM_TIMESTEPS,
     SEG_STEP,
-    SHIFT_STEP
+    SHIFT_STEP,
+    DEVICE,
+    SAMPLE_RATE,
 )
 
 def main_cpu(args):
@@ -36,36 +38,41 @@ def pearson_computation(data,
                         seg_len=SEG_NUM_TIMESTEPS, 
                         seg_step=SEG_STEP,
                         shift_step=SHIFT_STEP):
+    max_shift = int(max_shift * SAMPLE_RATE)
     N_samples = data.shape[0]
-    feature_length = data.shape[1]
-
+    feature_length = data.shape[2]
     half_seg_len = seg_len//2
     centres = np.arange(half_seg_len, feature_length-half_seg_len-seg_step, seg_step)
-    edge_start, edge_end = max_shift//seg_step, -max_shift//seg_step
+    edge_start, edge_end = int(max_shift//seg_step), -int(max_shift//seg_step)
     edge_cut = slice(edge_start, edge_end)
     centres = centres[edge_cut]
 
-    device = torch.device("cuda:0")
-    data = torch.from_numpy(data).to(device)
-    data[:, :, 1] = -1 * data[:, :, 1] #inverting livingston
+    device = DEVICE
+    if not torch.is_tensor(data):
+        # support passing in numpy arrays as well as torch tensors
+        data = torch.from_numpy(data).to(device)
+    data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston
 
     N_centres = len(centres)
+    print("in data shape", data.shape)
+    print("N samples, N_centres", N_samples, N_centres)
     correlations = -1 * torch.ones(N_samples, N_centres, device=device) #initializing with minumim possible value
-    
+    print("correlations shape", correlations.shape)
     for shift_amount in np.arange(-max_shift, max_shift, shift_step):
         hanford = torch.empty(size=(N_samples, N_centres, 100), device=device)
         livingston = torch.empty(size=(N_samples, N_centres, 100), device=device)    
+        print("created shapes", hanford.shape, livingston.shape)
         for i, center in enumerate(centres):
+            #print("66", i, center)
             
             left, right = center - half_seg_len, center + half_seg_len
-            hanford[:, i, :] = data[:, left:right, 0]
-            livingston[:, i, :] = data[:, left+shift_amount:right+shift_amount, 1] 
+            hanford[:, i, :] = data[:, 0, left:right]
+            livingston[:, i, :] = data[:, 1, left+shift_amount:right+shift_amount] 
         
-
         #reshape into N_samples, 100, 2
-        hanford = torch.transpose(torch.reshape(hanford, (N_samples*N_centres, 100)), 0, 1)
-        livingston = torch.transpose(torch.reshape(livingston, (N_samples*N_centres, 100)), 0, 1)
-        
+        hanford = torch.transpose(torch.reshape(hanford, (N_samples*N_centres, seg_len)), 0, 1)
+        livingston = torch.transpose(torch.reshape(livingston, (N_samples*N_centres, seg_len)), 0, 1)
+        print("transposed shape", hanford.shape, livingston.shape)
         hanford = hanford - torch.mean(hanford, axis=0)
         livingston = livingston - torch.mean(livingston, axis=0)
         comp_corrs = torch.sum(hanford*livingston, axis=0) / torch.sqrt( torch.sum(hanford*hanford, axis=0) * torch.sum(livingston * livingston, axis=0) )

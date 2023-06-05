@@ -29,7 +29,8 @@ from config import (
     SEGMENT_OVERLAP,
     CLASS_ORDER,
     SIGNIFICANCE_NORMALIZATION_DURATION,
-    BUFFER_WINDOW_DURATION)
+    BUFFER_WINDOW_DURATION,
+    DEVICE)
 
 
 def mae(a, b):
@@ -45,6 +46,11 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
+def mae_torch(a, b):
+    # compute the MAE, do .mean twice:
+    # once for the time axis, second time for detector axis
+    return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+
 def std_normalizer(data):
     feature = 1
     if data.shape[1] == 2:
@@ -54,18 +60,19 @@ def std_normalizer(data):
     return data / std_vals
 
 def std_normalizer_torch(data):
-    feature = 1
+    feature_axis = 1
     if data.shape[1] == 2:
         feature_axis = 2
         
     std_vals = torch.std(data, dim=feature_axis)[:, :, None]
+    print("data, std_vals", data.shape, std_vals.shape)
     return data / std_vals
 
 def stack_dict_into_tensor(data_dict):
     '''
     Input is a dictionary of keys, stack it into *torch* tensor
     '''
-    device = torch.device("cuda:0")
+    device = DEVICE
     fill_len = len(data_dict['bbh'])
     stacked_tensor = torch.empty((fill_len, 4), device=device)
     for class_name in data_dict.keys():
@@ -73,6 +80,7 @@ def stack_dict_into_tensor(data_dict):
         stacked_tensor[:, stack_index] = data_dict[class_name]
     
     return stacked_tensor
+
 
 def reduce_to_significance(data):
     '''
@@ -85,7 +93,7 @@ def reduce_to_significance(data):
     buffer_datapoints = int(BUFFER_WINDOW_DURATION * SAMPLE_RATE)
     assert  N_samples > norm_datapoints
 
-    device = torch.device("cuda:0")
+    device = DEVICE
     signif_tensor = torch.empty((N_samples-norm_datapoints, N_features), 
                                 device=device)
     
@@ -866,24 +874,24 @@ def split_into_segments_torch(data,
     seg_len: length of resulting segments
     overlap: overlap of the windows in units of indicies
 
-    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    assuming that data is of shape (N_samples, features, axis_to_slice_on)
     '''
-    print("data segment input shape", data.shape)
-    N_slices = (data.shape[1]-seg_len)//overlap
-    print("N slices,", N_slices)
-    print("going to make it to, ", N_slices*overlap+seg_len)
-    data = data[:, :N_slices*overlap+seg_len]
+    print("Into splitting", data.shape)
+    N_slices = (data.shape[2]-seg_len)//overlap
+    data = data[:, :, :N_slices*overlap+seg_len]
 
-    device = torch.device("cuda:0")
-    result = torch.empty((data.shape[0], N_slices, seg_len, data.shape[2]), 
+    device = DEVICE
+
+    # resulting shape: (batches, N_slices, 2, 100)
+    result = torch.empty((data.shape[0], N_slices, data.shape[1], seg_len), 
                         device=device)
 
     for i in range(data.shape[0]):
         for j in range(N_slices):
             start = j*overlap
             end = j*overlap + seg_len
-            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
-            result[i, j, :, :] = data[i, start:end, :]
+            result[i, j, :, :] = data[i, :, start:end]
 
+    print("out of splitting", result.shape)
     return result
 

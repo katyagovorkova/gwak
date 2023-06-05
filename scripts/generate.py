@@ -12,7 +12,6 @@ from helper_functions import (
     get_background_segs,
     WNB,
     clean_gw_events,
-    timeslide
     )
 
 import sys
@@ -53,8 +52,7 @@ def generate_timeslides(
     whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
     whitened = np.swapaxes(whitened, 0, 1)[0] # batch dimension removed
 
-    print("out,", whitened.shape)
-    #assert 0
+    
 
     data_cleaned = clean_gw_events(event_times, 
                                   whitened, 
@@ -349,7 +347,6 @@ def main(args):
     elif args.stype == 'timeslides':
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
         training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
-
 
     np.save(args.save_file, training_data)
 
