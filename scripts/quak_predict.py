@@ -3,8 +3,12 @@ import numpy as np
 import argparse
 
 import torch
-from helper_functions import mae
+# from helper_functions import mae
 from models import LSTM_AE
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
@@ -14,8 +18,14 @@ def main(args):
 
     # load the data
     data = np.load(args.test_data)
-    device = torch.device("cuda:0")
-    data = torch.from_numpy(data).to(device)
+    print(f'loaded data shape is {data.shape}')
+
+    # pick a random GPU device to train model on
+    N_GPUs = torch.cuda.device_count()
+    chosen_device = np.random.randint(0, N_GPUs)
+    device = torch.device(f"cuda:{chosen_device}")
+
+    data = torch.from_numpy(data).float().to(device)
 
     model = LSTM_AE(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
@@ -25,15 +35,15 @@ def main(args):
     # check if the evaluation has to be done for one model or for several
     if len(args.model_path) > 1:
 
-        loss_fn = torch.nn.L1Loss()
-        losses = dict()
+        loss_fn = torch.nn.L1Loss(reduce=None)
+        loss = dict()
 
-        for dpath in args.test_data:
-            model.load_state_dict(torch.load(args.model_path))
-            losses[os.path.basename(dpath).strip('.h5')] = \
-                (loss_fn(data, model(data), reduction=None)).detach().cpu().numpy()
+        for dpath in args.model_path:
+            model.load_state_dict(torch.load(dpath))
+            loss[os.path.basename(dpath).strip('.pt')] = \
+                loss_fn(data, model(data)).detach().cpu().numpy()
 
-        np.savez(args.save_file, **losses)
+        if args.save_file: np.savez(args.save_file, **loss)
 
     else:
 
@@ -41,7 +51,9 @@ def main(args):
         preds = model.predict(data)
 
         loss = mae(data, preds)
-        np.save(args.save_file, loss)
+        if args.save_file: np.save(args.save_file, loss)
+
+    return loss
 
 
 if __name__ == '__main__':
@@ -50,9 +62,11 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('test_data', help='Required path to the test data file')
-    parser.add_argument('model_path', help='Required path to trained model',
-                        type=str, nargs='+')
     parser.add_argument('save_file', help='Required path to save the file to',
                         type=str)
+
+    parser.add_argument('--model-path', help='Required path to trained model',
+                        nargs='+', type=str)
     args = parser.parse_args()
-    main(args)
+    loss = main(args)
+

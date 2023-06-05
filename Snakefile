@@ -51,7 +51,7 @@ rule train_quak:
         model_file = 'output/trained/models/{dataclass}.h5'
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/train_quak_torch.py {input.data} {output.model_file} {output.savedir}'
+        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
 
 rule train_all_quak:
     input:
@@ -62,9 +62,10 @@ rule quak_prediction:
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
         test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
     output:
-        save_file = 'output/evaluated/quak_{dataclass}.npy'
+        save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
-        'python3 scripts/quak_predict.py {input.test_data} {input.model_path} {output.save_file}'
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} \
+            --model-path {input.model_path} '
 
 rule calculate_pearson:
     input:

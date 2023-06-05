@@ -11,14 +11,14 @@ conda env create --file environment.yaml
 conda activate quak
 ```
 
+Install additional package inside the create virtual environment
+```
+pip install snakemake
+```
+
 To make pytorch available, do 
 ```
 pip install torch==1.11.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
-```
-
-Finally, install additional package inside the create virtual environment
-```
-pip install snakemake
 ```
 
 Good thing to do before running (only has to be done once) is to create

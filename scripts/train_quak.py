@@ -3,23 +3,14 @@ import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.callbacks import (
-    EarlyStopping,
-    ReduceLROnPlateau)
-from keras import (
-    losses,
-    callbacks,
-    regularizers)
-from keras.optimizers import Adam
-from keras.models import load_model, Model
-from keras.layers import (
-    Input,
-    Dense,
-    LSTM,
-    TimeDistributed,
-    RepeatVector)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+import time
+
+from models import (LSTM_AE)
 
 import sys
 import os.path
@@ -32,52 +23,96 @@ from config import (
     BATCH_SIZE,
     LOSS,
     OPTIMIZER,
-    VALIDATION_SPLIT)
-
+    VALIDATION_SPLIT,
+    TRAINING_VERBOSE,
+    NUM_IFOS, 
+    SEG_NUM_TIMESTEPS)
 
 def main(args):
     # read the input data
     data = np.load(args.data)
-    input_shape = data.shape[1:]
-    print('Loading new model')
-    inputs = Input(shape=(input_shape[0], input_shape[1]))
-    L1 = LSTM(64*FACTOR, activation='tanh', return_sequences=True,
-              kernel_regularizer=regularizers.l2(0.00))(inputs)
-    L2 = LSTM(BOTTLENECK*FACTOR, activation='tanh', return_sequences=False)(L1)
-    L3 = RepeatVector(input_shape[0])(L2)
-    L4 = LSTM(BOTTLENECK*FACTOR, activation='tanh', return_sequences=True)(L3)
-    L5 = LSTM(64*FACTOR, activation='tanh', return_sequences=True)(L4)
-    output = TimeDistributed(Dense(input_shape[1]))(L5)
-    AE = Model(inputs=inputs, outputs=output)
-    AE.compile(optimizer=OPTIMIZER, loss=LOSS)
+    print(f'loaded data shape is {data.shape}')
 
-    # define callbacks
-    callbacks=[
-        EarlyStopping(monitor='val_loss', patience=10, verbose=1),
-        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1)
-        ]
+    # pick a random GPU device to train model on
+    N_GPUs = torch.cuda.device_count()
+    chosen_device = np.random.randint(0, N_GPUs)
+    device = torch.device(f"cuda:{chosen_device}")
+    if TRAINING_VERBOSE:
+        print(f"Using device {device}")
 
-    history = AE.fit(data, data,
-                    batch_size=BATCH_SIZE,
-                    epochs=EPOCHS,
-                    validation_split=VALIDATION_SPLIT,
-                    callbacks=callbacks)
-    AE.save(f'{args.save_file}', include_optimizer=False)
+    # create the model
+    AE = LSTM_AE(num_ifos=NUM_IFOS, 
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK,
+                FACTOR=FACTOR).to(device)
+    optimizer = optim.Adam(AE.parameters())
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
+    if LOSS == "MAE":
+        loss_fn = nn.L1Loss()
+    else:
+        # add in support for more losses?
+        raise Exception("Unknown loss function")
+    
+    # create the dataset and validation set
+    validation_split_index = int((1-VALIDATION_SPLIT) * len(data))
+    train_data = data[:validation_split_index]
+    validation_data = data[validation_split_index:]
 
-    loss_hist = history.history['loss']
-    val_loss_hist = history.history['val_loss']
-    np.save(f'{args.savedir}/loss_hist.npy', loss_hist)
-    np.save(f'{args.savedir}/val_loss_hist.npy', val_loss_hist)
+    train_data = torch.from_numpy(train_data).float().to(device)
+    print(f'training data shape is {train_data.shape}')
+    validation_data = torch.from_numpy(validation_data).float().to(device)
 
+    dataloader = []
+    N_batches = len(train_data) // BATCH_SIZE
+    for i in range(N_batches-1):
+        start, end = i*BATCH_SIZE, (i+1) * BATCH_SIZE
+        dataloader.append(train_data[start:end])
+
+    training_history = {
+        'train_loss': [],
+        'val_loss': []
+    }
+    # training loop
+    for epoch_num in range(EPOCHS):
+        ts = time.time()
+        epoch_train_loss = 0
+        for batch in dataloader:
+            optimizer.zero_grad()
+            output = AE(batch)
+            loss = loss_fn(batch, output)
+            epoch_train_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+        epoch_train_loss /= N_batches
+        training_history['train_loss'].append(epoch_train_loss)
+        validation_loss = loss_fn(validation_data,
+                                AE(validation_data))
+        training_history['val_loss'].append(validation_loss.item())
+        scheduler.step(validation_loss)
+
+        if TRAINING_VERBOSE:
+            elapsed_time = time.time() - ts
+            data_name = (args.data).split("/")[-1][:-4]
+            print(f"data: {data_name}, epoch: {epoch_num}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}")
+
+    # save the model
+    torch.save(AE.state_dict(), f'{args.save_file}')
+
+    # save training history
+    np.save(f'{args.savedir}/loss_hist.npy', 
+            np.array(training_history['train_loss']))
+    np.save(f'{args.savedir}/val_loss_hist.npy', 
+            np.array(training_history['val_loss']))
+
+    # plot training history
     plt.figure(figsize=(15, 10))
-    plt.plot(loss_hist, label='loss')
-    plt.plot(val_loss_hist, label='val loss')
+    plt.plot(np.array(training_history['train_loss']), label='loss')
+    plt.plot(np.array(training_history['val_loss']), label='val loss')
     plt.legend()
     plt.xlabel('Number of epochs', fontsize=17)
     plt.ylabel('Loss', fontsize=17)
     plt.title('Loss curve for training network', fontsize=17)
     plt.savefig(f'{args.savedir}/loss.pdf', dpi=300)
-
 
 if __name__ == '__main__':
 

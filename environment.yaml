@@ -1,4 +1,6 @@
 name: quak
+channels:
+  - conda-forge
 dependencies:
   - python=3.9
   - gwpy
@@ -17,7 +19,7 @@ dependencies:
   - lalsuite
   - pip:
     - tensorflow==2.12.0
-    - scipy
+    - scipy==1.6.1
     - scikit-learn
     - h5py
     - snakemake

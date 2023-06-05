@@ -1,7 +1,7 @@
 import os
 import h5py
 import time
-import bilby
+# import bilby
 import numpy as np
 import torch
 
