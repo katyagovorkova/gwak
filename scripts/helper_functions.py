@@ -24,7 +24,9 @@ from config import (
     LOADED_DATA_SAMPLE_RATE,
     BANDPASS_LOW,
     BANDPASS_HIGH,
-
+    GW_EVENT_CLEANING_WINDOW,
+    SEG_NUM_TIMESTEPS,
+    SEGMENT_OVERLAP
     )
 
 
@@ -41,6 +43,21 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
+def std_normalizer(data):
+    feature = 1
+    if data.shape[1] == 2:
+        feature_axis = 2
+        
+    std_vals = np.std(data, dim=feature_axis)[:, :, np.newaxis]
+    return data / std_vals
+
+def std_normalizer_torch(data):
+    feature = 1
+    if data.shape[1] == 2:
+        feature_axis = 2
+        
+    std_vals = torch.std(data, dim=feature_axis)[:, :, None]
+    return data / std_vals
 
 def find_h5(path: str):
     h5_file = None
@@ -737,11 +754,11 @@ def clean_gw_events(
     for et in event_times:
         # only take the GW events past 5 second edge, otherwise there will 
         # be problems with removing it from the segment
-        if et > ts+5 and et < tend-5:
+        if et > ts+GW_EVENT_CLEANING_WINDOW and et < tend-GW_EVENT_CLEANING_WINDOW:
             # convert the GPS time of GW events into indicies
             bad_times.append( convert_index(et))
 
-    clean_window = int(5*SAMPLE_RATE) #seconds
+    clean_window = int(GW_EVENT_CLEANING_WINDOW*SAMPLE_RATE) #seconds
 
     # enforce even clean window so that it is symmetric
     clean_window = (clean_window // 2) *2
@@ -769,26 +786,59 @@ def clean_gw_events(
     # since those weren't treated for potential GW events
     return cleaned_data[:, clean_window:-clean_window]
 
+def split_into_segments(data, 
+                        overlap=SEGMENT_OVERLAP, 
+                        seg_len=SEG_NUM_TIMESTEPS):
+    '''
+    Function to slice up data into overlapping segments
+    seg_len: length of resulting segments
+    overlap: overlap of the windows in units of indicies
 
-def timeslide(
-    data,
-    fs):
+    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    '''
+    print("data segment input shape", data.shape)
+    N_slices = (data.shape[1]-seg_len)//overlap
+    print("N slices,", N_slices)
+    print("going to make it to, ", N_slices*overlap+seg_len)
+    data = data[:, :N_slices*overlap+seg_len]
 
-    timeslide_step = 2 * fs
-    step = timeslide_step
-    n_slides = 10 # could have more, maybe manually increase later
-    width = 8 * fs
-    n_samp = int(len(data)/width) # will round down, important!
+    result = np.empty((data.shape[0], N_slices, seg_len, data.shape[2]))
 
-    all_slides = np.empty(shape=(n_slides*n_samp, width, 2))
-    for i in range(1, n_slides+1):
-        slid = np.copy(data)
+    for i in range(data.shape[0]):
+        for j in range(N_slices):
+            start = j*overlap
+            end = j*overlap + seg_len
+            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
+            result[i, j, :, :] = data[i, start:end, :]
 
-        # sliding the second detector
-        slid[i*step:, 1] = data[:-i*step, 1]
-        slid[:i*step, 1] = data[-i*step:, 1]
+    return result
 
-        # slicing the data up into samples and putting it into all slides
-        all_slides[(i-1)*n_samp:i*n_samp]=slid[:n_samp*width].reshape(n_samp, width, 2)
+def split_into_segments_torch(data, 
+                        overlap=SEGMENT_OVERLAP, 
+                        seg_len=SEG_NUM_TIMESTEPS):
+    '''
+    Function to slice up data into overlapping segments
+    seg_len: length of resulting segments
+    overlap: overlap of the windows in units of indicies
 
-    return all_slides
+    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    '''
+    print("data segment input shape", data.shape)
+    N_slices = (data.shape[1]-seg_len)//overlap
+    print("N slices,", N_slices)
+    print("going to make it to, ", N_slices*overlap+seg_len)
+    data = data[:, :N_slices*overlap+seg_len]
+
+    device = torch.device("cuda:0")
+    result = torch.empty((data.shape[0], N_slices, seg_len, data.shape[2]), 
+                        device=device)
+
+    for i in range(data.shape[0]):
+        for j in range(N_slices):
+            start = j*overlap
+            end = j*overlap + seg_len
+            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
+            result[i, j, :, :] = data[i, start:end, :]
+
+    return result
+
