@@ -44,6 +44,8 @@ def mae(a, b):
 
 def find_h5(path: str):
     h5_file = None
+    print("looking for", path)
+    assert os.path.exists(path)
     if not os.path.exists(path):
         return None
     for file in os.listdir(path):
@@ -241,7 +243,7 @@ def whiten_bandpass_bkgs(
         final_shape = (bkg_segs.shape[0], bkg_segs.shape[
                        1] - 2 * int(clip_edge * sample_rate))
         white_segs = np.zeros(final_shape)
-        for i, bkg_seg in enumerate(bkg_segs):
+        for j, bkg_seg in enumerate(bkg_segs):
             if BANDPASS_HIGH == SAMPLE_RATE//2:
                 # On attempting to bandpass with Nyquist frequency, an
                 # error is thrown. This was only the BANDPASS_LOW is used
@@ -251,7 +253,7 @@ def whiten_bandpass_bkgs(
             else:
                 white_seg = TimeSeries(bkg_seg, sample_rate=sample_rate).whiten(
                     asd=ASDs[ifo]).bandpass(BANDPASS_LOW, BANDPASS_HIGH)
-            white_segs[i] = clipping(
+            white_segs[j] = clipping(
                 white_seg, sample_rate, clip_edge=clip_edge)
         all_white_segs.append(white_segs)
 
@@ -726,37 +728,47 @@ def envelope(strain, option=None, **kwargs):
 def clean_gw_events(
     event_times,
     data,
-    fs,
     ts,
     tend):
 
-    print('shapes into clean_gw_events, event_times, data', event_times.shape, data.shape)
-    convert_index = lambda t: int(fs * (t-ts))
+    
+    convert_index = lambda t: int(SAMPLE_RATE * (t-ts))
     bad_times = []
     for et in event_times:
+        # only take the GW events past 5 second edge, otherwise there will 
+        # be problems with removing it from the segment
         if et > ts+5 and et < tend-5:
+            # convert the GPS time of GW events into indicies
             bad_times.append( convert_index(et))
 
     print('problematic times with GWs:', bad_times)
-    clean_window = int(5*fs) #seconds
+    clean_window = int(5*SAMPLE_RATE) #seconds
+
+    # enforce even clean window so that it is symmetric
+    clean_window = (clean_window // 2) *2
     if len(bad_times) == 0:
+        # no GW events to excise
         return data[clean_window:-clean_window]
 
     # just cut off the edge instead of dealing with BBH's there
-    sliced_data = np.zeros(shape=( int(data.shape[0]-clean_window*(bad_times) ), 2) )
+    cleaned_data = np.zeros(shape=( int(data.shape[0]-clean_window*len(bad_times) ), 2) )
 
+    # start, stop correspond to the indicies for data (original)
     start = 0
     stop = 0
+    # marker corresponds to indicies for the new cleaned_seg
     marker = 0
-    for time in bad_times:
-        stop = int(time - clean_window//2)
+    for event_time in bad_times:
+        stop = int(event_time - clean_window//2)
         seg_len = stop - start
-        sliced_data[marker:marker+seg_len, :] = data[start:stop, :]
+        # fill in the data up to the start time of BBH event
+        cleaned_data[marker:marker+seg_len, :] = data[start:stop, :]
         marker += seg_len
         start = int(time + clean_window//2)
 
     # return, while chopping off the first and last 5 seconds
-    return sliced_data[clean_window:-clean_window, :]
+    # since those weren't treated for potential GW events
+    return cleaned_data[clean_window:-clean_window, :]
 
 
 def timeslide(
