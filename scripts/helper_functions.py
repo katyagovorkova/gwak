@@ -64,7 +64,6 @@ def std_normalizer_torch(data):
         feature_axis = 2
         
     std_vals = torch.std(data, dim=feature_axis)[:, :, None]
-    print("data, std_vals", data.shape, std_vals.shape)
     return data / std_vals
 
 def stack_dict_into_tensor(data_dict):
@@ -886,5 +885,45 @@ def split_into_segments_torch(data,
             start = j*overlap
             end = j*overlap + seg_len
             result[i, j, :, :] = data[i, :, start:end]
+
+    return result
+
+
+def split_into_segments_torch_SPEED(data, 
+                        overlap=SEGMENT_OVERLAP, 
+                        seg_len=SEG_NUM_TIMESTEPS):
+    '''
+    Function to slice up data into overlapping segments
+    seg_len: length of resulting segments
+    overlap: overlap of the windows in units of indicies
+
+    assuming that data is of shape (N_samples, 2, feature_len)
+    '''
+    N_slices = (data.shape[2]-seg_len)//overlap
+    data = data[:, :, :N_slices*overlap+seg_len]
+    feature_length = data.shape[2]
+    n_batches = data.shape[0]
+
+    device = DEVICE
+
+    # resulting shape: (batches, N_slices, 2, 100)
+    result = torch.empty((data.shape[0], N_slices, data.shape[1], seg_len), 
+                        device=device)
+
+    offset_families = np.arange(0, seg_len, overlap)
+    family_count = len(offset_families)
+    final_length = 0
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length:
+            # correction: reduce by 1
+            final_length -= 1
+        final_length += (feature_length - seg_len)//seg_len
+
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length:
+            end -= seg_len
+        result[:, family_index::family_count] = data[:, :, offset_families[family_index]:end].reshape(n_batches, -1, 2, 100)
 
     return result

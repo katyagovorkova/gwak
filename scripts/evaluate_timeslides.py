@@ -11,6 +11,7 @@ from helper_functions import (
     mae, 
     std_normalizer_torch, 
     split_into_segments_torch,
+    split_into_segments_torch_SPEED,
     stack_dict_into_tensor,
     reduce_to_significance)
 
@@ -28,8 +29,7 @@ def main(args):
 
     sample_length = data.shape[1] / SAMPLE_RATE
     n_timeslides = int(TIMESLIDE_TOTAL_DURATION // sample_length)
-    #print("Number of timeslides:", n_timeslides)
-    #print("sample length", sample_length); assert 0
+    print("Number of timeslides:", n_timeslides)
     for timeslide_num in range(1, n_timeslides+1):
         print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
         ts = time.time()
@@ -46,7 +46,7 @@ def main(args):
         timeslide = timeslide[:, :clipped_len]
 
         # do the evaluation
-        segments = split_into_segments_torch(timeslide[None, :, :])[0]
+        segments = split_into_segments_torch_SPEED(timeslide[None, :, :])[0]
         segments_normalized = std_normalizer_torch(segments)
 
         quak_predictions_dict = quak_eval(segments_normalized, 

@@ -71,5 +71,5 @@ TIMESLIDE_STEP = 0.5
 TIMESLIDE_TOTAL_DURATION = 0.01*30*24*3600
 
 import torch
-GPU_NAME = "cuda:2"
+GPU_NAME = "cuda:1"
 DEVICE = torch.device(GPU_NAME)
