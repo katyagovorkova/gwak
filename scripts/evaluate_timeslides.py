@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 from quak_predict import quak_eval
 from pearson import pearson_computation
+import time
 
 from helper_functions import (
     mae, 
@@ -27,8 +28,11 @@ def main(args):
 
     sample_length = data.shape[1] / SAMPLE_RATE
     n_timeslides = int(TIMESLIDE_TOTAL_DURATION // sample_length)
-    print("Number of timeslides:", n_timeslides)
+    #print("Number of timeslides:", n_timeslides)
+    #print("sample length", sample_length); assert 0
     for timeslide_num in range(1, n_timeslides+1):
+        print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
+        ts = time.time()
         indicies_to_slide = int(timeslide_num*TIMESLIDE_STEP*SAMPLE_RATE)
         timeslide = torch.empty(data.shape, device = device)
 
@@ -38,6 +42,9 @@ def main(args):
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
         timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide]
 
+        clipped_len = (timeslide.shape[1] // 100) * 100
+        timeslide = timeslide[:, :clipped_len]
+
         # do the evaluation
         segments = split_into_segments_torch(timeslide[None, :, :])[0]
         segments_normalized = std_normalizer_torch(segments)
@@ -46,8 +53,7 @@ def main(args):
                                           [f"{args.model_folder_path}/{elem}" for elem in  os.listdir(args.model_folder_path)])
         quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
         pearson_values, (edge_start, edge_end) = pearson_computation(timeslide[None, :, :])
-        print("pearson values", pearson_values)
-        print("shapes 49", quak_predictions.shape, pearson_values.shape)
+        pearson_values = pearson_values[0, :, None]
         quak_predictions = quak_predictions[edge_start:edge_end]
 
         final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
@@ -60,10 +66,10 @@ def main(args):
             metric_vals = torch.from_numpy(metric_vals).float().to(device)
             final_values = torch.matmul(final_values, metric_vals)
 
+        print(f"Iteration, {timeslide_num}, done in {time.time() - ts :.3f} s")
         final_values = final_values.detach().cpu().numpy()
-        assert 0
         # save as a numpy file, with the index of timeslide_num
-        np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy")
+        np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy", final_values)
 
 if __name__ == '__main__':
 

@@ -52,8 +52,6 @@ def generate_timeslides(
     whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
     whitened = np.swapaxes(whitened, 0, 1)[0] # batch dimension removed
 
-    
-
     data_cleaned = clean_gw_events(event_times, 
                                   whitened, 
                                   STRAIN_START+DATA_SEGMENT_LOAD_START, 

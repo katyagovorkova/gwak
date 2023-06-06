@@ -13,7 +13,8 @@ from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
                     FACTOR,
-                    DEVICE)
+                    DEVICE,
+                    GPU_NAME)
 
 from helper_functions import mae_torch
 def quak_eval(data, model_path):
@@ -28,7 +29,7 @@ def quak_eval(data, model_path):
     loss = dict()
 
     for dpath in model_path:
-        model.load_state_dict(torch.load(dpath))
+        model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         print("WARNING: change .strip() to .pt once model properly renamed!")
         loss[os.path.basename(dpath)[:-3]] = \
             mae_torch(data, model(data)).detach()

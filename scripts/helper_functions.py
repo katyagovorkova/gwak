@@ -29,7 +29,6 @@ from config import (
     SEGMENT_OVERLAP,
     CLASS_ORDER,
     SIGNIFICANCE_NORMALIZATION_DURATION,
-    BUFFER_WINDOW_DURATION,
     DEVICE)
 
 
@@ -90,29 +89,27 @@ def reduce_to_significance(data):
     '''
     N_samples, N_features = data.shape
     norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE)
-    buffer_datapoints = int(BUFFER_WINDOW_DURATION * SAMPLE_RATE)
     assert  N_samples > norm_datapoints
 
     device = DEVICE
-    signif_tensor = torch.empty((N_samples-norm_datapoints, N_features), 
-                                device=device)
-    
-    
-    for i in range(N_samples - norm_datapoints):
-        # iterate over every point which can be validly normalized
-        mean = torch.mean(data[i:norm_datapoints+i-buffer_datapoints], dim=0)
-        std = torch.std(data[i:norm_datapoints+i-buffer_datapoints], dim=0)
-        # add the significance for that datapoint
-        signif_tensor[i, :] = (data[(i+norm_datapoints), :] - mean) / std
 
-        # update mean, std
+    #take the mean, std by sliding window of size norm_datapoints
+    stacked = torch.reshape(
+        data[: (N_samples // norm_datapoints) * norm_datapoints ],
+        (norm_datapoints, -1, N_features)
+    )
+    means = stacked.mean(dim=0)
+    stds = stacked.std(dim=0)
 
-        # try to figure out how to do this without 
-        # recalculating everything...later
-        # mean = mean - data[i]/norm_datapoints \
-        #        + data[i+norm_datapoints]/norm_datapoints
+    computed_significance = torch.empty((N_samples - norm_datapoints, N_features), device=device)
 
-    return signif_tensor
+    N_splits = means.shape[0]
+    for i in range(N_splits):
+        start, end = i*norm_datapoints, (i+1)*norm_datapoints
+        computed_significance[start:end] = (data[start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
+        
+    return computed_significance
+
 
 def find_h5(path: str):
     h5_file = None
@@ -794,7 +791,6 @@ def envelope(strain, option=None, **kwargs):
 
     return env * np.array(strain)
 
-
 def clean_gw_events(
     event_times,
     data,
@@ -876,7 +872,6 @@ def split_into_segments_torch(data,
 
     assuming that data is of shape (N_samples, features, axis_to_slice_on)
     '''
-    print("Into splitting", data.shape)
     N_slices = (data.shape[2]-seg_len)//overlap
     data = data[:, :, :N_slices*overlap+seg_len]
 
@@ -892,6 +887,4 @@ def split_into_segments_torch(data,
             end = j*overlap + seg_len
             result[i, j, :, :] = data[i, :, start:end]
 
-    print("out of splitting", result.shape)
     return result
-
