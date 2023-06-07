@@ -170,7 +170,7 @@ if __name__ == '__main__':
                 2: corresponds to the number of detectors''')
     parser.add_argument('save_file', type=str,
         help='Where to save the computed correlations')
-    parser.add_argument('--max-shift', type=int, default=int(10e-3*2048)//5,
+    parser.add_argument('--max-shift', type=int, default=int(MAX_SHIFT*SAMPLE_RATE)//5,
         help='Maximum time-like shift of the data corresponding to travel time between Hanford and Livingston detectors')
     parser.add_argument('--seg-len', type=int, default=100,
         help='Segment length over which to compute the pearson correlation')
