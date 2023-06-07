@@ -11,7 +11,6 @@ from helper_functions import (
     mae, 
     std_normalizer_torch, 
     split_into_segments_torch,
-    split_into_segments_torch_SPEED,
     stack_dict_into_tensor,
     reduce_to_significance)
 
@@ -19,8 +18,8 @@ from config import (
     TIMESLIDE_STEP,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
-    DEVICE)
-
+    GPU_NAME)
+DEVICE = torch.device(GPU_NAME)
 
 def main(args):
     data = np.load(args.data_path)
@@ -42,11 +41,11 @@ def main(args):
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
         timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide]
 
-        clipped_len = (timeslide.shape[1] // 100) * 100
+        clipped_len = (timeslide.shape[1] // 5) * 5
         timeslide = timeslide[:, :clipped_len]
 
         # do the evaluation
-        segments = split_into_segments_torch_SPEED(timeslide[None, :, :])[0]
+        segments = split_into_segments_torch(timeslide[None, :, :])[0]
         segments_normalized = std_normalizer_torch(segments)
 
         quak_predictions_dict = quak_eval(segments_normalized, 

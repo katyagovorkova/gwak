@@ -13,8 +13,8 @@ from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
                     FACTOR,
-                    DEVICE,
                     GPU_NAME)
+DEVICE = torch.device(GPU_NAME)
 
 from helper_functions import mae_torch
 def quak_eval(data, model_path):

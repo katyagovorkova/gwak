@@ -8,79 +8,10 @@ from config import (
     SEG_NUM_TIMESTEPS,
     SEG_STEP,
     SHIFT_STEP,
-    DEVICE,
     SAMPLE_RATE,
+    GPU_NAME
 )
-
-def main_cpu(args):
-
-    data = np.load(args.data_path)
-
-    args.shift_step = 1
-    args.max_shift = int(10e-3*4096)//5 # 10 ms at 4096 Hz
-    best_pearsons = np.zeros((len(data), 2*args.max_shift//args.shift_step))
-    for shift in np.arange(0, args.max_shift, args.shift_step):
-        data_H = data[:,0, shift:]
-        data_L = data[:,1, :100-shift]
-        for i in range(len(data)):
-            best_pearsons[i, shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
-
-        # augment the other way
-        data_H = data[:,0, :100-shift]
-        data_L = data[:,1, shift: ]
-        for i in range(len(data)):
-            best_pearsons[i, shift//args.shift_step+args.max_shift//args.shift_step] = (scipy.stats.pearsonr(data_H[i], -data_L[i])[0])
-
-    np.save(args.save_file, np.amax(abs(best_pearsons), axis=1))
-
-def pearson_computation_old(data, 
-                        max_shift=MAX_SHIFT, 
-                        seg_len=SEG_NUM_TIMESTEPS, 
-                        seg_step=SEG_STEP,
-                        shift_step=SHIFT_STEP):
-    max_shift = int(max_shift * SAMPLE_RATE)
-    N_samples = data.shape[0]
-    feature_length = data.shape[2]
-    half_seg_len = seg_len//2
-    centres = np.arange(half_seg_len, feature_length-half_seg_len-seg_step, seg_step)
-    edge_start, edge_end = int(max_shift//seg_step), -int(max_shift//seg_step)
-    edge_cut = slice(edge_start, edge_end)
-    centres = centres[edge_cut]
-
-    device = DEVICE
-    if not torch.is_tensor(data):
-        # support passing in numpy arrays as well as torch tensors
-        data = torch.from_numpy(data).to(device)
-    data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston
-
-    N_centres = len(centres)
-    print("in data shape", data.shape)
-    print("N samples, N_centres", N_samples, N_centres)
-    correlations = -1 * torch.ones(N_samples, N_centres, device=device) #initializing with minumim possible value
-    print("correlations shape", correlations.shape)
-    for shift_amount in np.arange(-max_shift, max_shift, shift_step):
-        hanford = torch.empty(size=(N_samples, N_centres, 100), device=device)
-        livingston = torch.empty(size=(N_samples, N_centres, 100), device=device)    
-        print("created shapes", hanford.shape, livingston.shape)
-        print("centers", len(centres))
-        for i, center in enumerate(centres):
-            #print("66", i, center)
-            
-            left, right = center - half_seg_len, center + half_seg_len
-            hanford[:, i, :] = data[:, 0, left:right]
-            livingston[:, i, :] = data[:, 1, left+shift_amount:right+shift_amount] 
-        
-        #reshape into N_samples, 100, 2
-        hanford = torch.transpose(torch.reshape(hanford, (N_samples*N_centres, seg_len)), 0, 1)
-        livingston = torch.transpose(torch.reshape(livingston, (N_samples*N_centres, seg_len)), 0, 1)
-        print("transposed shape", hanford.shape, livingston.shape)
-        hanford = hanford - torch.mean(hanford, axis=0)
-        livingston = livingston - torch.mean(livingston, axis=0)
-        comp_corrs = torch.sum(hanford*livingston, axis=0) / torch.sqrt( torch.sum(hanford*hanford, axis=0) * torch.sum(livingston * livingston, axis=0) )
-        comp_corrs = torch.reshape(comp_corrs, (N_samples, N_centres))
-        correlations = torch.maximum(correlations, comp_corrs)
-
-    return correlations, (edge_start, edge_end)
+DEVICE = torch.device(GPU_NAME)
 
 def pearson_computation(data,
                         max_shift=MAX_SHIFT,
@@ -90,7 +21,10 @@ def pearson_computation(data,
     device = DEVICE
     max_shift = int(max_shift*SAMPLE_RATE)
     offset_families = np.arange(max_shift, max_shift+seg_len, seg_step)
-    feature_length = data.shape[-1]
+    
+    feature_length_full = data.shape[-1]
+    feature_length = (data.shape[-1]//100)*100
+    n_manual = (feature_length_full - feature_length) // seg_step
     n_batches = data.shape[0]
     data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston
     family_count = len(offset_families)
@@ -101,23 +35,39 @@ def pearson_computation(data,
             # correction: reduce by 1
             final_length -= 1
         final_length += (feature_length - seg_len)//seg_len
+    family_fill_max = final_length
+    final_length += n_manual
     all_corrs = torch.zeros((n_batches, final_length), device=DEVICE)
     for family_index in range(family_count):
         end = feature_length-seg_len+offset_families[family_index]
         if end > feature_length - max_shift:
             end -= seg_len
-        H = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
-        H = H - H.mean(dim=2)[:, :, None]
-        best_corrs = -1 * torch.ones((H.shape[0], H.shape[1]), device=device)
+        hanford = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        hanford = hanford - hanford.mean(dim=2)[:, :, None]
+        best_corrs = -1 * torch.ones((hanford.shape[0], hanford.shape[1]), device=device)
         for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
 
-            L = data[:, 1, offset_families[family_index]+shift_amount:end+shift_amount].reshape(n_batches, -1, 100)
-            L = L - L.mean(dim=2)[:, :, None]
+            livingston = data[:, 1, offset_families[family_index]+shift_amount:end+shift_amount].reshape(n_batches, -1, 100)
+            livingston = livingston - livingston.mean(dim=2)[:, :, None]
 
-            corrs = torch.sum(H*L, axis=2) / torch.sqrt( torch.sum(H*H, axis=2) * torch.sum(L*L, axis=2) )  
+            corrs = torch.sum(hanford*livingston, axis=2) / torch.sqrt( torch.sum(hanford*hanford, axis=2) * torch.sum(livingston*livingston, axis=2) )  
             best_corrs = torch.maximum(best_corrs, corrs)
  
-        all_corrs[:, family_index::family_count] = best_corrs
+        all_corrs[:, family_index:family_fill_max:family_count] = best_corrs
+    
+    # fill in pieces left over at end
+    for k, center in enumerate(np.arange(feature_length - max_shift - seg_len//2+seg_step, \
+                                feature_length_full - max_shift - seg_len//2 + seg_step, \
+                                seg_step)):
+        hanford = data[:, 0, center - seg_len//2:center + seg_len//2]
+        hanford = hanford - hanford.mean(dim=1)[:, None]
+        best_corr = -1 * torch.ones((n_batches), device=device)
+        for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
+            livingston = data[:, 1, center - seg_len//2+shift_amount:center + seg_len//2 + shift_amount]
+            livingston = livingston - livingston.mean(dim=1)[:, None]
+            corr = torch.sum(hanford*livingston, axis=1) / torch.sqrt( torch.sum(hanford*hanford, axis=1) * torch.sum(livingston*livingston, axis=1) )
+            best_corr = torch.maximum(best_corr, corr)
+        all_corrs[:, -(k+1)] = best_corr
 
     edge_start, edge_end = max_shift // seg_step, -(max_shift // seg_step) + 1
     return all_corrs, (edge_start, edge_end)

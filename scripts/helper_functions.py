@@ -29,8 +29,8 @@ from config import (
     SEGMENT_OVERLAP,
     CLASS_ORDER,
     SIGNIFICANCE_NORMALIZATION_DURATION,
-    DEVICE)
-
+    GPU_NAME)
+DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
     '''
@@ -861,36 +861,8 @@ def split_into_segments(data,
 
     return result
 
-def split_into_segments_torch(data, 
-                        overlap=SEGMENT_OVERLAP, 
-                        seg_len=SEG_NUM_TIMESTEPS):
-    '''
-    Function to slice up data into overlapping segments
-    seg_len: length of resulting segments
-    overlap: overlap of the windows in units of indicies
-
-    assuming that data is of shape (N_samples, features, axis_to_slice_on)
-    '''
-    N_slices = (data.shape[2]-seg_len)//overlap
-    data = data[:, :, :N_slices*overlap+seg_len]
-
-    device = DEVICE
-
-    # resulting shape: (batches, N_slices, 2, 100)
-    result = torch.empty((data.shape[0], N_slices, data.shape[1], seg_len), 
-                        device=device)
-
-    for i in range(data.shape[0]):
-        for j in range(N_slices):
-            start = j*overlap
-            end = j*overlap + seg_len
-            result[i, j, :, :] = data[i, :, start:end]
-
-    return result
-
-
-def split_into_segments_torch_SPEED(data, 
-                        overlap=SEGMENT_OVERLAP, 
+def split_into_segments_torch(data,
+                        overlap=SEGMENT_OVERLAP,
                         seg_len=SEG_NUM_TIMESTEPS):
     '''
     Function to slice up data into overlapping segments
@@ -901,13 +873,16 @@ def split_into_segments_torch_SPEED(data,
     '''
     N_slices = (data.shape[2]-seg_len)//overlap
     data = data[:, :, :N_slices*overlap+seg_len]
-    feature_length = data.shape[2]
+    feature_length_full = data.shape[2]
+    feature_length = (data.shape[2]//100) *100
+    N_slices_limited = (feature_length-seg_len)//overlap
     n_batches = data.shape[0]
+    n_detectors = data.shape[1]
 
     device = DEVICE
 
     # resulting shape: (batches, N_slices, 2, 100)
-    result = torch.empty((data.shape[0], N_slices, data.shape[1], seg_len), 
+    result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
                         device=device)
 
     offset_families = np.arange(0, seg_len, overlap)
@@ -924,6 +899,12 @@ def split_into_segments_torch_SPEED(data,
         end = feature_length-seg_len+offset_families[family_index]
         if end > feature_length:
             end -= seg_len
-        result[:, family_index::family_count] = data[:, :, offset_families[family_index]:end].reshape(n_batches, -1, 2, 100)
-
+        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+    # do the pieces left over, at the end
+    for i in range(1, N_slices - N_slices_limited+1):
+        end = int(feature_length_full - i *overlap)
+        start = int(end - seg_len)
+        result[:, -i, :, :] = data[:, :, start:end]
+    
     return result
