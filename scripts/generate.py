@@ -25,7 +25,8 @@ from config import (
     N_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
-    INJECTION_SEGMENT_LENGTH,
+    TRAIN_INJECTION_SEGMENT_LENGTH,
+    FM_INJECTION_SEGMENT_LENGTH,
     BBH_WINDOW_LEFT,
     BBH_WINDOW_RIGHT,
     BBH_AMPLITUDE_BAR,
@@ -173,7 +174,8 @@ def inject_signal(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
-        segment_length=INJECTION_SEGMENT_LENGTH):  # length of background segment to fetch for each injection
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH,
+        inject_at_end=False):  # length of background segment to fetch for each injection
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
@@ -193,7 +195,8 @@ def inject_signal(
                                         segment_length,
                                         SNR=1,
                                         background=loaded_data,
-                                        get_psds=True)
+                                        get_psds=True,
+                                        inject_at_end=inject_at_end)
     print(f'background segments shape {bkg_segs.shape}')
     final_data = []
     for i, pols in enumerate(polarizations):
@@ -346,9 +349,30 @@ def main(args):
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
         training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
 
+    elif args.stype == "bbh_FM_optimization":
+        # 1: generate the polarization files for the signal classes of interest
+        BBH_cross, BBH_plus = bbh_polarization_generator(N_INJECTIONS)
+
+        # 2: create the injections with those signal classes
+        BBH_injections = inject_signal(folder_path=args.folder_path,
+                                      data=[BBH_cross, BBH_plus], 
+                                      segment_length=FM_INJECTION_SEGMENT_LENGTH,
+                                      inject_at_end=True)
+        training_data = BBH_injections
+
+    elif args.stype == "sg_FM_optimization":
+        # 1: generate the polarization files for the signal classes of interest
+        SG_cross, SG_plus = sg_polarization_generator(N_INJECTIONS)
+
+        # 2: create the injections with those signal classes
+        SG_injections = inject_signal(folder_path=args.folder_path,
+                                      data=[SG_cross, SG_plus], 
+                                      segment_length=FM_INJECTION_SEGMENT_LENGTH,
+                                      inject_at_end=True)
+        training_data = SG_injections
+
+
     np.save(args.save_file, training_data)
-
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -360,6 +384,8 @@ if __name__ == '__main__':
                         type=str)
 
     parser.add_argument('--stype', help='Which type of the injection to generate',
-                        type=str, choices=['bbh', 'sg', 'background', 'glitch', 'wnb', 'ccsn', 'timeslides'])
+                        type=str, choices=['bbh', 'sg', 'background', 
+                                           'glitch', 'wnb', 'ccsn', 'timeslides',
+                                           'bbh_FM_optimization', 'sg_FM_optimization'])
     args = parser.parse_args()
     main(args)

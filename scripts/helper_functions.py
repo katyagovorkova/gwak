@@ -16,7 +16,6 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
-    INJECT_AT_END,
     EDGE_INJECT_SPACING,
     GLITCH_SNR_BAR,
     STRAIN_START,
@@ -411,7 +410,8 @@ def inject_hplus_hcross(
         background=None,
         SNR=None,
         get_psds=False,
-        detector_psds=None):
+        detector_psds=None,
+        inject_at_end=False):
 
     final_injects = []
     final_injects_nonoise = []
@@ -443,7 +443,7 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
-            if INJECT_AT_END:
+            if inject_at_end:
                 center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
                 slx = slice(center-half_polar, center+half_polar)
 
@@ -502,7 +502,7 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
-            if INJECT_AT_END:
+            if inject_at_end:
                 center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
                 slx = slice(center-half_polar, center+half_polar)
             injection[slx] += response * polarization
