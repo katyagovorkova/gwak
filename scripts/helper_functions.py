@@ -1,7 +1,7 @@
 import os
 import h5py
 import time
-# import bilby
+import bilby
 import numpy as np
 import torch
 
@@ -519,7 +519,7 @@ def inject_hplus_hcross(
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)  # [:, np.newaxis, :]
 
-    return final_bothdetector, final_bothdetector_nonoise
+    return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
 
 
 def olib_time_domain_sine_gaussian(

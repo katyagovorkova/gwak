@@ -22,7 +22,9 @@ from config import (
     IFOS,
     SAMPLE_RATE,
     STRAIN_START,
-    N_INJECTIONS,
+    N_TRAIN_INJECTIONS,
+    N_TEST_INJECTIONS,
+    N_FM_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
     TRAIN_INJECTION_SEGMENT_LENGTH,
@@ -35,7 +37,8 @@ from config import (
     SG_WINDOW_RIGHT,
     SG_AMPLITUDE_BAR,
     SG_N_SAMPLES,
-    BKG_N_SAMPLES
+    BKG_N_SAMPLES,
+    FM_INJECTION_SNR
     )
 
 
@@ -174,6 +177,7 @@ def inject_signal(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
+        SNR=None,
         segment_length=TRAIN_INJECTION_SEGMENT_LENGTH,
         inject_at_end=False):  # length of background segment to fetch for each injection
 
@@ -209,10 +213,10 @@ def inject_signal(
                                                        pols,
                                                        SAMPLE_RATE,
                                                        segment_length,
-                                                       SNR=None,
+                                                       SNR=SNR,
                                                        background=loaded_data,
-                                                       detector_psds=detector_psds)
-
+                                                       detector_psds=detector_psds,
+                                                       inject_at_end=inject_at_end)
             bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
             final_data.append(bandpass_segs)
 
@@ -222,7 +226,7 @@ def inject_signal(
 def generate_backgrounds(
         folder_path: str,
         n_backgrounds: int,
-        segment_length=INJECTION_SEGMENT_LENGTH):
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH):
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
@@ -300,7 +304,7 @@ def main(args):
 
     if args.stype == 'bbh':
         # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(N_INJECTIONS)
+        BBH_cross, BBH_plus = bbh_polarization_generator(N_TRAIN_INJECTIONS)
 
         # 2: create the injections with those signal classes
         BBH_injections = inject_signal(folder_path=args.folder_path,
@@ -312,7 +316,7 @@ def main(args):
 
     elif args.stype == 'sg':
         # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_INJECTIONS)
+        SG_cross, SG_plus = sg_polarization_generator(N_TRAIN_INJECTIONS)
 
         # 2: create the injections with those signal classes
         SG_injections = inject_signal(folder_path=args.folder_path,
@@ -324,7 +328,7 @@ def main(args):
 
     elif args.stype == 'wnb':
         # 1: generate the polarization files for the signal classes of interest
-        WNB_cross, WNB_plus = wnb_polarization_generator(N_INJECTIONS)
+        WNB_cross, WNB_plus = wnb_polarization_generator(N_TEST_INJECTIONS)
 
         # 2: create the injections with those signal classes
         training_data = inject_signal(folder_path=args.folder_path,
@@ -334,7 +338,7 @@ def main(args):
 
         # 2.5: generate/fetch the background classes
         backgrounds = generate_backgrounds(folder_path=args.folder_path,
-                                       n_backgrounds=N_INJECTIONS)
+                                       n_backgrounds=N_TEST_INJECTIONS)
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,
@@ -349,26 +353,28 @@ def main(args):
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
         training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
 
-    elif args.stype == "bbh_FM_optimization":
+    elif args.stype == "bbh_fm_optimization":
         # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(N_INJECTIONS)
+        BBH_cross, BBH_plus = bbh_polarization_generator(N_FM_INJECTIONS)
 
         # 2: create the injections with those signal classes
         BBH_injections = inject_signal(folder_path=args.folder_path,
                                       data=[BBH_cross, BBH_plus], 
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
-                                      inject_at_end=True)
+                                      inject_at_end=True,
+                                      SNR=FM_INJECTION_SNR)
         training_data = BBH_injections
 
-    elif args.stype == "sg_FM_optimization":
+    elif args.stype == "sg_fm_optimization":
         # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_INJECTIONS)
+        SG_cross, SG_plus = sg_polarization_generator(N_FM_INJECTIONS)
 
         # 2: create the injections with those signal classes
         SG_injections = inject_signal(folder_path=args.folder_path,
                                       data=[SG_cross, SG_plus], 
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
-                                      inject_at_end=True)
+                                      inject_at_end=True,
+                                      SNR=FM_INJECTION_SNR)
         training_data = SG_injections
 
 
@@ -386,6 +392,7 @@ if __name__ == '__main__':
     parser.add_argument('--stype', help='Which type of the injection to generate',
                         type=str, choices=['bbh', 'sg', 'background', 
                                            'glitch', 'wnb', 'ccsn', 'timeslides',
-                                           'bbh_FM_optimization', 'sg_FM_optimization'])
+                                           'bbh_fm_optimization', 'sg_fm_optimization'])
     args = parser.parse_args()
     main(args)
+
