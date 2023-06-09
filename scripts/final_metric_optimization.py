@@ -57,12 +57,20 @@ def main(args):
     backgrounds: shape (time_axis, 5)
     '''
     signal_evals = []
-    for file_name in os.listdir(f'{args.signal_path}'):
-        signal_evals.append(np.load(f'{args.signal_path}/{file_name}'))
+    if type(args.signal_path) == "str":
+        args.signal_path = [args.signal_path]
+    for file_name in args.signal_path:
+        signal_evals.append(np.load(f'{file_name}'))
     signal_evals = np.concatenate(signal_evals, axis=0)
 
-    timeslide_evals = np.load(f'{args.timeslide_path}')
-       
+    timeslide_evals = []
+    if type(args.timeslide_path) == "str":
+        args.timeslide_path = np.load(args.timeslide_path)
+    for file_name in args.timeslide_path:
+        timeslide_evals.append(np.load(f'{file_name}'))
+    timeslide_evals = np.concatenate(timeslide_evals, axis=0)
+
+    
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
     np.save(args.save_file, optimal_coeffs)
 
@@ -73,10 +81,10 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('timeslide_path', type=str,
-        help='Path of timeslide_evals.py')
+        help='str or list[str] pointing to timeslide files ')
     parser.add_argument('signal_path_folder', type=str,
-        help='Path of folder containing signals')
+        help='str or list[str] pointing to signal files')
     parser.add_argument('save_file', type=str,
-        help='Where to save the best ES parameters')
+        help='Where to save the best final metric parameters')
     args = parser.parse_args()
     main(args)

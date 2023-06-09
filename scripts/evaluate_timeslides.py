@@ -3,16 +3,8 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from quak_predict import quak_eval
-from pearson import pearson_computation
+from evaluate_data import full_evaluation
 import time
-
-from helper_functions import (
-    mae, 
-    std_normalizer_torch, 
-    split_into_segments_torch,
-    stack_dict_into_tensor,
-    reduce_to_significance)
 
 from config import (
     TIMESLIDE_STEP,
@@ -41,23 +33,7 @@ def main(args):
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
         timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide]
 
-        clipped_len = (timeslide.shape[1] // 5) * 5
-        timeslide = timeslide[:, :clipped_len]
-
-        # do the evaluation
-        segments = split_into_segments_torch(timeslide[None, :, :])[0]
-        segments_normalized = std_normalizer_torch(segments)
-
-        quak_predictions_dict = quak_eval(segments_normalized, 
-                                          [f"{args.model_folder_path}/{elem}" for elem in  os.listdir(args.model_folder_path)])
-        quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
-        pearson_values, (edge_start, edge_end) = pearson_computation(timeslide[None, :, :])
-        pearson_values = pearson_values[0, :, None]
-        quak_predictions = quak_predictions[edge_start:edge_end]
-
-        final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
-
-        final_values = reduce_to_significance(final_values)
+        final_values = full_evaluation(timeslide[None, :, :], args.model_folder_path)
 
         if args.metric_coefs_path is not None:
             # compute the dot product and save that instead

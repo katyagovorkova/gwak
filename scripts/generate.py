@@ -363,7 +363,7 @@ def main(args):
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
                                       inject_at_end=True,
                                       SNR=FM_INJECTION_SNR)
-        training_data = BBH_injections
+        training_data = BBH_injections.swapaxes(0, 1)
 
     elif args.stype == "sg_fm_optimization":
         # 1: generate the polarization files for the signal classes of interest
@@ -375,7 +375,7 @@ def main(args):
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
                                       inject_at_end=True,
                                       SNR=FM_INJECTION_SNR)
-        training_data = SG_injections
+        training_data = SG_injections.swapaxes(0, 1)
 
 
     np.save(args.save_file, training_data)

@@ -58,11 +58,7 @@ def std_normalizer(data):
     return data / std_vals
 
 def std_normalizer_torch(data):
-    feature_axis = 1
-    if data.shape[1] == 2:
-        feature_axis = 2
-        
-    std_vals = torch.std(data, dim=feature_axis)[:, :, None]
+    std_vals = torch.std(data, dim=-1)[:, :, :, None]
     return data / std_vals
 
 def stack_dict_into_tensor(data_dict):
@@ -85,26 +81,26 @@ def reduce_to_significance(data):
     normalize / calculate significance for each of the axis 
     by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
     '''
-    N_samples, N_features = data.shape
-    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE)
+    N_batches, N_samples, N_features = data.shape
+    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE // SEGMENT_OVERLAP)
     assert  N_samples > norm_datapoints
 
     device = DEVICE
 
     #take the mean, std by sliding window of size norm_datapoints
     stacked = torch.reshape(
-        data[: (N_samples // norm_datapoints) * norm_datapoints ],
+        data[:, : (N_samples // norm_datapoints) * norm_datapoints ],
         (norm_datapoints, -1, N_features)
     )
-    means = stacked.mean(dim=0)
-    stds = stacked.std(dim=0)
+    means = stacked.mean(dim=1)
+    stds = stacked.std(dim=1)
 
-    computed_significance = torch.empty((N_samples - norm_datapoints, N_features), device=device)
+    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=device)
 
     N_splits = means.shape[0]
     for i in range(N_splits):
         start, end = i*norm_datapoints, (i+1)*norm_datapoints
-        computed_significance[start:end] = (data[start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
+        computed_significance[:, start:end] = (data[:, start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
         
     return computed_significance
 
