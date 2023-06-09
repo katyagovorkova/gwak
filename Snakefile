@@ -98,11 +98,12 @@ rule generate_timeslides_for_final_metric_train:
 
 rule train_metric:
     input:
-        signals = expand(rules.evaluate_fm_signals.output.save_file, fm_signal_dataclass=['bbh', 'sg'])
+        signals = expand(rules.evaluate_fm_signals.output.save_file, fm_signal_dataclass=['bbh', 'sg']),
+        timeslides = expand('output/fm_files_eval/timeslides/timeslide_evals_{i}.npy', i=[1])
     output:
         params_file = 'output/trained/final_metric_params.npy'
     shell:
-        'python3 scripts/final_metric_optimization.py'
+        'python3 scripts/final_metric_optimization.py {input.timeslides} {output.params_file} {input.signals}'
 
 
 rule calculate_pearson:

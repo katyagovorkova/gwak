@@ -6,7 +6,6 @@ import torch
 from quak_predict import quak_eval
 from pearson import pearson_computation
 import time
-
 from helper_functions import (
     mae, 
     std_normalizer_torch, 
