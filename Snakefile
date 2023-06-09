@@ -131,6 +131,15 @@ rule calculate_pearson:
         'mkdir -p output/data/test/correlations/; '
         'python3 scripts/pearson.py {input.data_path} {output.save_file}'
 
+rule generate_varying_snr_signals:
+    params:
+        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+    output:
+        save_file = 'output/snr_variation/{signal_dataclass}_injections.npy',
+    shell:
+        'python3 scripts/generate.py {params.omicron} {output.save_file} \
+            --stype {wildcards.signal_dataclass};'
+
 rule plot_results:
     input:
         dependencies = rules.train_metric.output.params_file

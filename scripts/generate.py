@@ -38,7 +38,12 @@ from config import (
     SG_AMPLITUDE_BAR,
     SG_N_SAMPLES,
     BKG_N_SAMPLES,
-    FM_INJECTION_SNR
+    FM_INJECTION_SNR,
+    N_VARYING_SNR_INJECTIONS,
+    VARYING_SNR_DISTRIBUTION,
+    VARYING_SNR_LOW,
+    VARYING_SNR_HIGH,
+    VARYING_SNR_SEGMENT_INJECTION_LENGTH
     )
 
 
@@ -178,8 +183,9 @@ def inject_signal(
         # source of the polarization files to be injected into the data
         data=None,
         SNR=None,
-        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH,
-        inject_at_end=False):  # length of background segment to fetch for each injection
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH, # length of background segment to fetch for each injection
+        inject_at_end=False,
+        return_injection_snr=False): 
 
     loaded_data = load_folder(folder_path, 
                               DATA_SEGMENT_LOAD_START, 
@@ -203,23 +209,29 @@ def inject_signal(
                                         inject_at_end=inject_at_end)
     print(f'background segments shape {bkg_segs.shape}')
     final_data = []
+    sampled_SNR = []
     for i, pols in enumerate(polarizations):
         # didn't generate enough bkg samples, this is generally fine unless
         # small overall samples
         if i >= bkg_segs.shape[1]:
             break
+        if SNR is not None:
+            sample_snr = SNR()
+            sampled_SNR.append(sample_snr)
         for j in range(1):
             injected_waveform, _ = inject_hplus_hcross(bkg_segs[:, i, :],
                                                        pols,
                                                        SAMPLE_RATE,
                                                        segment_length,
-                                                       SNR=SNR,
+                                                       SNR=sample_snr,
                                                        background=loaded_data,
                                                        detector_psds=detector_psds,
                                                        inject_at_end=inject_at_end)
             bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
             final_data.append(bandpass_segs)
 
+    if return_injection_snr:
+        return np.hstack(final_data), np.array(sampled_SNR)
     return np.hstack(final_data)
 
 
@@ -299,8 +311,17 @@ def sample_injections_main(
 
     return training_data
 
+def make_snr_sampler(distribution, low, hi):
+    if distribution == "uniform":
+        def sampler():
+            return np.random.uniform(low, hi)
+    else:
+        print("Invalid or unimplemented distribution choice", distribution)
+        assert False
 
+    return sampler 
 def main(args):
+    sampled_snr = None
 
     if args.stype == 'bbh':
         # 1: generate the polarization files for the signal classes of interest
@@ -357,28 +378,74 @@ def main(args):
         # 1: generate the polarization files for the signal classes of interest
         BBH_cross, BBH_plus = bbh_polarization_generator(N_FM_INJECTIONS)
 
+        sampler = make_snr_sampler("uniform", FM_INJECTION_SNR, FM_INJECTION_SNR)
         # 2: create the injections with those signal classes
         BBH_injections = inject_signal(folder_path=args.folder_path,
                                       data=[BBH_cross, BBH_plus], 
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
                                       inject_at_end=True,
-                                      SNR=FM_INJECTION_SNR)
+                                      SNR=sampler)
         training_data = BBH_injections.swapaxes(0, 1)
 
     elif args.stype == "sg_fm_optimization":
         # 1: generate the polarization files for the signal classes of interest
         SG_cross, SG_plus = sg_polarization_generator(N_FM_INJECTIONS)
 
+        sampler = make_snr_sampler("uniform", FM_INJECTION_SNR, FM_INJECTION_SNR)
         # 2: create the injections with those signal classes
         SG_injections = inject_signal(folder_path=args.folder_path,
                                       data=[SG_cross, SG_plus], 
                                       segment_length=FM_INJECTION_SEGMENT_LENGTH,
                                       inject_at_end=True,
-                                      SNR=FM_INJECTION_SNR)
+                                      SNR=sampler)
         training_data = SG_injections.swapaxes(0, 1)
 
+    elif args.stype == "bbh_varying_snr":
+        # 1: generate the polarization files for the signal classes of interest
+        BBH_cross, BBH_plus = bbh_polarization_generator(N_VARYING_SNR_INJECTIONS)
+
+        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        # 2: create the injections with those signal classes
+        BBH_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
+                                      data=[BBH_cross, BBH_plus], 
+                                      segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                      inject_at_end=True,
+                                      SNR=sampler,
+                                      return_injection_snr = True)
+        training_data = BBH_injections.swapaxes(0, 1)
+    
+    elif args.stype == "sg_varying_snr":
+        # 1: generate the polarization files for the signal classes of interest
+        SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS)
+
+        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        # 2: create the injections with those signal classes
+        SG_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
+                                      data=[SG_cross, SG_plus], 
+                                      segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                      inject_at_end=True,
+                                      SNR=sampler,
+                                      return_injection_snr = True)
+        training_data = SG_injections.swapaxes(0, 1)
+
+    elif args.stype == 'wnb_varying_snr':
+        # 1: generate the polarization files for the signal classes of interest
+        WNB_cross, WNB_plus = wnb_polarization_generator(N_TEST_INJECTIONS)
+
+        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        # 2: create the injections with those signal classes
+        training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
+                                     data=[WNB_cross, WNB_plus],
+                                     segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                     inject_at_end = True,
+                                     SNR=sampler,
+                                     return_injection_snr=True)
 
     np.save(args.save_file, training_data)
+
+    if sampled_snr is not None:
+        snr_save_path = f"{args.save_file[:-4]}_SNR{args.save_file[-4:]}" # drop it in between name and .npy
+        np.save(snr_save_path, sampled_snr)
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -392,7 +459,8 @@ if __name__ == '__main__':
     parser.add_argument('--stype', help='Which type of the injection to generate',
                         type=str, choices=['bbh', 'sg', 'background', 
                                            'glitch', 'wnb', 'ccsn', 'timeslides',
-                                           'bbh_fm_optimization', 'sg_fm_optimization'])
+                                           'bbh_fm_optimization', 'sg_fm_optimization',
+                                           'bbh_varying_snr', 'sg_varying_snr'])
     args = parser.parse_args()
     main(args)
 
