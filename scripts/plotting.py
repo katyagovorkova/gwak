@@ -199,7 +199,24 @@ def recreation_plotting(data_original, data_recreated, savedir):
                 
         plt.tight_layout()
         fig.savefig(f"{savedir}/recreation/{CLASS_ORDER[i]}/one_to_all.pdf", dpi=300)
+
+    # one general plot showcasing a sample from each class 
+    fig, axs = plt.subplots(4, 2, figsize=(RECREATION_WIDTH, 4*RECREATION_HEIGHT_PER_SAMPLE))
+
+    chosen_index = 0
+    for l in range(len(CLASS_ORDER)):
+        for k in range(NUM_IFOS):
+            axs[l, k].plot(ts, data_original[l][chosen_index, l, k, :], label = "Original", c='black')
+            for m in range(len(CLASS_ORDER)):
+                axs[l, k].plot(ts, data_recreated[l][chosen_index, m, k, :], label = f"Recreated, {CLASS_ORDER[l]}", c=colors[m])
             
+            axs[l, k].set_title(f"{IFO_LABELS[k]}, {CLASS_ORDER[l]}")
+            axs[l, k].grid()
+            axs[l, k].legend()
+
+    plt.tight_layout()
+    fig.savefig(f"{savedir}/general_recreation.pdf", dpi=300)
+    
 
 def main(args):
     # temporary
