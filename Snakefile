@@ -140,6 +140,18 @@ rule generate_varying_snr_signals:
         'python3 scripts/generate.py {params.omicron} {output.save_file} \
             --stype {wildcards.signal_dataclass};'
 
+rule evaluate_varying_snr_signals:
+    input:
+        source_file = 'output/snr_variation/{signal_dataclass}_varying_snr_injections.npy',
+        source_snr_file = 'output/snr_variation/{signal_dataclass}_varying_snr_injections_SNR.npy',
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+    output:
+        save_file = 'output/varying_snr_eval/{signal_dataclass}_evals.npy',
+        save_snr_file = 'output/varying_snr_eval/{signal_dataclass}_evals_SNR.npy'
+    shell:
+        'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path};'
+        'cp {input.source_snr_file} {output.save_snr_file}'
+
 rule plot_results:
     input:
         dependencies = rules.train_metric.output.params_file

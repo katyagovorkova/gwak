@@ -26,7 +26,6 @@ def quak_eval(data, model_path, reduce_loss=True):
                     BOTTLENECK=BOTTLENECK,
                     FACTOR=FACTOR).to(device)
 
-    print("REDUCE LOSS", reduce_loss)
     # check if the evaluation has to be done for one model or for several
     loss = dict()
     if not reduce_loss:
