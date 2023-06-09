@@ -4,6 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
+from helper_functions import stack_dict_into_numpy, stack_dict_into_numpy_segments
+from config import (
+    SEG_NUM_TIMESTEPS,
+    SAMPLE_RATE,
+    CLASS_ORDER,
+    SPEED,
+    NUM_IFOS,
+    IFO_LABELS,
+    RECREATION_WIDTH,
+    RECREATION_HEIGHT_PER_SAMPLE,
+    RECREATION_SAMPLES_PER_PLOT
+)
 
 def density_plot(x, y):
     # Define the borders
@@ -31,7 +43,8 @@ def corner_plotting(
     enforce_lim:bool=True,
     contour:bool=True,
     loglog:bool=False,
-    do_cph:bool=True):
+    do_cph:bool=False,
+    save_1d_hist:bool=False):
 
     # corner plot, BIL, LAL
     N = len(labels)
@@ -43,11 +56,18 @@ def corner_plotting(
             axs[i, j].axis('off')
 
     cmaps = [
-        'Blues',
         'Purples',
+        'Blues',
         'Greens',
         'Reds',
         'Purples']
+
+    one_D_colors = [
+        'purple', 
+        'blue',
+        'green',
+        'red'
+    ]
 
     # do the 1-d plots
     for i in range(N):
@@ -65,10 +85,9 @@ def corner_plotting(
                 LBL = 'Background'
             else:
                 LBL = labels[i]
-            axs[i, i].hist(class_data[:, i], **oneD_hist_kwargs, label = LBL)
-            np.save(f'{plot_savedir}/one_d_hist_{i}_{j}.npy', class_data[:, i])
-            if loglog:
-                axs[i, i].loglog()
+            axs[i, i].hist(class_data[:, i], color=one_D_colors[j], **oneD_hist_kwargs, label = LBL)
+            if save_1d_hist:
+                np.save(f'{plot_savedir}/one_d_hist_{i}_{j}.npy', class_data[:, i])
             if enforce_lim:
                 axs[i, i].set_xlim(0, 1.2)
 
@@ -78,21 +97,9 @@ def corner_plotting(
     # do 2-d plots
     for i in range(N):
         for j in range(i):
-            norm_factor_i = 0
-            norm_factor_j = 0
-            for k, class_data in enumerate(data): # find the additive normalizing factor, has to the same by class
-                norm_factor_i = min(norm_factor_i, class_data[:, i].min())
-                norm_factor_j = min(norm_factor_j, class_data[:, j].min())
+            for k, class_data in enumerate(data):
 
-                if log_scaling: # modify the data being plotted
-                    epsilon = 1 # so we can take log10 of min value
-                    A = class_data[:, i] - norm_factor_i + epsilon
-                    A = np.log10(A)
-                    B = class_data[:, j] - norm_factor_j + epsilon
-                    B = np.log10(B)
-                else:
-                    A, B = class_data[:, i], class_data[:, j]
-
+                A, B = class_data[:, i], class_data[:, j]
 
                 if contour:
                     xx, yy, f = density_plot(A, B)
@@ -140,18 +147,93 @@ def corner_plotting(
         np.save(f'{plot_savedir}/cph.npy', corner_plot_hist)
 
 
-def main(args):
-    corner_plot_data = []
-    for i in range(len(args.class_labels)):
-        class_data = []
-        for j in range(len(args.class_labels)):
-        # class data is the loss across all autoencoders for a given dataclass
-            data = np.load(f'{args.data_predicted_path}/model_{args.class_labels[j]}/{args.class_labels[i]}.npy')
-            class_data.append(data)
-        class_data = np.stack(class_data, axis=1)
-        corner_plot_data.append(class_data)
+def recreation_plotting(data_original, data_recreated, savedir):
+    ts = np.linspace(0, 1000*SEG_NUM_TIMESTEPS/SAMPLE_RATE, SEG_NUM_TIMESTEPS)
+    colors = [
+        'purple', 
+        'blue',
+        'green',
+        'red'
+    ]
+    for i, class_name in enumerate(CLASS_ORDER):
+        try:
+            os.makedirs(f"{savedir}/recreation/{CLASS_ORDER[i]}/")
+        except FileExistsError:
+            None
+        orig_samps = data_original[i][:RECREATION_SAMPLES_PER_PLOT, i, :, :]
+        recreated_samps = data_recreated[i][:RECREATION_SAMPLES_PER_PLOT, :, :, :]
 
-    corner_plotting(corner_plot_data, args.class_labels, args.plot_savedir)
+        # make the plot showing only original, recreated for that class
+        fig, axs = plt.subplots(RECREATION_SAMPLES_PER_PLOT, 2, figsize=(RECREATION_WIDTH, RECREATION_SAMPLES_PER_PLOT*RECREATION_HEIGHT_PER_SAMPLE))
+        
+        for j in range(RECREATION_SAMPLES_PER_PLOT):
+            for k in range(NUM_IFOS):
+                axs[j, k].plot(ts, orig_samps[j, k, :], label = "Original", c='black')
+                axs[j, k].plot(ts, recreated_samps[j, i, k, :], label = f"Recreated, {class_name}", c=colors[i])
+
+                axs[j, k].grid()
+                axs[j, k].set_title(IFO_LABELS[k])
+                axs[j, k].legend()
+                if k ==0:
+                    axs[j, k].set_ylabel("Whitened Strain")
+                axs[j, k].set_xlabel("Time (ms)")
+                
+        plt.tight_layout()
+        fig.savefig(f"{savedir}/recreation/{CLASS_ORDER[i]}/one_to_one.pdf", dpi=300)
+
+        # make the plot showing original, recreated for all classes
+        fig, axs = plt.subplots(RECREATION_SAMPLES_PER_PLOT, 2, figsize=(RECREATION_WIDTH, RECREATION_SAMPLES_PER_PLOT*RECREATION_HEIGHT_PER_SAMPLE))
+        
+        for j in range(RECREATION_SAMPLES_PER_PLOT):
+            for k in range(NUM_IFOS):
+                axs[j, k].plot(ts, orig_samps[j, k, :], label = "Original", c='black')
+                for l in range(len(CLASS_ORDER)):
+                    axs[j, k].plot(ts, recreated_samps[j, l, k, :], label = f"Recreated, {CLASS_ORDER[l]}", c=colors[l])
+
+                axs[j, k].grid()
+                axs[j, k].set_title(IFO_LABELS[k])
+                axs[j, k].legend()
+                if k ==0:
+                    axs[j, k].set_ylabel("Whitened Strain")
+                axs[j, k].set_xlabel("Time (ms)")
+                
+        plt.tight_layout()
+        fig.savefig(f"{savedir}/recreation/{CLASS_ORDER[i]}/one_to_all.pdf", dpi=300)
+            
+
+def main(args):
+    # temporary
+    do_corner = False
+    do_recreation = True
+
+    if do_corner:
+        corner_plot_data = [0] * 4 #4, N_samples, 4
+        for i in range(len(args.class_labels)):
+            class_label = args.class_labels[i] 
+            class_index = CLASS_ORDER.index(class_label)
+            data_dict = np.load(f'{args.data_predicted_path}/evaluated/quak_{class_label}.npz')
+            stacked_data = stack_dict_into_numpy(data_dict)
+            if SPEED:
+                stacked_data = stacked_data[:500, :]
+
+            corner_plot_data[class_index] = stacked_data
+
+        corner_plotting(corner_plot_data, CLASS_ORDER, args.plot_savedir)
+
+    if do_recreation:
+        data_original = [0] * 4
+        data_recreated = [0] * 4 
+        for i in range(len(args.class_labels)):
+            class_label = args.class_labels[i] 
+            class_index = CLASS_ORDER.index(class_label)
+            data_dict = np.load(f'{args.data_predicted_path}/recreation/quak_{class_label}.npz', allow_pickle=True)
+            stacked_data_original = stack_dict_into_numpy_segments(data_dict['original'].flatten()[0])
+            stacked_data_recreated = stack_dict_into_numpy_segments(data_dict['recreated'].flatten()[0])
+
+            data_original[class_index] = stacked_data_original
+            data_recreated[class_index] = stacked_data_recreated
+
+        recreation_plotting(data_original, data_recreated, args.plot_savedir)
 
 
 if __name__ == '__main__':

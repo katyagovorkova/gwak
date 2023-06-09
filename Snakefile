@@ -64,8 +64,24 @@ rule quak_prediction:
     output:
         save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
-        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} \
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} True \
             --model-path {input.model_path} '
+
+rule quak_recreation:
+    params:
+        reduce_loss = False
+    input:
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
+        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+    output:
+        save_file = 'output/recreation/quak_{dataclass}.npz'
+    shell:
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
+         --model-path {input.model_path} '
+
+rule all_quak_recreation:
+    input:
+        expand(rules.quak_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule generate_fm_signals:
     params:
@@ -119,7 +135,7 @@ rule plot_results:
     input:
         dependencies = rules.train_metric.output.params_file
     params:
-        evaluation_dir = 'output/evaluated/',
+        evaluation_dir = 'output/',
     output:
         directory('output/plots/')
     shell:

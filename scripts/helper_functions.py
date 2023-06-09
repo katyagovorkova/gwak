@@ -74,6 +74,30 @@ def stack_dict_into_tensor(data_dict):
     
     return stacked_tensor
 
+def stack_dict_into_numpy(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into numpy array
+    '''
+    fill_len = len(data_dict['bbh'])
+    stacked_np = np.empty((fill_len, 4))
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_np[:, stack_index] = data_dict[class_name]
+    
+    return stacked_np
+
+def stack_dict_into_numpy_segments(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into numpy array
+    '''
+    fill_len = len(data_dict['bbh'])
+    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, 100))
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_np[:, stack_index] = data_dict[class_name]
+    
+    return stacked_np
+
 
 def reduce_to_significance(data):
     '''

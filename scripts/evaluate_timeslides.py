@@ -70,9 +70,9 @@ if __name__ == '__main__':
                         type = str, default=None)
     
     parser.add_argument('--fm_shortened_timeslides', help="Generate reduced timeslide samples to train final metric",
-                        type = bool, default=False)
+                        type = str, default="False")
     
-
     args = parser.parse_args()
+    args.fm_shortened_timeslides = args.fm_shortened_timeslides == "True"
     main(args)
 
