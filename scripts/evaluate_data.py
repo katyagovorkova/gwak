@@ -43,10 +43,10 @@ def full_evaluation(data, model_folder_path):
     # must be reshaped into (N_batches * N_samples, 2, 100) to work with quak_predictions
     N_batches, N_samples = segments_normalized.shape[0], segments_normalized.shape[1]
     segments_normalized = torch.reshape(segments_normalized, (N_batches * N_samples, 2, 100))
-    quak_predictions_dict = quak_eval(segments_normalized, 
-                                        [f"{model_folder_path}/{elem}" for elem in  os.listdir(model_folder_path)])
+    quak_predictions_dict = quak_eval(segments_normalized, args.model_paths)
     quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
     quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
+    
     pearson_values, (edge_start, edge_end) = pearson_computation(data)
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
@@ -58,9 +58,8 @@ def full_evaluation(data, model_folder_path):
 
 def main(args):
     data = np.load(args.data_path)
-    model_folder_path = args.model_folder_path
 
-    result = full_evaluation(data, model_folder_path).cpu().numpy()
+    result = full_evaluation(data, args.model_paths).cpu().numpy()
 
     np.save(args.save_path, result)
 
@@ -75,8 +74,8 @@ if __name__ == '__main__':
     parser.add_argument('save_path', help = "Folder to which save the evaluated injections",
         type=str)
         
-    parser.add_argument('model_folder_path', help = "Path to the folder containing the models",
-        type=str)
+    parser.add_argument('model_paths', help = "List of models",
+        nargs='+', type=str)
 
     args = parser.parse_args()
     main(args)

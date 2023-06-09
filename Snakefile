@@ -67,16 +67,23 @@ rule quak_prediction:
         'python3 scripts/quak_predict.py {input.test_data} {output.save_file} \
             --model-path {input.model_path} '
 
-rule generate_FM_signals:
-    # input:
-    #     omicron = rules.run_omicron.output
+rule generate_fm_signals:
     params:
         omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
-        file = 'output/fm_files/{fm_signal_dataclass}_injections.npy',
+        save_file = 'output/fm_files/{fm_signal_dataclass}_injections.npy',
     shell:
-        'python3 scripts/generate.py {params.omicron} {output.file} \
-            --stype {wildcards.fm_signal_dataclass}'
+        'python3 scripts/generate.py {params.omicron} {output.save_file} \
+            --stype {wildcards.fm_signal_dataclass};'
+
+rule evaluate_fm_signals:
+    input:
+        source_file = 'output/fm_files/{fm_signal_dataclass}_fm_optimization_injections.npy',
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+    output:
+        save_file = 'output/fm_files_eval/{fm_signal_dataclass}_evals.npy'
+    shell:
+        'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
 
 rule calculate_pearson:
     input:
