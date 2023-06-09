@@ -8,6 +8,7 @@ import time
 
 from config import (
     TIMESLIDE_STEP,
+    FM_TIMESLIDE_TOTAL_DURATION,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
     GPU_NAME)
@@ -18,8 +19,12 @@ def main(args):
     device = DEVICE
     data = torch.from_numpy(data).to(device)
 
+    timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
+    if args.fm_shortened_timeslides:
+        timeslide_total_duration = FM_TIMESLIDE_TOTAL_DURATION
+
     sample_length = data.shape[1] / SAMPLE_RATE
-    n_timeslides = int(TIMESLIDE_TOTAL_DURATION // sample_length)
+    n_timeslides = int(timeslide_total_duration // sample_length)
     print("Number of timeslides:", n_timeslides)
     for timeslide_num in range(1, n_timeslides+1):
         print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
@@ -58,11 +63,15 @@ if __name__ == '__main__':
         type=str)
         
     parser.add_argument('model_folder_path', help = "Path to the folder containing the models",
-        type=str)
+        nargs="+", type=str)
 
     # Additional arguments
     parser.add_argument('--metric_coefs_path', help="Pass in path to metric coefficients to compute dot product",
                         type = str, default=None)
+    
+    parser.add_argument('--fm_shortened_timeslides', help="Generate reduced timeslide samples to train final metric",
+                        type = bool, default=False)
+    
 
     args = parser.parse_args()
     main(args)

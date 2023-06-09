@@ -18,6 +18,7 @@ from config import (
     TIMESLIDE_STEP,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
+    SEG_NUM_TIMESTEPS,
     GPU_NAME,
     CLASS_ORDER)
 DEVICE = torch.device(GPU_NAME)
@@ -42,11 +43,11 @@ def full_evaluation(data, model_folder_path):
     # segments_normalized at this point is (N_batches, N_samples, 2, 100) and
     # must be reshaped into (N_batches * N_samples, 2, 100) to work with quak_predictions
     N_batches, N_samples = segments_normalized.shape[0], segments_normalized.shape[1]
-    segments_normalized = torch.reshape(segments_normalized, (N_batches * N_samples, 2, 100))
-    quak_predictions_dict = quak_eval(segments_normalized, args.model_paths)
+    segments_normalized = torch.reshape(segments_normalized, (N_batches * N_samples, 2, SEG_NUM_TIMESTEPS))
+    quak_predictions_dict = quak_eval(segments_normalized, model_folder_path)
     quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
     quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
-    
+
     pearson_values, (edge_start, edge_end) = pearson_computation(data)
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]

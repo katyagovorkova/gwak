@@ -81,9 +81,29 @@ rule evaluate_fm_signals:
         source_file = 'output/fm_files/{fm_signal_dataclass}_fm_optimization_injections.npy',
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
     output:
-        save_file = 'output/fm_files_eval/{fm_signal_dataclass}_evals.npy'
+        save_file = 'output/fm_files_eval/signals/{fm_signal_dataclass}_evals.npy'
     shell:
         'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
+
+rule generate_timeslides_for_final_metric_train:
+    input:
+        data_path = 'output/data/timeslides_segs.npy',
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+    output:
+        save_folder_path = directory('output/fm_files_eval/timeslides/')
+    shell:
+        'mkdir output/fm_files_eval/timeslides/ ;'
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
+            --fm_shortened_timeslide True'
+
+rule train_metric:
+    input:
+        signals = expand(rules.evaluate_fm_signals.output.save_file, fm_signal_dataclass=['bbh', 'sg'])
+    output:
+        params_file = 'output/trained/final_metric_params.npy'
+    shell:
+        'python3 scripts/final_metric_optimization.py'
+
 
 rule calculate_pearson:
     input:
@@ -93,19 +113,6 @@ rule calculate_pearson:
     shell:
         'mkdir -p output/data/test/correlations/; '
         'python3 scripts/pearson.py {input.data_path} {output.save_file}'
-
-rule train_metric:
-    input:
-        bbh_quak = 'output/evaluated/quak_bbh.npz',
-        bbh_pearson = 'output/evaluated/pearson_bbh.npy',
-        sg_pearson = 'output/evaluated/pearson_sg.npy',
-        sg_quak = 'output/evaluated/quak_sg.npz',
-        timeslides_pearson = 'output/evaluated/pearson_timeslides.npy',
-        timeslides_quak = 'output/evaluated/quak_timeslides.npz',
-    output:
-        params_file = 'output/trained/es_params.npy'
-    shell:
-        'python3 scripts/evolutionary_search.py'
 
 rule plot_results:
     input:

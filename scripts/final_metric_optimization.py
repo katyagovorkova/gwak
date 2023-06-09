@@ -81,9 +81,9 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('timeslide_path', type=str,
-        help='str or list[str] pointing to timeslide files ')
+        nargs='+', help='str or list[str] pointing to timeslide files ')
     parser.add_argument('signal_path_folder', type=str,
-        help='str or list[str] pointing to signal files')
+        nargs= '+', help='str or list[str] pointing to signal files')
     parser.add_argument('save_file', type=str,
         help='Where to save the best final metric parameters')
     args = parser.parse_args()
