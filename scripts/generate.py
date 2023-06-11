@@ -359,7 +359,7 @@ def main(args):
 
         # 2.5: generate/fetch the background classes
         backgrounds = generate_backgrounds(folder_path=args.folder_path,
-                                       n_backgrounds=N_TEST_INJECTIONS)
+                                       n_backgrounds=N_TRAIN_INJECTIONS)
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
                                target_class=args.stype,

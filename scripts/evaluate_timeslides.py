@@ -16,8 +16,7 @@ DEVICE = torch.device(GPU_NAME)
 
 def main(args):
     data = np.load(args.data_path)
-    device = DEVICE
-    data = torch.from_numpy(data).to(device)
+    data = torch.from_numpy(data).to(DEVICE)
 
     timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
     if args.fm_shortened_timeslides:
@@ -30,7 +29,7 @@ def main(args):
         print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
         ts = time.time()
         indicies_to_slide = int(timeslide_num*TIMESLIDE_STEP*SAMPLE_RATE)
-        timeslide = torch.empty(data.shape, device = device)
+        timeslide = torch.empty(data.shape, device = DEVICE)
 
         # hanford unchanged
         timeslide[0, :] = data[0, :]
@@ -43,7 +42,7 @@ def main(args):
         if args.metric_coefs_path is not None:
             # compute the dot product and save that instead
             metric_vals = np.load(args.metric_coefs_path)
-            metric_vals = torch.from_numpy(metric_vals).float().to(device)
+            metric_vals = torch.from_numpy(metric_vals).float().to(DEVICE)
             final_values = torch.matmul(final_values, metric_vals)
 
         print(f"Iteration, {timeslide_num}, done in {time.time() - ts :.3f} s")

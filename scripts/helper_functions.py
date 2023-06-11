@@ -28,7 +28,10 @@ from config import (
     SEGMENT_OVERLAP,
     CLASS_ORDER,
     SIGNIFICANCE_NORMALIZATION_DURATION,
-    GPU_NAME)
+    GPU_NAME,
+    MAX_SHIFT,
+    SEG_STEP,
+    SHIFT_STEP)
 DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
@@ -65,9 +68,8 @@ def stack_dict_into_tensor(data_dict):
     '''
     Input is a dictionary of keys, stack it into *torch* tensor
     '''
-    device = DEVICE
     fill_len = len(data_dict['bbh'])
-    stacked_tensor = torch.empty((fill_len, 4), device=device)
+    stacked_tensor = torch.empty((fill_len, 4), device=DEVICE)
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_tensor[:, stack_index] = data_dict[class_name]
@@ -109,7 +111,6 @@ def reduce_to_significance(data):
     norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE // SEGMENT_OVERLAP)
     assert  N_samples > norm_datapoints
 
-    device = DEVICE
 
     #take the mean, std by sliding window of size norm_datapoints
     stacked = torch.reshape(
@@ -119,7 +120,7 @@ def reduce_to_significance(data):
     means = stacked.mean(dim=1)
     stds = stacked.std(dim=1)
 
-    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=device)
+    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=DEVICE)
 
     N_splits = means.shape[0]
     for i in range(N_splits):
@@ -481,7 +482,9 @@ def inject_hplus_hcross(
 
     if SNR is None:
         # no amplitude modifications
-        return np.stack(final_injects)[:, np.newaxis, :], None
+        # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+        # None refers to no SNR values being returned
+        return np.stack(final_injects)[:, np.newaxis, :], None 
     final_bothdetector = np.stack(final_injects)[:, np.newaxis, :]
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)[:, np.newaxis, :]
@@ -539,6 +542,7 @@ def inject_hplus_hcross(
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)  # [:, np.newaxis, :]
 
+    # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
     return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
 
 
@@ -899,11 +903,9 @@ def split_into_segments_torch(data,
     n_batches = data.shape[0]
     n_detectors = data.shape[1]
 
-    device = DEVICE
-
     # resulting shape: (batches, N_slices, 2, 100)
     result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
-                        device=device)
+                        device=DEVICE)
 
     offset_families = np.arange(0, seg_len, overlap)
     family_count = len(offset_families)
@@ -928,3 +930,61 @@ def split_into_segments_torch(data,
         result[:, -i, :, :] = data[:, :, start:end]
     
     return result
+
+def pearson_computation(data,
+                        max_shift=MAX_SHIFT,
+                        seg_len=SEG_NUM_TIMESTEPS, 
+                        seg_step=SEG_STEP,
+                        shift_step=SHIFT_STEP):
+    max_shift = int(max_shift*SAMPLE_RATE)
+    offset_families = np.arange(max_shift, max_shift+seg_len, seg_step)
+    
+    feature_length_full = data.shape[-1]
+    feature_length = (data.shape[-1]//100)*100
+    n_manual = (feature_length_full - feature_length) // seg_step
+    n_batches = data.shape[0]
+    data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston
+    family_count = len(offset_families)
+    final_length = 0
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length - max_shift:
+            # correction: reduce by 1
+            final_length -= 1
+        final_length += (feature_length - seg_len)//seg_len
+    family_fill_max = final_length
+    final_length += n_manual
+    all_corrs = torch.zeros((n_batches, final_length), device=DEVICE)
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length - max_shift:
+            end -= seg_len
+        hanford = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+        hanford = hanford - hanford.mean(dim=2)[:, :, None]
+        best_corrs = -1 * torch.ones((hanford.shape[0], hanford.shape[1]), device=DEVICE)
+        for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
+
+            livingston = data[:, 1, offset_families[family_index]+shift_amount:end+shift_amount].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+            livingston = livingston - livingston.mean(dim=2)[:, :, None]
+
+            corrs = torch.sum(hanford*livingston, axis=2) / torch.sqrt( torch.sum(hanford*hanford, axis=2) * torch.sum(livingston*livingston, axis=2) )  
+            best_corrs = torch.maximum(best_corrs, corrs)
+ 
+        all_corrs[:, family_index:family_fill_max:family_count] = best_corrs
+    
+    # fill in pieces left over at end
+    for k, center in enumerate(np.arange(feature_length - max_shift - seg_len//2+seg_step, \
+                                feature_length_full - max_shift - seg_len//2 + seg_step, \
+                                seg_step)):
+        hanford = data[:, 0, center - seg_len//2:center + seg_len//2]
+        hanford = hanford - hanford.mean(dim=1)[:, None]
+        best_corr = -1 * torch.ones((n_batches), device=DEVICE)
+        for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
+            livingston = data[:, 1, center - seg_len//2+shift_amount:center + seg_len//2 + shift_amount]
+            livingston = livingston - livingston.mean(dim=1)[:, None]
+            corr = torch.sum(hanford*livingston, axis=1) / torch.sqrt( torch.sum(hanford*hanford, axis=1) * torch.sum(livingston*livingston, axis=1) )
+            best_corr = torch.maximum(best_corr, corr)
+        all_corrs[:, -(k+1)] = best_corr
+
+    edge_start, edge_end = max_shift // seg_step, -(max_shift // seg_step) + 1
+    return all_corrs, (edge_start, edge_end)

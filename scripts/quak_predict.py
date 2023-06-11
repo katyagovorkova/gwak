@@ -20,17 +20,17 @@ DEVICE = torch.device(GPU_NAME)
 from helper_functions import mae_torch
 def quak_eval(data, model_path, reduce_loss=True):
     # data required to be torch tensor at this point
-    device = DEVICE
     model = LSTM_AE(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=BOTTLENECK,
-                    FACTOR=FACTOR).to(device)
+                    FACTOR=FACTOR).to(DEVICE)
 
     # check if the evaluation has to be done for one model or for several
     loss = dict()
     if not reduce_loss:
         loss['original'] = dict()
         loss['recreated'] = dict()
+        loss['loss'] = dict()
 
     for dpath in model_path:
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
@@ -39,16 +39,17 @@ def quak_eval(data, model_path, reduce_loss=True):
             loss[os.path.basename(dpath)[:-3]] = \
                 mae_torch(data, model(data).detach())
         else:
+            loss['loss'][os.path.basename(dpath)[:-3]] = \
+                mae_torch(data, model(data).detach()).cpu().numpy()
             loss['original'][os.path.basename(dpath)[:-3]] = data[:RECREATION_LIMIT].cpu().numpy()
             loss['recreated'][os.path.basename(dpath)[:-3]] = model(data[:RECREATION_LIMIT]).detach().cpu().numpy()
     return loss
 
 def main(args):
-    device = DEVICE
     
     # load the data
     data = np.load(args.test_data)
-    data = torch.from_numpy(data).float().to(device)
+    data = torch.from_numpy(data).float().to(DEVICE)
     print(f'loaded data shape is {data.shape}')
     loss = quak_eval(data, args.model_path, args.reduce_loss)
 

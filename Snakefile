@@ -1,4 +1,4 @@
-dataclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
+dataclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides', 'bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
 wildcard_constraints:
     dataclass = '|'.join([x for x in dataclasses]),
     modelclass = '|'.join([x for x in dataclasses])
@@ -57,50 +57,6 @@ rule train_all_quak:
     input:
         expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
-rule quak_prediction:
-    input:
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
-        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
-    output:
-        save_file = 'output/evaluated/quak_{dataclass}.npz'
-    shell:
-        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} True \
-            --model-path {input.model_path} '
-
-rule quak_recreation:
-    params:
-        reduce_loss = False
-    input:
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
-        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
-    output:
-        save_file = 'output/recreation/quak_{dataclass}.npz'
-    shell:
-        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
-         --model-path {input.model_path} '
-
-rule all_quak_recreation:
-    input:
-        expand(rules.quak_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
-
-rule generate_fm_signals:
-    params:
-        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
-    output:
-        save_file = 'output/fm_files/{fm_signal_dataclass}_injections.npy',
-    shell:
-        'python3 scripts/generate.py {params.omicron} {output.save_file} \
-            --stype {wildcards.fm_signal_dataclass};'
-
-rule evaluate_fm_signals:
-    input:
-        source_file = 'output/fm_files/{fm_signal_dataclass}_fm_optimization_injections.npy',
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
-    output:
-        save_file = 'output/fm_files_eval/signals/{fm_signal_dataclass}_evals.npy'
-    shell:
-        'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
-
 rule generate_timeslides_for_final_metric_train:
     input:
         data_path = 'output/data/timeslides_segs.npy',
@@ -112,49 +68,64 @@ rule generate_timeslides_for_final_metric_train:
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
             --fm_shortened_timeslide True'
 
-rule train_metric:
-    input:
-        signals = expand(rules.evaluate_fm_signals.output.save_file, fm_signal_dataclass=['bbh', 'sg']),
-        timeslides = expand('output/fm_files_eval/timeslides/timeslide_evals_{i}.npy', i=[1])
-    output:
-        params_file = 'output/trained/final_metric_params.npy'
-    shell:
-        'python3 scripts/final_metric_optimization.py {input.timeslides} {output.params_file} {input.signals}'
-
-
-rule calculate_pearson:
-    input:
-        data_path = 'output/data/test/{dataclass}.npy'
-    output:
-        save_file = 'output/evaluated/pearson_{dataclass}.npy'
-    shell:
-        'mkdir -p output/data/test/correlations/; '
-        'python3 scripts/pearson.py {input.data_path} {output.save_file}'
-
-rule generate_varying_snr_signals:
+rule generate_signals:
     params:
         omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
     output:
-        save_file = 'output/snr_variation/{signal_dataclass}_injections.npy',
+        save_file = 'output/generated/{signal_dataclass}_injections.npy',
     shell:
         'python3 scripts/generate.py {params.omicron} {output.save_file} \
             --stype {wildcards.signal_dataclass};'
 
-rule evaluate_varying_snr_signals:
+rule evaluate_signals:
     input:
-        source_file = 'output/snr_variation/{signal_dataclass}_varying_snr_injections.npy',
-        source_snr_file = 'output/snr_variation/{signal_dataclass}_varying_snr_injections_SNR.npy',
+        source_file = 'output/generated/{signal_dataclass}_injections.npy',
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
     output:
-        save_file = 'output/varying_snr_eval/{signal_dataclass}_evals.npy',
-        save_snr_file = 'output/varying_snr_eval/{signal_dataclass}_evals_SNR.npy'
+        save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
     shell:
         'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path};'
-        'cp {input.source_snr_file} {output.save_snr_file}'
+
+rule create_all_signals:
+    input:
+        expand(rules.generate_signals.output.save_file, signal_dataclass=["bbh_fm_optimization",
+                                                                            "sg_fm_optimization",
+                                                                            "bbh_varying_snr",
+                                                                            "sg_varying_snr"]),
+        expand(rules.evaluate_signals.output.save_file, signal_dataclass=["bbh_fm_optimization",
+                                                                            "sg_fm_optimization",
+                                                                            "bbh_varying_snr",
+                                                                            "sg_varying_snr"])
+
+rule train_final_metric:
+    input:
+        signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization']),
+        timeslides = expand('output/fm_files_eval/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3, 4, 5])
+    output:
+        params_file = 'output/trained/final_metric_params.npy'
+    shell:
+        'python3 scripts/final_metric_optimization.py {input.timeslides} {output.params_file} \
+        --signal-path {input.signals};'
+
+rule quak_plotting_prediction_and_recreation:
+    input:
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
+        test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+    params:
+        reduce_loss = False
+    output:
+        save_file = 'output/evaluated/quak_{dataclass}.npz'
+    shell:
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
+            --model-path {input.model_path} '
+
+rule all_quak_pr:
+    input:
+        expand(rules.quak_plotting_prediction_and_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule plot_results:
     input:
-        dependencies = rules.train_metric.output.params_file
+        dependencies = rules.train_final_metric.output.params_file
     params:
         evaluation_dir = 'output/',
     output:

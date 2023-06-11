@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from quak_predict import quak_eval
-from pearson import pearson_computation
 import time
 from helper_functions import (
     mae, 
     std_normalizer_torch, 
     split_into_segments_torch,
     stack_dict_into_tensor,
-    reduce_to_significance)
+    reduce_to_significance,
+    pearson_computation)
 
 from config import (
     TIMESLIDE_STEP,
@@ -27,9 +27,8 @@ def full_evaluation(data, model_folder_path):
     Passed in data is of shape (N_samples, 2, time_axis)
     '''
     print("Warning: Implement smoothing!")
-    device = DEVICE
     if not torch.is_tensor(data):
-        data = torch.from_numpy(data).to(device)
+        data = torch.from_numpy(data).to(DEVICE)
 
     assert data.shape[1] == 2
 

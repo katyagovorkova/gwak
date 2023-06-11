@@ -26,25 +26,19 @@ from config import (
     VALIDATION_SPLIT,
     TRAINING_VERBOSE,
     NUM_IFOS, 
-    SEG_NUM_TIMESTEPS)
-
+    SEG_NUM_TIMESTEPS,
+    GPU_NAME)
+DEVICE = torch.device(GPU_NAME)
 def main(args):
     # read the input data
     data = np.load(args.data)
     print(f'loaded data shape is {data.shape}')
 
-    # pick a random GPU device to train model on
-    N_GPUs = torch.cuda.device_count()
-    chosen_device = np.random.randint(0, N_GPUs)
-    device = torch.device(f"cuda:{chosen_device}")
-    if TRAINING_VERBOSE:
-        print(f"Using device {device}")
-
     # create the model
     AE = LSTM_AE(num_ifos=NUM_IFOS, 
                 num_timesteps=SEG_NUM_TIMESTEPS,
                 BOTTLENECK=BOTTLENECK,
-                FACTOR=FACTOR).to(device)
+                FACTOR=FACTOR).to(DEVICE)
     optimizer = optim.Adam(AE.parameters())
     scheduler = ReduceLROnPlateau(optimizer, 'min')
     if LOSS == "MAE":
@@ -58,9 +52,9 @@ def main(args):
     train_data = data[:validation_split_index]
     validation_data = data[validation_split_index:]
 
-    train_data = torch.from_numpy(train_data).float().to(device)
+    train_data = torch.from_numpy(train_data).float().to(DEVICE)
     print(f'training data shape is {train_data.shape}')
-    validation_data = torch.from_numpy(validation_data).float().to(device)
+    validation_data = torch.from_numpy(validation_data).float().to(DEVICE)
 
     dataloader = []
     N_batches = len(train_data) // BATCH_SIZE

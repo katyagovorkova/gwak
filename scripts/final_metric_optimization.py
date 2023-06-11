@@ -25,13 +25,12 @@ class LinearModel(nn.Module):
         return self.layer(x)
 
 def optimize_hyperplane(signals, backgrounds):
-    device=DEVICE
     # saved as a batch, which needs to be flattned out
     backgrounds = np.reshape(backgrounds, (backgrounds.shape[0]*backgrounds.shape[1], backgrounds.shape[2]))
 
-    sigs = torch.from_numpy(signals).float().to(device)
-    bkgs = torch.from_numpy(backgrounds).float().to(device)
-    network = LinearModel(n_dims = sigs.shape[2]).to(device)
+    sigs = torch.from_numpy(signals).float().to(DEVICE)
+    bkgs = torch.from_numpy(backgrounds).float().to(DEVICE)
+    network = LinearModel(n_dims = sigs.shape[2]).to(DEVICE)
     optimizer = optim.SGD(network.parameters(), lr=SVM_LR)
 
     for epoch in range(N_SVM_EPOCHS):
@@ -39,7 +38,7 @@ def optimize_hyperplane(signals, backgrounds):
         background_MV = network(bkgs)
         signal_MV = network(sigs)
         signal_MV = torch.min(signal_MV, dim=1)[0] #second index are the indicies
-        zero = torch.tensor(0).to(device)
+        zero = torch.tensor(0).to(DEVICE)
         background_loss = torch.maximum(
                             zero,
                             1-background_MV).mean()
@@ -86,12 +85,12 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('timeslide_path', type=str,
-         help='str or list[str] pointing to timeslide files ')
+         nargs = '+', help='list[str] pointing to timeslide files ')
     print("Warning: help - can't pass multiply lists in at once, don't know fix!")
     parser.add_argument('save_file', type=str,
         help='Where to save the best final metric parameters')
-    parser.add_argument('signal_path', type=str,
-        nargs= '+', help='str or list[str] pointing to signal files')
+    parser.add_argument('--signal-path', type=str,
+        nargs= '+', help='list[str] pointing to signal files')
     
     args = parser.parse_args()
     main(args)
