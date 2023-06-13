@@ -99,7 +99,7 @@ rule create_all_signals:
 
 rule train_final_metric:
     input:
-        signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization']),
+        signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization']),
         timeslides = expand('output/timeslides_fm/timeslide_evals_{i}.npy', i=[1, 2, 3])
     output:
         params_file = 'output/trained/final_metric_params.npy'

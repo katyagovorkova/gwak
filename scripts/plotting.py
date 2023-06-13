@@ -352,11 +352,11 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     
 def main(args):
     # temporary
-    do_corner = False
-    do_recreation = False
+    do_corner = True
+    do_recreation = True
     do_snr_vs_far = False
     do_fake_roc = False
-    do_3_panel_plot = True
+    do_3_panel_plot = False
 
     if do_corner:
         corner_plot_data = [0] * 4 #4, N_samples, 4
