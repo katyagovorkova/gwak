@@ -18,11 +18,13 @@ from config import (
     TIMESLIDE_STEP,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
+    SEGMENT_OVERLAP,
     SEG_NUM_TIMESTEPS,
     GPU_NAME,
     CLASS_ORDER,
     N_SMOOTHING_KERNEL,
-    DATA_EVAL_MAX_BATCH)
+    DATA_EVAL_MAX_BATCH,
+    DO_SMOOTHING)
 DEVICE = torch.device(GPU_NAME)
 
 def full_evaluation(data, model_folder_path):
@@ -34,7 +36,7 @@ def full_evaluation(data, model_folder_path):
 
     assert data.shape[1] == 2
 
-    clipped_time_axis = (data.shape[2] // 5) * 5
+    clipped_time_axis = (data.shape[2] // SEGMENT_OVERLAP) * SEGMENT_OVERLAP
     data = data[:, :, :clipped_time_axis]
 
     segments = split_into_segments_torch(data)
@@ -52,14 +54,15 @@ def full_evaluation(data, model_folder_path):
     
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
-
+    print(quak_predictions.shape, pearson_values.shape)
     final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
 
-    # do it before significance?
-    kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
-    # all this transposition is done since convolve takes the axis to work on first
-    final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
-    final_values = torch.transpose(final_values, 1, 2)
+    if DO_SMOOTHING:
+        # do it before significance?
+        kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
+        # all this transposition is done since convolve takes the axis to work on first
+        final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
+        final_values = torch.transpose(final_values, 1, 2)
     final_values = reduce_to_significance(final_values)
 
     return final_values

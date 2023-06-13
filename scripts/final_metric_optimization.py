@@ -45,11 +45,11 @@ def optimize_hyperplane(signals, backgrounds):
         signal_loss = torch.maximum(
                             zero,
                             1+signal_MV).mean()
-        
+        print(network.layer.weight.data.cpu().numpy()[0])
         loss = background_loss + signal_loss
         loss.backward()
         optimizer.step()
-    print(network.layer.weight.data.cpu().numpy()[0])
+    
     return network.layer.weight.data.cpu().numpy()[0]
 
 def main(args):
@@ -74,8 +74,6 @@ def main(args):
         timeslide_evals.append(np.load(f'{file_name}'))
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
 
-
-    
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
     np.save(args.save_file, optimal_coeffs)
 

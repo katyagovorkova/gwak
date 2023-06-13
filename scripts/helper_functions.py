@@ -30,7 +30,6 @@ from config import (
     SIGNIFICANCE_NORMALIZATION_DURATION,
     GPU_NAME,
     MAX_SHIFT,
-    SEG_STEP,
     SHIFT_STEP,
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN)
@@ -936,13 +935,13 @@ def split_into_segments_torch(data,
 def pearson_computation(data,
                         max_shift=MAX_SHIFT,
                         seg_len=SEG_NUM_TIMESTEPS, 
-                        seg_step=SEG_STEP,
+                        seg_step=SEGMENT_OVERLAP,
                         shift_step=SHIFT_STEP):
     max_shift = int(max_shift*SAMPLE_RATE)
     offset_families = np.arange(max_shift, max_shift+seg_len, seg_step)
     
     feature_length_full = data.shape[-1]
-    feature_length = (data.shape[-1]//100)*100
+    feature_length = (data.shape[-1]//SEG_NUM_TIMESTEPS)*SEG_NUM_TIMESTEPS
     n_manual = (feature_length_full - feature_length) // seg_step
     n_batches = data.shape[0]
     data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston

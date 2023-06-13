@@ -113,9 +113,9 @@ rule compute_far:
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
         metric_coefs_path = rules.train_final_metric.output.params_file
     output:
-        save_folder_path = 'output/far_bins.npy'
+        save_path = 'output/far_bins.npy'
     shell:
-        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
             --metric-coefs-path {input.metric_coefs_path} --fm-shortened-timeslides False'
 
 rule quak_plotting_prediction_and_recreation:
