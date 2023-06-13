@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 from quak_predict import quak_eval
 import time
+from torchaudio.functional import convolve
 from helper_functions import (
     mae, 
     std_normalizer_torch, 
@@ -19,14 +20,15 @@ from config import (
     SAMPLE_RATE,
     SEG_NUM_TIMESTEPS,
     GPU_NAME,
-    CLASS_ORDER)
+    CLASS_ORDER,
+    N_SMOOTHING_KERNEL,
+    DATA_EVAL_MAX_BATCH)
 DEVICE = torch.device(GPU_NAME)
 
 def full_evaluation(data, model_folder_path):
     '''
     Passed in data is of shape (N_samples, 2, time_axis)
     '''
-    print("Warning: Implement smoothing!")
     if not torch.is_tensor(data):
         data = torch.from_numpy(data).to(DEVICE)
 
@@ -47,18 +49,32 @@ def full_evaluation(data, model_folder_path):
     quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
 
     pearson_values, (edge_start, edge_end) = pearson_computation(data)
+    
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
 
     final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
+
+    # do it before significance?
+    kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
+    # all this transposition is done since convolve takes the axis to work on first
+    final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
+    final_values = torch.transpose(final_values, 1, 2)
     final_values = reduce_to_significance(final_values)
 
     return final_values
 
 def main(args):
     data = np.load(args.data_path)
+    n_batches_total = data.shape[0]
 
-    result = full_evaluation(data, args.model_paths).cpu().numpy()
+    _, timeaxis_size, feature_size = full_evaluation(data[:2], args.model_paths).cpu().numpy().shape
+    result = np.zeros((n_batches_total, timeaxis_size, feature_size))
+    n_splits = n_batches_total//DATA_EVAL_MAX_BATCH
+    if n_splits * DATA_EVAL_MAX_BATCH != n_batches_total:
+        n_splits += 1
+    for i in range(n_splits):
+        result[DATA_EVAL_MAX_BATCH*i:DATA_EVAL_MAX_BATCH*(i+1)] = full_evaluation(data[DATA_EVAL_MAX_BATCH*i:DATA_EVAL_MAX_BATCH*(i+1)], args.model_paths).cpu().numpy()
 
     np.save(args.save_path, result)
 

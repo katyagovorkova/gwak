@@ -31,7 +31,7 @@ def optimize_hyperplane(signals, backgrounds):
     sigs = torch.from_numpy(signals).float().to(DEVICE)
     bkgs = torch.from_numpy(backgrounds).float().to(DEVICE)
     network = LinearModel(n_dims = sigs.shape[2]).to(DEVICE)
-    optimizer = optim.SGD(network.parameters(), lr=SVM_LR)
+    optimizer = optim.Adam(network.parameters(), lr=SVM_LR)
 
     for epoch in range(N_SVM_EPOCHS):
         optimizer.zero_grad()
@@ -45,10 +45,11 @@ def optimize_hyperplane(signals, backgrounds):
         signal_loss = torch.maximum(
                             zero,
                             1+signal_MV).mean()
+        
         loss = background_loss + signal_loss
         loss.backward()
         optimizer.step()
-
+    print(network.layer.weight.data.cpu().numpy()[0])
     return network.layer.weight.data.cpu().numpy()[0]
 
 def main(args):
@@ -84,11 +85,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Required arguments
-    parser.add_argument('timeslide_path', type=str,
-         nargs = '+', help='list[str] pointing to timeslide files ')
-    print("Warning: help - can't pass multiply lists in at once, don't know fix!")
     parser.add_argument('save_file', type=str,
         help='Where to save the best final metric parameters')
+    parser.add_argument('--timeslide-path', type=str,
+         nargs = '+', help='list[str] pointing to timeslide files ')
     parser.add_argument('--signal-path', type=str,
         nargs= '+', help='list[str] pointing to signal files')
     

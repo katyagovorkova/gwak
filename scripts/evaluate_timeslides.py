@@ -11,10 +11,18 @@ from config import (
     FM_TIMESLIDE_TOTAL_DURATION,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
-    GPU_NAME)
+    GPU_NAME,
+    HISTOGRAM_BIN_DIVISION,
+    HISTOGRAM_BIN_MIN)
 DEVICE = torch.device(GPU_NAME)
 
 def main(args):
+    if args.metric_coefs_path is not None:
+        # initialize histogram
+        n_bins = 2*int(HISTOGRAM_BIN_MIN/HISTOGRAM_BIN_DIVISION)
+        hist = np.zeros(n_bins)
+        np.save(args.save_path, hist)
+
     data = np.load(args.data_path)
     data = torch.from_numpy(data).to(DEVICE)
 
@@ -36,6 +44,7 @@ def main(args):
         # livingston slid
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
         timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide]
+        timeslide = timeslide[:, :(timeslide.shape[1]//1000)*1000]
 
         final_values = full_evaluation(timeslide[None, :, :], args.model_folder_path)
 
@@ -43,13 +52,23 @@ def main(args):
             # compute the dot product and save that instead
             metric_vals = np.load(args.metric_coefs_path)
             metric_vals = torch.from_numpy(metric_vals).float().to(DEVICE)
+            # flatten batch dimension
+            final_values = torch.reshape(final_values, (final_values.shape[0]*final_values.shape[1], final_values.shape[2]))
             final_values = torch.matmul(final_values, metric_vals)
 
-        print(f"Iteration, {timeslide_num}, done in {time.time() - ts :.3f} s")
-        final_values = final_values.detach().cpu().numpy()
-        # save as a numpy file, with the index of timeslide_num
-        np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy", final_values)
+            update = torch.histc(final_values, bins=n_bins, 
+                                 min=-HISTOGRAM_BIN_MIN, max=HISTOGRAM_BIN_MIN)
+            past_hist = np.load(args.save_path)
+            print("total filled:", np.sum(past_hist))
+            new_hist = past_hist + update.cpu().numpy()
+            np.save(args.save_path, new_hist)
 
+        else:
+            final_values = final_values.detach().cpu().numpy()
+            # save as a numpy file, with the index of timeslide_num
+            np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy", final_values)
+        
+        print(f"Iteration, {timeslide_num}, done in {time.time() - ts :.3f} s")
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -65,10 +84,10 @@ if __name__ == '__main__':
         nargs="+", type=str)
 
     # Additional arguments
-    parser.add_argument('--metric_coefs_path', help="Pass in path to metric coefficients to compute dot product",
+    parser.add_argument('--metric-coefs-path', help="Pass in path to metric coefficients to compute dot product",
                         type = str, default=None)
     
-    parser.add_argument('--fm_shortened_timeslides', help="Generate reduced timeslide samples to train final metric",
+    parser.add_argument('--fm-shortened-timeslides', help="Generate reduced timeslide samples to train final metric",
                         type = str, default="False")
     
     args = parser.parse_args()

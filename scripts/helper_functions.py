@@ -31,7 +31,9 @@ from config import (
     GPU_NAME,
     MAX_SHIFT,
     SEG_STEP,
-    SHIFT_STEP)
+    SHIFT_STEP,
+    HISTOGRAM_BIN_DIVISION,
+    HISTOGRAM_BIN_MIN)
 DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
@@ -988,3 +990,39 @@ def pearson_computation(data,
 
     edge_start, edge_end = max_shift // seg_step, -(max_shift // seg_step) + 1
     return all_corrs, (edge_start, edge_end)
+
+def compute_fars(fm_vals, far_hist):
+    bin_idxs = (fm_vals - (-HISTOGRAM_BIN_MIN)) // HISTOGRAM_BIN_DIVISION
+    datapoint_to_seconds = SEGMENT_OVERLAP / SAMPLE_RATE
+    total_duration = far_hist.sum() * datapoint_to_seconds
+    print("total duration, ", total_duration, "seconds")
+    far_vals = []
+    for bin_idx in bin_idxs:
+        bin_idx = int(bin_idx)
+        # count the number of elements below
+        far_in_datapoints = far_hist[:bin_idx].sum() / total_duration
+        far_vals.append(far_in_datapoints * datapoint_to_seconds) #convert to /second
+
+    return np.array(far_vals)
+
+
+def far_to_metric(search_time, far_hist):
+    # allows to search for the metric value corresponding 
+    # to a specific false alarm rate
+    datapoint_to_seconds = SEGMENT_OVERLAP / SAMPLE_RATE
+    total_seconds = far_hist.sum() * datapoint_to_seconds
+    
+    if not total_seconds > search_time:
+        return None
+
+    search_points = total_seconds // search_time
+
+
+    i = 0
+    while far_hist[:i].sum() < search_points:
+        i += 1
+
+
+    return i * HISTOGRAM_BIN_DIVISION - HISTOGRAM_BIN_MIN
+
+    

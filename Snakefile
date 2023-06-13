@@ -62,11 +62,11 @@ rule generate_timeslides_for_final_metric_train:
         data_path = 'output/data/timeslides_segs.npy',
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
     output:
-        save_folder_path = directory('output/fm_files_eval/timeslides/')
+        save_folder_path = directory('output/timeslides_fm/')
     shell:
-        'mkdir output/fm_files_eval/timeslides/ ;'
+        'mkdir -p {output.save_folder_path} ;'
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
-            --fm_shortened_timeslide True'
+            --fm-shortened-timeslides True'
 
 rule generate_signals:
     params:
@@ -100,12 +100,23 @@ rule create_all_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization']),
-        timeslides = expand('output/fm_files_eval/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3, 4, 5])
+        timeslides = expand('output/timeslides_fm/timeslide_evals_{i}.npy', i=[1, 2, 3])
     output:
         params_file = 'output/trained/final_metric_params.npy'
     shell:
-        'python3 scripts/final_metric_optimization.py {input.timeslides} {output.params_file} \
-        --signal-path {input.signals};'
+        'python3 scripts/final_metric_optimization.py {output.params_file} \
+        --timeslide-path {input.timeslides} --signal-path {input.signals};'
+
+rule compute_far:
+    input:
+        data_path = 'output/data/timeslides_segs.npy',
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
+        metric_coefs_path = rules.train_final_metric.output.params_file
+    output:
+        save_folder_path = 'output/far_bins.npy'
+    shell:
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
+            --metric-coefs-path {input.metric_coefs_path} --fm-shortened-timeslides False'
 
 rule quak_plotting_prediction_and_recreation:
     input:
@@ -129,10 +140,10 @@ rule plot_results:
     params:
         evaluation_dir = 'output/',
     output:
-        directory('output/plots/')
+        save_path = directory('output/plots/')
     shell:
-        'mkdir -p {output}; '
-        'python3 scripts/plotting.py {params.evaluation_dir} {output}'
+        'mkdir -p {output.save_path}; '
+        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'
 
 rule make_pipeline_plot:
     shell:
