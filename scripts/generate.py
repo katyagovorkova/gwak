@@ -215,6 +215,7 @@ def inject_signal(
         # small overall samples
         if i >= bkg_segs.shape[1]:
             break
+        sample_snr = None
         if SNR is not None:
             sample_snr = SNR()
             sampled_SNR.append(sample_snr)

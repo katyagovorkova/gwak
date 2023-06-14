@@ -237,7 +237,7 @@ def recreation_plotting(data_original, data_recreated, savedir):
         for k in range(NUM_IFOS):
             axs[l, k].plot(ts, data_original[l][chosen_index, l, k, :], label = "Original", c='black')
             for m in range(len(CLASS_ORDER)):
-                axs[l, k].plot(ts, data_recreated[l][chosen_index, m, k, :], label = f"Recreated, {CLASS_ORDER[l]}", c=colors[m])
+                axs[l, k].plot(ts, data_recreated[l][chosen_index, m, k, :], label = f"Recreated, {CLASS_ORDER[m]}", c=colors[m])
             
             axs[l, k].set_title(f"{IFO_LABELS[k]}, {CLASS_ORDER[l]}")
             axs[l, k].grid()
@@ -354,9 +354,9 @@ def main(args):
     # temporary
     do_corner = True
     do_recreation = True
-    do_snr_vs_far = False
-    do_fake_roc = False
-    do_3_panel_plot = False
+    do_snr_vs_far = True
+    do_fake_roc = True
+    do_3_panel_plot = True
 
     if do_corner:
         corner_plot_data = [0] * 4 #4, N_samples, 4
