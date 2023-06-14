@@ -19,8 +19,8 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     SNR_THRESH,
-    GLITCH_START,
-    GLITCH_STOP,
+    STRAIN_START,
+    STRAIN_STOP,
     Q_MIN,
     Q_MAX,
     F_MIN,
@@ -369,8 +369,8 @@ if __name__ == "__main__":
                         type=str)
     args = parser.parse_args()
     main(SNR_THRESH,
-        GLITCH_START,
-        GLITCH_STOP,
+        STRAIN_START,
+        STRAIN_STOP,
         None, # test_stop
         Q_MIN,
         Q_MAX,

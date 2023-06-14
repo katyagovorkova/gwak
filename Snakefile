@@ -5,13 +5,15 @@ wildcard_constraints:
 
 rule run_omicron:
     params:
-        'output/'
+        output_folder = 'output/',
+        user_name = "ryan.raikman"
     shell:
-        'python3 scripts/run_omicron.py {params}'
+        'ligo-proxy-init {params.user_name}; '
+        'python3 scripts/run_omicron.py {params.output_folder}'
 
 rule fetch_site_data:
     params:
-        lambda wildcards: directory(f'/home/ryan.raikman/s22/anomaly/data2/glitches/{wildcards.site}/data/')
+        lambda wildcards: directory(f'output/omicron/{wildcards.site}/data/')
     output:
         temp('tmp/dummy_{site}.txt')
     shell:
@@ -27,12 +29,17 @@ rule generate_dataset:
     # input:
     #     omicron = rules.run_omicron.output
     params:
-        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+        omicron = 'output/omicron/'
     output:
         file = 'output/data/{dataclass}_segs.npy',
     shell:
         'python3 scripts/generate.py {params.omicron} {output.file} \
             --stype {wildcards.dataclass}'
+
+rule generate_all_data:
+    input:
+        expand(rules.generate_dataset.output.file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+
 
 rule pre_processing_step:
     input:
@@ -135,8 +142,6 @@ rule all_quak_pr:
         expand(rules.quak_plotting_prediction_and_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule plot_results:
-    input:
-        dependencies = rules.train_final_metric.output.params_file
     params:
         evaluation_dir = 'output/',
     output:

@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import argparse
-
+from torchsummary import summary
 import torch
 # from helper_functions import mae
-from models import LSTM_AE
+from models import LSTM_AE, LSTM_AE_ERIC, DUMMY_CNN_AE, FAT
 import sys
 import os.path
 sys.path.append(
@@ -17,13 +17,15 @@ from config import (NUM_IFOS,
                     RECREATION_LIMIT)
 DEVICE = torch.device(GPU_NAME)
 
+
 from helper_functions import mae_torch
 def quak_eval(data, model_path, reduce_loss=True):
     # data required to be torch tensor at this point
-    model = LSTM_AE(num_ifos=NUM_IFOS,
+    model = FAT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=BOTTLENECK,
                     FACTOR=FACTOR).to(DEVICE)
+    
 
     # check if the evaluation has to be done for one model or for several
     loss = dict()

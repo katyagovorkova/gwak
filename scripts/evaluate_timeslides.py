@@ -43,7 +43,7 @@ def main(args):
         timeslide[0, :] = data[0, :]
         # livingston slid
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
-        timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide]
+        timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide] 
         timeslide = timeslide[:, :(timeslide.shape[1]//1000)*1000]
 
         final_values = full_evaluation(timeslide[None, :, :], args.model_folder_path)

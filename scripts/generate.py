@@ -12,6 +12,8 @@ from helper_functions import (
     get_background_segs,
     WNB,
     clean_gw_events,
+    get_loud_segments,
+    slice_bkg_segments
     )
 
 import sys
@@ -37,6 +39,10 @@ from config import (
     SG_WINDOW_RIGHT,
     SG_AMPLITUDE_BAR,
     SG_N_SAMPLES,
+    GLITCH_WINDOW_LEFT,
+    GLITCH_WINDOW_RIGHT,
+    GLITCH_N_SAMPLES,
+    GLITCH_AMPLITUDE_BAR,
     BKG_N_SAMPLES,
     FM_INJECTION_SNR,
     N_VARYING_SNR_INJECTIONS,
@@ -251,6 +257,24 @@ def generate_backgrounds(
     whitened_segs = whiten_bandpass_bkgs(bkg_segs, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
     return whitened_segs
 
+def generate_glitches(
+        folder_path: str,
+        n_glitches: int,
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH
+):
+    loaded_data = load_folder(folder_path, 
+                              DATA_SEGMENT_LOAD_START, 
+                              DATA_SEGMENT_LOAD_STOP)
+    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+
+    N = n_glitches
+    loud_times_H1 = get_loud_segments(loaded_data["H1"], N, segment_length) 
+    loud_times_L1 = get_loud_segments(loaded_data["L1"], N, segment_length)
+    loud_times = np.union1d(loud_times_H1, loud_times_L1)
+    glitch_segs, _ = slice_bkg_segments(loaded_data["H1"], detector_data, loud_times, 
+                                    segment_length)
+    whitened_segs = whiten_bandpass_bkgs(glitch_segs, SAMPLE_RATE, loaded_data["H1"]["asd"], loaded_data["L1"]["asd"])
+    return whitened_segs
 
 def sampler(
         data,
@@ -296,6 +320,8 @@ def sample_injections_main(
         'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE), 
                 int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR],
         'background': [BKG_N_SAMPLES, None, None, 0],
+        'glitch': [GLITCH_N_SAMPLES, int(GLITCH_WINDOW_LEFT*SAMPLE_RATE),
+                   int(GLITCH_WINDOW_RIGHT * SAMPLE_RATE), GLITCH_AMPLITUDE_BAR]
         }
 
     data = data.swapaxes(0, 1)
@@ -367,9 +393,11 @@ def main(args):
                                data=backgrounds)
 
     elif args.stype == 'glitch':
-        # 3.5: additionally, save the previously generated glitches to that same destination
-        print('The glitch generation can only be run with LIGO credentials, therefore we provide a prepared glitch dataset')
-        training_data = np.load('data/GLITCH.npy')
+        glitches = generate_glitches(folder_path=args.folder_path,
+                                    n_glitches=N_TRAIN_INJECTIONS)
+        training_data = sample_injections_main(source=None,
+                               target_class=args.stype,
+                               data=glitches)
 
     elif args.stype == 'timeslides':
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'

@@ -32,7 +32,8 @@ from config import (
     MAX_SHIFT,
     SHIFT_STEP,
     HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN)
+    HISTOGRAM_BIN_MIN,
+    CHANNEL)
 DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
@@ -130,22 +131,6 @@ def reduce_to_significance(data):
         
     return computed_significance
 
-
-def find_h5(path: str):
-    h5_file = None
-    print("looking for", path)
-    assert os.path.exists(path)
-    if not os.path.exists(path):
-        return None
-    for file in os.listdir(path):
-        if file[-3:] == '.h5':
-            assert h5_file is None  # make sure only 1 h5 file
-            h5_file = path + '/' + file
-
-    assert h5_file is not None  # did not find h5 file
-    return h5_file
-
-
 def load_folder(
         path: str,
         load_start: int = None,
@@ -156,27 +141,29 @@ def load_folder(
     start = STRAIN_START
     end = STRAIN_STOP
 
-    path = path+f'{start}_{end}/'
-
     loaded_data = dict()
+    max_trigger_load = STRAIN_START + load_stop
     for ifo in IFOS:
         # get the glitch times first
-        h5_file = find_h5(f'{path}/{ifo}/triggers/{ifo}:DCS-CALIB_STRAIN_CLEAN_C01/')
-        if h5_file == None:
-            return None
+        triggers_path = f"{path}/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers = []
+        for file in os.listdir(triggers_path):
+            if file[-3:] == ".h5":
+                with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                    segment_triggers = f['triggers'][:][f['triggers'][:]['time'] < max_trigger_load]
+                    triggers.append(segment_triggers)
 
-        with h5py.File(h5_file, 'r') as f:
-            print('loading data from h5', h5_file, "...")
-            triggers = f['triggers'][:]
-            
+        triggers = np.concatenate(triggers, axis=0)
 
-        with h5py.File(f'{path}/detec_data_{ifo}.h5', 'r') as f:
+
+    
+        with h5py.File(f'{path}/{ifo}/data/data.h5', 'r') as f:
             if load_start == None or load_stop == None:
-                X = f['ts'][:]
+                X = f[f"{ifo}:{CHANNEL}"][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
                 datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
-                X = f['ts'][datapoints_start:datapoints_stop]
+                X = f[f"{ifo}:{CHANNEL}"][datapoints_start:datapoints_stop]
 
         # some statistics on the data
         data_statistics = 0

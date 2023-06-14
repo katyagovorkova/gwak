@@ -2,15 +2,16 @@ import os
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
-
+from torchsummary import summary
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
+from scipy.linalg import dft
 
-from models import (LSTM_AE)
+from models import (LSTM_AE, LSTM_AE_ERIC, DUMMY_CNN_AE, FAT)
 
 import sys
 import os.path
@@ -27,20 +28,31 @@ from config import (
     TRAINING_VERBOSE,
     NUM_IFOS, 
     SEG_NUM_TIMESTEPS,
-    GPU_NAME)
+    GPU_NAME,
+    LIMIT_TRAINING_DATA)
 DEVICE = torch.device(GPU_NAME)
+
 def main(args):
     # read the input data
     data = np.load(args.data)
     print(f'loaded data shape is {data.shape}')
-
+    if LIMIT_TRAINING_DATA is not None:
+        data = data[:LIMIT_TRAINING_DATA]
     # create the model
-    AE = LSTM_AE(num_ifos=NUM_IFOS, 
+    AE = FAT(num_ifos=NUM_IFOS, 
                 num_timesteps=SEG_NUM_TIMESTEPS,
                 BOTTLENECK=BOTTLENECK,
                 FACTOR=FACTOR).to(DEVICE)
+    #print(summary(AE, input_size=(2, 100)))
+    #assert 0
+
+    #AE = LSTM_AE(
+    #    input_dim=NUM_IFOS,
+    #    encoding_dim=10,
+    #    h_dims=[64],
+    #)
     optimizer = optim.Adam(AE.parameters())
-    scheduler = ReduceLROnPlateau(optimizer, 'min')
+    #scheduler = ReduceLROnPlateau(optimizer, 'min')
     if LOSS == "MAE":
         loss_fn = nn.L1Loss()
     else:
@@ -67,11 +79,13 @@ def main(args):
         'val_loss': []
     }
     # training loop
+
     for epoch_num in range(EPOCHS):
         ts = time.time()
         epoch_train_loss = 0
         for batch in dataloader:
             optimizer.zero_grad()
+            #print("shape 83", batch.shape)
             output = AE(batch)
             loss = loss_fn(batch, output)
             epoch_train_loss += loss.item()
@@ -82,7 +96,7 @@ def main(args):
         validation_loss = loss_fn(validation_data,
                                 AE(validation_data))
         training_history['val_loss'].append(validation_loss.item())
-        scheduler.step(validation_loss)
+        #scheduler.step(validation_loss)
 
         if TRAINING_VERBOSE:
             elapsed_time = time.time() - ts
