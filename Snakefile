@@ -17,13 +17,13 @@ rule run_omicron:
     input:
         intersections = rules.find_valid_segments.output.save_path
     params:
-        output_folder = 'output/',
         user_name = 'katya.govorkova'
     output:
         directory('output/omicron/')
     shell:
+        'touch {output}; '
         'ligo-proxy-init {params.user_name}; '
-        'python3 scripts/run_omicron.py {input.intersections} {params.output_folder}'
+        'python3 scripts/run_omicron.py {input.intersections} {output}'
 
 rule fetch_site_data:
     input:
