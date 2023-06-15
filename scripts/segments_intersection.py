@@ -14,7 +14,7 @@ def intersect(seg1, seg2):
     return None
 
 
-def main(args):
+def main(hanford_path,livingston_path,save_path):
     '''
     Function which takes the valid segments from both detectors
     and finds an "intersection", i.e. segments where both detectors
@@ -22,9 +22,9 @@ def main(args):
 
     paths are string which point to the corresponding .json files
     '''
-    hanford = json.load(open(args.hanford_path))['segments']
+    hanford = json.load(open(hanford_path))['segments']
     hanford = np.array(hanford)
-    livingston = json.load(open(args.livingston_path))['segments']
+    livingston = json.load(open(livingston_path))['segments']
     livingston = np.array(livingston)
 
     # there aren't that many segments, so N^2 isn't so bad
@@ -35,19 +35,6 @@ def main(args):
             if intersection is not None:
                 valid_segments.append(intersection)
 
-    np.save(args.save_path, np.array(valid_segments))
+    np.save(save_path, np.array(valid_segments))
 
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-
-    # Required arguments
-    parser.add_argument('hanford_path', help='Input dataset',
-        type=str)
-    parser.add_argument('livingston_path', help='Where to save the trained model',
-        type=str)
-    parser.add_argument('save_path', help='Where to save the plots',
-        type=str)
-    args = parser.parse_args()
-    main(args)
+main(snakemake.input[0], snakemake.input[1], snakemake.output[0])

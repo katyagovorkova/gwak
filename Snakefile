@@ -10,11 +10,12 @@ rule find_valid_segments:
         livingston_path = 'data/O3a_Livingston_segments.json'
     output:
         save_path = 'output/O3a_intersections.npy'
-    shell:
-        'python3 scripts/segments_intersection.py {input.hanford_path} \
-            {input.livingston_path} {output.save_path}'
+    script:
+        'scripts/segments_intersection.py'
 
 rule run_omicron:
+    input:
+        intersections = rules.find_valid_segments.output.save_path
     params:
         output_folder = 'output/',
         user_name = 'katya.govorkova'
@@ -22,19 +23,18 @@ rule run_omicron:
         directory('output/omicron/')
     shell:
         'ligo-proxy-init {params.user_name}; '
-        'python3 scripts/run_omicron.py {params.output_folder}'
+        'python3 scripts/run_omicron.py {input.intersections} {params.output_folder}'
 
 rule fetch_site_data:
     input:
-        rules.run_omicron.output
-    params:
-        lambda wildcards: directory(f'output/omicron/{wildcards.site}/data/')
+        omicron = rules.run_omicron.output,
+        intersections = rules.find_valid_segments.output.save_path
     output:
-        temp('tmp/dummy_{site}.txt')
+        'tmp/dummy_{site}.txt'
     shell:
         'touch {output}; '
-        'mkdir -p {params}; '
-        'python3 scripts/fetch_data.py {params} {wildcards.site}'
+        'python3 scripts/fetch_data.py {input.omicron} {input.intersections}\
+            --site {wildcards.site}'
 
 rule generate_dataset:
     input:
