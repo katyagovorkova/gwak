@@ -4,3 +4,4 @@ data/*.hdf5
 output/
 *.DS_Store*
 *.pdf
+*.ffl
