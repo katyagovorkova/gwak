@@ -21,7 +21,7 @@ rule run_omicron:
     output:
         directory('output/omicron/')
     shell:
-        'touch {output}; '
+        'mkdir -p {output}; '
         'ligo-proxy-init {params.user_name}; '
         'python3 scripts/run_omicron.py {input.intersections} {output}'
 
