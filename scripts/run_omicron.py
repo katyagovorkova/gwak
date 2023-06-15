@@ -372,46 +372,24 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     segments = np.load(args.intersections)
-    # for segment in segments:
-    #     main(SNR_THRESH,
-    #         segment[0], # start
-    #         segment[1], # stop
-    #         None, # test_stop
-    #         Q_MIN,
-    #         Q_MAX,
-    #         F_MIN,
-    #         CLUSTER_DT,
-    #         CHUNK_DURATION,
-    #         SEGMENT_DURATION,
-    #         OVERLAP,
-    #         MISTMATCH_MAX,
-    #         WINDOW,
-    #         args.outdir+f'{segment[0]}_{segment[1]}/',
-    #         None, # logdir
-    #         CHANNEL,
-    #         FRAME_TYPE,
-    #         GLITCH_SAMPLE_RATE,
-    #         STATE_FLAG,
-    #         IFOS)
-
-
-    main(SNR_THRESH,
-        segment[0][0], # start
-        segment[0][1], # stop
-        None, # test_stop
-        Q_MIN,
-        Q_MAX,
-        F_MIN,
-        CLUSTER_DT,
-        CHUNK_DURATION,
-        SEGMENT_DURATION,
-        OVERLAP,
-        MISTMATCH_MAX,
-        WINDOW,
-        args.outdir+f'{segment[0][0]}_{segment[0][1]}/',
-        None, # logdir
-        CHANNEL,
-        FRAME_TYPE,
-        GLITCH_SAMPLE_RATE,
-        STATE_FLAG,
-        IFOS)
+    for segment in segments:
+        main(SNR_THRESH,
+            segment[0], # start
+            segment[1], # stop
+            None, # test_stop
+            Q_MIN,
+            Q_MAX,
+            F_MIN,
+            CLUSTER_DT,
+            CHUNK_DURATION,
+            SEGMENT_DURATION,
+            OVERLAP,
+            MISTMATCH_MAX,
+            WINDOW,
+            args.outdir+f'{segment[0]}_{segment[1]}/',
+            None, # logdir
+            CHANNEL,
+            FRAME_TYPE,
+            GLITCH_SAMPLE_RATE,
+            STATE_FLAG,
+            IFOS)

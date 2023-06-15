@@ -14,14 +14,10 @@ from config import CHANNEL
 def main(args):
 
     segments = np.load(args.intersections)
-    # for segment in segments:
+    for segment in segments:
 
-    #     data = TimeSeries.get(f'{args.site}:{CHANNEL}', segment[0], segment[1])
-    #     data.write(f'{args.folder_path}/{segment[0]}_{segment[1]}/data.h5')
-
-
-    data = TimeSeries.get(f'{args.site}:{CHANNEL}', segment[0][0], segment[0][1])
-    data.write(f'{args.folder_path}/{segment[0][0]}_{segment[0][1]}/data.h5')
+        data = TimeSeries.get(f'{args.site}:{CHANNEL}', segment[0], segment[1])
+        data.write(f'{args.folder_path}/{segment[0]}_{segment[1]}/data.h5')
 
 
 if __name__ == '__main__':
