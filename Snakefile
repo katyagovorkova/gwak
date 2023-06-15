@@ -4,6 +4,16 @@ wildcard_constraints:
     dataclass = '|'.join([x for x in dataclasses+modelclasses]),
     modelclass = '|'.join([x for x in modelclasses])
 
+rule find_valid_segments:
+    input:
+        hanford_path = 'data/O3a_Hanford_segments.json',
+        livingston_path = 'data/O3a_Livingston_segments.json'
+    output:
+        save_path = 'output/O3a_intersections.npy'
+    shell:
+        'python3 scripts/segments_intersection.py {input.hanford_path} \
+            {input.livingston_path} {output.save_path}'
+
 rule run_omicron:
     params:
         output_folder = 'output/',
