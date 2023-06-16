@@ -140,24 +140,32 @@ def load_folder(
     '''
     start = STRAIN_START
     end = STRAIN_STOP
+    last = -1
+    if path[-1] == "/":
+        last = -2
+    print("PATH", path)
+    path += f"/{STRAIN_START}_{STRAIN_STOP}/"
+    print(path.split("/"))
+    start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
 
     loaded_data = dict()
-    max_trigger_load = STRAIN_START + load_stop
+    min_trigger_load = start + load_start
+    max_trigger_load = start + load_stop
     for ifo in IFOS:
         # get the glitch times first
-        triggers_path = f"{path}/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
         triggers = []
         for file in os.listdir(triggers_path):
             if file[-3:] == ".h5":
-                with h5py.File(f"{triggers_path}/{file}", "r") as f:
-                    segment_triggers = f['triggers'][:][f['triggers'][:]['time'] < max_trigger_load]
-                    triggers.append(segment_triggers)
+                trigger_start_time = int(file.split("-")[-2])
+                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
+                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                        segment_triggers = f['triggers'][:]
+                        triggers.append(segment_triggers)
 
         triggers = np.concatenate(triggers, axis=0)
 
-
-    
-        with h5py.File(f'{path}/{ifo}/data/data.h5', 'r') as f:
+        with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
             if load_start == None or load_stop == None:
                 X = f[f"{ifo}:{CHANNEL}"][:]
             else:
@@ -176,7 +184,7 @@ def load_folder(
         sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
-        data = TimeSeries(X, sample_rate=sample_rate, t0=start)
+        data = TimeSeries(X, sample_rate=sample_rate, t0=start + load_start)
         if data_statistics:
             print(f'after creating time series, len(data) = {len(data)}')
             before_resample = len(data)
