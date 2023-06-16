@@ -4,7 +4,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
-from helper_functions import stack_dict_into_numpy, stack_dict_into_numpy_segments, compute_fars, far_to_metric
+from helper_functions import (
+    stack_dict_into_numpy,
+    stack_dict_into_numpy_segments,
+    compute_fars,
+    far_to_metric
+    )
+import sys
+import os.path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     SEG_NUM_TIMESTEPS,
     SAMPLE_RATE,

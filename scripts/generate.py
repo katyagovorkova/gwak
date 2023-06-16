@@ -1,9 +1,10 @@
 import os
 import numpy as np
-import bilby
 import argparse
-
 from typing import Callable
+
+import bilby
+
 from helper_functions import (
     load_folder,
     whiten_bandpass_bkgs,
@@ -17,7 +18,6 @@ from helper_functions import (
     )
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (

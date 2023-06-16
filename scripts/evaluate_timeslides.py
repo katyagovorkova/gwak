@@ -1,11 +1,14 @@
 import os
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-import torch
-from evaluate_data import full_evaluation
 import time
 
+import torch
+
+from evaluate_data import full_evaluation
+import sys
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     TIMESLIDE_STEP,
     FM_TIMESLIDE_TOTAL_DURATION,
@@ -13,7 +16,8 @@ from config import (
     SAMPLE_RATE,
     GPU_NAME,
     HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN)
+    HISTOGRAM_BIN_MIN
+    )
 DEVICE = torch.device(GPU_NAME)
 
 def main(args):

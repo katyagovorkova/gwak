@@ -1,8 +1,8 @@
 modelclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
 dataclasses = ['bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
 wildcard_constraints:
-    dataclass = '|'.join([x for x in dataclasses+modelclasses]),
-    modelclass = '|'.join([x for x in modelclasses])
+    modelclass = '|'.join([x for x in modelclasses]),
+    dataclass = '|'.join([x for x in dataclasses+modelclasses])
 
 rule find_valid_segments:
     input:
@@ -13,17 +13,20 @@ rule find_valid_segments:
     script:
         'scripts/segments_intersection.py'
 
-rule run_omicron:
+rule python_omicron:
     input:
         intersections = rules.find_valid_segments.output.save_path
     params:
-        user_name = 'katya.govorkova'
-    output:
-        directory('output/omicron/')
+        user_name = 'katya.govorkova',
+        folder = directory('output/omicron/')
     shell:
-        'mkdir -p {output}; '
+        'mkdir -p {params.folder}; '
         'ligo-proxy-init {params.user_name}; '
-        'python3 scripts/run_omicron.py {input.intersections} {output}'
+        'python3 scripts/run_omicron.py {input.intersections} {params.folder}'
+
+rule run_omicron:
+    shell:
+        'snakemake -c4 --keep-going python_omicron'
 
 rule fetch_site_data:
     input:

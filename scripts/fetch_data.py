@@ -5,7 +5,6 @@ import argparse
 from gwpy.timeseries import TimeSeries
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import CHANNEL
@@ -16,8 +15,12 @@ def main(args):
     segments = np.load(args.intersections)
     for segment in segments:
 
-        data = TimeSeries.get(f'{args.site}:{CHANNEL}', segment[0], segment[1])
-        data.write(f'{args.folder_path}/{segment[0]}_{segment[1]}/data.h5')
+        if os.path.exists(f'{args.folder_path}/{segment[0]}_{segment[1]}/data_{args.site}.h5'):
+            print("already finished: "f'{args.folder_path}/{segment[0]}_{segment[1]}/data_{args.site}.h5')
+            continue
+        else:
+            data = TimeSeries.get(f'{args.site}:{CHANNEL}', segment[0], segment[1])
+            data.write(f'{args.folder_path}/{segment[0]}_{segment[1]}/data_{args.site}.h5')
 
 
 if __name__ == '__main__':

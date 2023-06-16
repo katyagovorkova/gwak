@@ -1,31 +1,31 @@
 import os
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
+
 import torch
-from quak_predict import quak_eval
-import time
 from torchaudio.functional import convolve
+
+from quak_predict import quak_eval
 from helper_functions import (
-    mae, 
     std_normalizer_torch, 
     split_into_segments_torch,
     stack_dict_into_tensor,
     reduce_to_significance,
-    pearson_computation)
-
+    pearson_computation
+    )
+import sys
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
-    TIMESLIDE_STEP,
-    TIMESLIDE_TOTAL_DURATION,
-    SAMPLE_RATE,
     SEGMENT_OVERLAP,
-    SEG_NUM_TIMESTEPS,
     GPU_NAME,
     CLASS_ORDER,
     N_SMOOTHING_KERNEL,
     DATA_EVAL_MAX_BATCH,
-    DO_SMOOTHING)
+    DO_SMOOTHING
+    )
 DEVICE = torch.device(GPU_NAME)
+
 
 def full_evaluation(data, model_folder_path):
     '''
@@ -67,6 +67,7 @@ def full_evaluation(data, model_folder_path):
 
     return final_values
 
+
 def main(args):
     data = np.load(args.data_path)
     n_batches_total = data.shape[0]
@@ -80,6 +81,7 @@ def main(args):
         result[DATA_EVAL_MAX_BATCH*i:DATA_EVAL_MAX_BATCH*(i+1)] = full_evaluation(data[DATA_EVAL_MAX_BATCH*i:DATA_EVAL_MAX_BATCH*(i+1)], args.model_paths).cpu().numpy()
 
     np.save(args.save_path, result)
+
 
 if __name__ == '__main__':
 

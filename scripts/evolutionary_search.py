@@ -4,18 +4,22 @@ import torch
 import argparse
 import numpy as np
 
+import sys
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
-    SAMPLE_RATE,
     GPU_NAME,
     INIT_SIGMA,
     POPULATION_SIZE,
     N_ELITE,
     NOISE
-)
+    )
 DEVICE = torch.device(GPU_NAME)
+
 
 def discriminator(values, param_vec):
   return torch.matmul(values, param_vec)
+
 
 def score_parameters(param_vec, files):
     timeslide_quak, timeslide_pearson, signal_quak_flat, signal_pearson_flat, signal_pearson, signal_quak = files
@@ -28,6 +32,7 @@ def score_parameters(param_vec, files):
 
     score_timeslides = discriminator(timeslide_quak, timeslide_pearson, param_vec)
     score_timeslides = np.reshape(score_timeslides, timeslide_pearson.shape)
+
 
 def cmaes(fn, dim, files, num_iter=20):
     """Optimizes a given function using CMA-ES.
@@ -82,8 +87,6 @@ def main(args):
 
     for file_name in os.listdir(f'{args.timeslide_folder_path}'):
        None
-
-    
 
     mu_vec, best_sample_vec, mean_sample_vec = cmaes(score_parameters, 5, files)
     np.save(args.save_file, best_sample_vec[-1])

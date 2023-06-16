@@ -270,7 +270,7 @@ if __name__ == "__main__":
             OVERLAP,
             MISTMATCH_MAX,
             WINDOW,
-            args.outdir+f'{segment[0]}_{segment[1]}/',
+            args.outdir+f'/{segment[0]}_{segment[1]}/',
             None, # logdir
             CHANNEL,
             FRAME_TYPE,

@@ -1,20 +1,22 @@
 import os
-import time
-import torch
 import argparse
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 import numpy as np
-import sys
-sys.path.insert(0, '')
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+import sys
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     GPU_NAME,
     SVM_LR,
     N_SVM_EPOCHS
-)
+    )
 DEVICE = torch.device(GPU_NAME)
+
 
 class LinearModel(nn.Module):
     def __init__(self, n_dims):
@@ -23,6 +25,7 @@ class LinearModel(nn.Module):
         
     def forward(self, x):
         return self.layer(x)
+
 
 def optimize_hyperplane(signals, backgrounds):
     # saved as a batch, which needs to be flattned out
@@ -51,6 +54,7 @@ def optimize_hyperplane(signals, backgrounds):
         optimizer.step()
     
     return network.layer.weight.data.cpu().numpy()[0]
+
 
 def main(args):
     '''
