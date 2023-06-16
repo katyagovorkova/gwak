@@ -2,6 +2,7 @@
 Script that generates a dataset of glitches from omicron triggers.
 Taken from https://github.com/ML4GW/BBHNet/blob/main/projects/sandbox/datagen/datagen/scripts/glitches.py
 """
+import time
 import argparse
 import configparser
 import logging
@@ -277,3 +278,5 @@ if __name__ == "__main__":
             GLITCH_SAMPLE_RATE,
             STATE_FLAG,
             IFOS)
+        # wait a minute before submitting the next job
+        time.sleep(60)
