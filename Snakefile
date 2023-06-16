@@ -1,37 +1,52 @@
-dataclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
+modelclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
+dataclasses = ['bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
 wildcard_constraints:
-    dataclass = '|'.join([x for x in dataclasses]),
-    modelclass = '|'.join([x for x in dataclasses])
+    modelclass = '|'.join([x for x in modelclasses]),
+    dataclass = '|'.join([x for x in dataclasses+modelclasses])
+
+rule find_valid_segments:
+    input:
+        hanford_path = 'data/O3a_Hanford_segments.json',
+        livingston_path = 'data/O3a_Livingston_segments.json'
+    output:
+        save_path = 'output/O3a_intersections.npy'
+    script:
+        'scripts/segments_intersection.py'
+
+rule python_omicron:
+    input:
+        intersections = rules.find_valid_segments.output.save_path
+    params:
+        user_name = 'katya.govorkova',
+        folder = directory('output/omicron/')
+    shell:
+        'mkdir -p {params.folder}; '
+        'ligo-proxy-init {params.user_name}; '
+        'python3 scripts/run_omicron.py {input.intersections} {params.folder}'
 
 rule run_omicron:
-    params:
-        'output/'
     shell:
-        'python3 scripts/run_omicron.py {params}'
+        'snakemake -c4 --keep-going python_omicron'
 
 rule fetch_site_data:
-    params:
-        lambda wildcards: directory(f'/home/ryan.raikman/s22/anomaly/data2/glitches/{wildcards.site}/data/')
+    input:
+        omicron = rules.run_omicron.output,
+        intersections = rules.find_valid_segments.output.save_path
     output:
-        temp('tmp/dummy_{site}.txt')
+        'tmp/dummy_{site}.txt'
     shell:
         'touch {output}; '
-        'mkdir -p {params}; '
-        'python3 scripts/fetch_data.py {params} {wildcards.site}'
-
-rule fetch_data:
-    input:
-        expand(rules.fetch_site_data.output, site=['L1', 'H1'])
+        'python3 scripts/fetch_data.py {input.omicron} {input.intersections}\
+            --site {wildcards.site}'
 
 rule generate_dataset:
-    # input:
-    #     omicron = rules.run_omicron.output
-    params:
-        omicron = '/home/ryan.raikman/s22/anomaly/data2/glitches/'
+    input:
+        omicron = 'output/omicron/',
+        dependencies = expand(rules.fetch_site_data.output, site=['L1', 'H1'])
     output:
-        file = 'output/data/{dataclass}_segs.npy',
+        file = 'output/data/{dataclass}.npy',
     shell:
-        'python3 scripts/generate.py {params.omicron} {output.file} \
+        'python3 scripts/generate.py {input.omicron} {output.file} \
             --stype {wildcards.dataclass}'
 
 rule pre_processing_step:
@@ -48,57 +63,86 @@ rule train_quak:
         data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
     output:
         savedir = directory('output/trained/{dataclass}'),
-        model_file = 'output/trained/models/{dataclass}.h5'
+        model_file = 'output/trained/models/{dataclass}.pt'
     shell:
         'mkdir -p {output.savedir}; '
         'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
 
-rule train_all_quak:
+rule generate_timeslides_for_final_metric_train:
     input:
-        expand(rules.train_quak.output.savedir, dataclass=['bbh', 'sg', 'background', 'glitch'])
+        data_path = expand(rules.generate_dataset.output.file, dataclass='timeslides'),
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+    params:
+        shorten_timeslides = False
+    output:
+        save_folder_path = directory('output/timeslides/')
+    shell:
+        'mkdir -p {output.save_folder_path}; '
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides}'
 
-rule quak_prediction:
+rule evaluate_signals:
+    input:
+        source_file = expand(rules.generate_dataset.output.file, dataclass='{signal_dataclass}'),
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+    output:
+        save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
+    shell:
+        'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
+
+rule train_final_metric:
+    input:
+        signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization']),
+        # timeslides = expand('output/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3])
+    params:
+        timeslides = expand('output/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3])
+    output:
+        params_file = 'output/trained/final_metric_params.npy'
+    shell:
+        'python3 scripts/final_metric_optimization.py {output.params_file} \
+        --timeslide-path {params.timeslides} \
+        --signal-path {input.signals}'
+
+rule compute_far:
+    input:
+        data_path = expand(rules.generate_dataset.output.file, dataclass='timeslides'),
+        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
+        metric_coefs_path = rules.train_final_metric.output.params_file
+    params:
+        shorten_timeslides = False
+    output:
+        save_path = 'output/far_bins.npy'
+    shell:
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
+            --metric-coefs-path {input.metric_coefs_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides}'
+
+rule quak_plotting_prediction_and_recreation:
     input:
         model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
         test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+    params:
+        reduce_loss = False
     output:
         save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
-        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} \
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
             --model-path {input.model_path} '
 
-rule calculate_pearson:
+rule all_quak_pr:
     input:
-        data_path = 'output/data/test/{dataclass}.npy'
-    output:
-        save_file = 'output/evaluated/pearson_{dataclass}.npy'
-    shell:
-        'mkdir -p output/data/test/correlations/; '
-        'python3 scripts/pearson.py {input.data_path} {output.save_file}'
-
-rule train_metric:
-    input:
-        bbh_quak = 'output/evaluated/quak_bbh.npz',
-        bbh_pearson = 'output/evaluated/pearson_bbh.npy',
-        sg_pearson = 'output/evaluated/pearson_sg.npy',
-        sg_quak = 'output/evaluated/quak_sg.npz',
-        timeslides_pearson = 'output/evaluated/pearson_timeslides.npy',
-        timeslides_quak = 'output/evaluated/quak_timeslides.npz',
-    output:
-        params_file = 'output/trained/es_params.npy'
-    shell:
-        'python3 scripts/evolutionary_search.py'
+        expand(rules.quak_plotting_prediction_and_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule plot_results:
     input:
-        dependencies = rules.train_metric.output.params_file
+        dependencies = rules.compute_far.output.save_path
     params:
-        evaluation_dir = 'output/evaluated/',
+        evaluation_dir = 'output/',
     output:
-        directory('output/plots/')
+        save_path = directory('output/plots/')
     shell:
-        'mkdir -p {output}; '
-        'python3 scripts/plotting.py {params.evaluation_dir} {output}'
+        'mkdir -p {output.save_path}; '
+        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'
 
 rule make_pipeline_plot:
     shell:

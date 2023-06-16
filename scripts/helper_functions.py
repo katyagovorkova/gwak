@@ -1,7 +1,7 @@
 import os
 import h5py
 import time
-# import bilby
+import bilby
 import numpy as np
 import torch
 
@@ -16,7 +16,6 @@ sys.path.append(
 from config import (
     IFOS,
     SAMPLE_RATE,
-    INJECT_AT_END,
     EDGE_INJECT_SPACING,
     GLITCH_SNR_BAR,
     STRAIN_START,
@@ -27,8 +26,15 @@ from config import (
     GW_EVENT_CLEANING_WINDOW,
     SEG_NUM_TIMESTEPS,
     SEGMENT_OVERLAP,
-    CLASS_ORDER)
-
+    CLASS_ORDER,
+    SIGNIFICANCE_NORMALIZATION_DURATION,
+    GPU_NAME,
+    MAX_SHIFT,
+    SHIFT_STEP,
+    HISTOGRAM_BIN_DIVISION,
+    HISTOGRAM_BIN_MIN,
+    CHANNEL)
+DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
     '''
@@ -43,6 +49,11 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
+def mae_torch(a, b):
+    # compute the MAE, do .mean twice:
+    # once for the time axis, second time for detector axis
+    return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+
 def std_normalizer(data):
     feature = 1
     if data.shape[1] == 2:
@@ -52,33 +63,73 @@ def std_normalizer(data):
     return data / std_vals
 
 def std_normalizer_torch(data):
-    feature = 1
-    if data.shape[1] == 2:
-        feature_axis = 2
-        
-    std_vals = torch.std(data, dim=feature_axis)[:, :, None]
+    std_vals = torch.std(data, dim=-1)[:, :, :, None]
     return data / std_vals
 
-def order_dict_into_tensor(data_dict):
-    raise NotImplemented
+def stack_dict_into_tensor(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into *torch* tensor
+    '''
+    fill_len = len(data_dict['bbh'])
+    stacked_tensor = torch.empty((fill_len, 4), device=DEVICE)
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_tensor[:, stack_index] = data_dict[class_name]
+    
+    return stacked_tensor
+
+def stack_dict_into_numpy(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into numpy array
+    '''
+    fill_len = len(data_dict['bbh'])
+    stacked_np = np.empty((fill_len, 4))
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_np[:, stack_index] = data_dict[class_name]
+    
+    return stacked_np
+
+def stack_dict_into_numpy_segments(data_dict):
+    '''
+    Input is a dictionary of keys, stack it into numpy array
+    '''
+    fill_len = len(data_dict['bbh'])
+    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, 100))
+    for class_name in data_dict.keys():
+        stack_index = CLASS_ORDER.index(class_name)
+        stacked_np[:, stack_index] = data_dict[class_name]
+    
+    return stacked_np
+
 
 def reduce_to_significance(data):
-    raise NotImplemented
+    '''
+    Data is a torch tensor of shape (N_samples, N_features),
+    normalize / calculate significance for each of the axis 
+    by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
+    '''
+    N_batches, N_samples, N_features = data.shape
+    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE // SEGMENT_OVERLAP)
+    assert  N_samples > norm_datapoints
 
-def find_h5(path: str):
-    h5_file = None
-    print("looking for", path)
-    assert os.path.exists(path)
-    if not os.path.exists(path):
-        return None
-    for file in os.listdir(path):
-        if file[-3:] == '.h5':
-            assert h5_file is None  # make sure only 1 h5 file
-            h5_file = path + '/' + file
 
-    assert h5_file is not None  # did not find h5 file
-    return h5_file
+    #take the mean, std by sliding window of size norm_datapoints
+    stacked = torch.reshape(
+        data[:, : (N_samples // norm_datapoints) * norm_datapoints ],
+        (norm_datapoints, -1, N_features)
+    )
+    means = stacked.mean(dim=1)
+    stds = stacked.std(dim=1)
 
+    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=DEVICE)
+
+    N_splits = means.shape[0]
+    for i in range(N_splits):
+        start, end = i*norm_datapoints, (i+1)*norm_datapoints
+        computed_significance[:, start:end] = (data[:, start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
+        
+    return computed_significance
 
 def load_folder(
         path: str,
@@ -89,28 +140,38 @@ def load_folder(
     '''
     start = STRAIN_START
     end = STRAIN_STOP
-
-    path = path+f'{start}_{end}/'
+    last = -1
+    if path[-1] == "/":
+        last = -2
+    print("PATH", path)
+    path += f"/{STRAIN_START}_{STRAIN_STOP}/"
+    print(path.split("/"))
+    start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
 
     loaded_data = dict()
+    min_trigger_load = start + load_start
+    max_trigger_load = start + load_stop
     for ifo in IFOS:
         # get the glitch times first
-        h5_file = find_h5(f'{path}/{ifo}/triggers/{ifo}:DCS-CALIB_STRAIN_CLEAN_C01/')
-        if h5_file == None:
-            return None
+        triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers = []
+        for file in os.listdir(triggers_path):
+            if file[-3:] == ".h5":
+                trigger_start_time = int(file.split("-")[-2])
+                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
+                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                        segment_triggers = f['triggers'][:]
+                        triggers.append(segment_triggers)
 
-        with h5py.File(h5_file, 'r') as f:
-            print('loading data from h5', h5_file, "...")
-            triggers = f['triggers'][:]
-            
+        triggers = np.concatenate(triggers, axis=0)
 
-        with h5py.File(f'{path}/detec_data_{ifo}.h5', 'r') as f:
+        with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
             if load_start == None or load_stop == None:
-                X = f['ts'][:]
+                X = f[f"{ifo}:{CHANNEL}"][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
                 datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
-                X = f['ts'][datapoints_start:datapoints_stop]
+                X = f[f"{ifo}:{CHANNEL}"][datapoints_start:datapoints_stop]
 
         # some statistics on the data
         data_statistics = 0
@@ -123,7 +184,7 @@ def load_folder(
         sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
-        data = TimeSeries(X, sample_rate=sample_rate, t0=start)
+        data = TimeSeries(X, sample_rate=sample_rate, t0=start + load_start)
         if data_statistics:
             print(f'after creating time series, len(data) = {len(data)}')
             before_resample = len(data)
@@ -366,7 +427,8 @@ def inject_hplus_hcross(
         background=None,
         SNR=None,
         get_psds=False,
-        detector_psds=None):
+        detector_psds=None,
+        inject_at_end=False):
 
     final_injects = []
     final_injects_nonoise = []
@@ -398,7 +460,7 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
-            if INJECT_AT_END:
+            if inject_at_end:
                 center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
                 slx = slice(center-half_polar, center+half_polar)
 
@@ -416,7 +478,9 @@ def inject_hplus_hcross(
 
     if SNR is None:
         # no amplitude modifications
-        return np.stack(final_injects)[:, np.newaxis, :], None
+        # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+        # None refers to no SNR values being returned
+        return np.stack(final_injects)[:, np.newaxis, :], None 
     final_bothdetector = np.stack(final_injects)[:, np.newaxis, :]
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)[:, np.newaxis, :]
@@ -457,7 +521,7 @@ def inject_hplus_hcross(
             # off by one datapoint if this fails, don't think it matters
             assert len(polarization) % 2 == 0
             slx = slice(midp - half_polar, midp + half_polar)
-            if INJECT_AT_END:
+            if inject_at_end:
                 center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
                 slx = slice(center-half_polar, center+half_polar)
             injection[slx] += response * polarization
@@ -474,7 +538,8 @@ def inject_hplus_hcross(
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)  # [:, np.newaxis, :]
 
-    return final_bothdetector, final_bothdetector_nonoise
+    # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+    return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
 
 
 def olib_time_domain_sine_gaussian(
@@ -745,7 +810,6 @@ def envelope(strain, option=None, **kwargs):
 
     return env * np.array(strain)
 
-
 def clean_gw_events(
     event_times,
     data,
@@ -817,32 +881,142 @@ def split_into_segments(data,
 
     return result
 
-def split_into_segments_torch(data, 
-                        overlap=SEGMENT_OVERLAP, 
+def split_into_segments_torch(data,
+                        overlap=SEGMENT_OVERLAP,
                         seg_len=SEG_NUM_TIMESTEPS):
     '''
     Function to slice up data into overlapping segments
     seg_len: length of resulting segments
     overlap: overlap of the windows in units of indicies
 
-    assuming that data is of shape (N_samples, axis_to_slice_on, features)
+    assuming that data is of shape (N_samples, 2, feature_len)
     '''
-    print("data segment input shape", data.shape)
-    N_slices = (data.shape[1]-seg_len)//overlap
-    print("N slices,", N_slices)
-    print("going to make it to, ", N_slices*overlap+seg_len)
-    data = data[:, :N_slices*overlap+seg_len]
+    N_slices = (data.shape[2]-seg_len)//overlap
+    data = data[:, :, :N_slices*overlap+seg_len]
+    feature_length_full = data.shape[2]
+    feature_length = (data.shape[2]//100) *100
+    N_slices_limited = (feature_length-seg_len)//overlap
+    n_batches = data.shape[0]
+    n_detectors = data.shape[1]
 
-    device = torch.device("cuda:0")
-    result = torch.empty((data.shape[0], N_slices, seg_len, data.shape[2]), 
-                        device=device)
+    # resulting shape: (batches, N_slices, 2, 100)
+    result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
+                        device=DEVICE)
 
-    for i in range(data.shape[0]):
-        for j in range(N_slices):
-            start = j*overlap
-            end = j*overlap + seg_len
-            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
-            result[i, j, :, :] = data[i, start:end, :]
+    offset_families = np.arange(0, seg_len, overlap)
+    family_count = len(offset_families)
+    final_length = 0
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length:
+            # correction: reduce by 1
+            final_length -= 1
+        final_length += (feature_length - seg_len)//seg_len
 
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length:
+            end -= seg_len
+        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+    # do the pieces left over, at the end
+    for i in range(1, N_slices - N_slices_limited+1):
+        end = int(feature_length_full - i *overlap)
+        start = int(end - seg_len)
+        result[:, -i, :, :] = data[:, :, start:end]
+    
     return result
 
+def pearson_computation(data,
+                        max_shift=MAX_SHIFT,
+                        seg_len=SEG_NUM_TIMESTEPS, 
+                        seg_step=SEGMENT_OVERLAP,
+                        shift_step=SHIFT_STEP):
+    max_shift = int(max_shift*SAMPLE_RATE)
+    offset_families = np.arange(max_shift, max_shift+seg_len, seg_step)
+    
+    feature_length_full = data.shape[-1]
+    feature_length = (data.shape[-1]//SEG_NUM_TIMESTEPS)*SEG_NUM_TIMESTEPS
+    n_manual = (feature_length_full - feature_length) // seg_step
+    n_batches = data.shape[0]
+    data[:, 1, :] = -1 * data[:, 1, :] #inverting livingston
+    family_count = len(offset_families)
+    final_length = 0
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length - max_shift:
+            # correction: reduce by 1
+            final_length -= 1
+        final_length += (feature_length - seg_len)//seg_len
+    family_fill_max = final_length
+    final_length += n_manual
+    all_corrs = torch.zeros((n_batches, final_length), device=DEVICE)
+    for family_index in range(family_count):
+        end = feature_length-seg_len+offset_families[family_index]
+        if end > feature_length - max_shift:
+            end -= seg_len
+        hanford = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+        hanford = hanford - hanford.mean(dim=2)[:, :, None]
+        best_corrs = -1 * torch.ones((hanford.shape[0], hanford.shape[1]), device=DEVICE)
+        for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
+
+            livingston = data[:, 1, offset_families[family_index]+shift_amount:end+shift_amount].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+            livingston = livingston - livingston.mean(dim=2)[:, :, None]
+
+            corrs = torch.sum(hanford*livingston, axis=2) / torch.sqrt( torch.sum(hanford*hanford, axis=2) * torch.sum(livingston*livingston, axis=2) )  
+            best_corrs = torch.maximum(best_corrs, corrs)
+ 
+        all_corrs[:, family_index:family_fill_max:family_count] = best_corrs
+    
+    # fill in pieces left over at end
+    for k, center in enumerate(np.arange(feature_length - max_shift - seg_len//2+seg_step, \
+                                feature_length_full - max_shift - seg_len//2 + seg_step, \
+                                seg_step)):
+        hanford = data[:, 0, center - seg_len//2:center + seg_len//2]
+        hanford = hanford - hanford.mean(dim=1)[:, None]
+        best_corr = -1 * torch.ones((n_batches), device=DEVICE)
+        for shift_amount in np.arange(-max_shift, max_shift+shift_step, shift_step):
+            livingston = data[:, 1, center - seg_len//2+shift_amount:center + seg_len//2 + shift_amount]
+            livingston = livingston - livingston.mean(dim=1)[:, None]
+            corr = torch.sum(hanford*livingston, axis=1) / torch.sqrt( torch.sum(hanford*hanford, axis=1) * torch.sum(livingston*livingston, axis=1) )
+            best_corr = torch.maximum(best_corr, corr)
+        all_corrs[:, -(k+1)] = best_corr
+
+    edge_start, edge_end = max_shift // seg_step, -(max_shift // seg_step) + 1
+    return all_corrs, (edge_start, edge_end)
+
+def compute_fars(fm_vals, far_hist):
+    bin_idxs = (fm_vals - (-HISTOGRAM_BIN_MIN)) // HISTOGRAM_BIN_DIVISION
+    datapoint_to_seconds = SEGMENT_OVERLAP / SAMPLE_RATE
+    total_duration = far_hist.sum() * datapoint_to_seconds
+    print("total duration, ", total_duration, "seconds")
+    far_vals = []
+    for bin_idx in bin_idxs:
+        bin_idx = int(bin_idx)
+        # count the number of elements below
+        far_in_datapoints = far_hist[:bin_idx].sum() / total_duration
+        far_vals.append(far_in_datapoints * datapoint_to_seconds) #convert to /second
+
+    return np.array(far_vals)
+
+
+def far_to_metric(search_time, far_hist):
+    # allows to search for the metric value corresponding 
+    # to a specific false alarm rate
+    datapoint_to_seconds = SEGMENT_OVERLAP / SAMPLE_RATE
+    total_seconds = far_hist.sum() * datapoint_to_seconds
+    
+    if not total_seconds > search_time:
+        return None
+
+    search_points = total_seconds // search_time
+
+
+    i = 0
+    while far_hist[:i].sum() < search_points:
+        i += 1
+
+
+    return i * HISTOGRAM_BIN_DIVISION - HISTOGRAM_BIN_MIN
+
+    

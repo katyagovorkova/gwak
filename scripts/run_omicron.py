@@ -19,8 +19,8 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     SNR_THRESH,
-    GLITCH_START,
-    GLITCH_STOP,
+    STRAIN_START,
+    STRAIN_STOP,
     Q_MIN,
     Q_MAX,
     F_MIN,
@@ -35,95 +35,6 @@ from config import (
     GLITCH_SAMPLE_RATE,
     STATE_FLAG,
     IFOS)
-
-def generate_glitch_dataset(
-    snr_thresh: float,
-    start: float,
-    stop: float,
-    window: float,
-    sample_rate: float,
-    channel: str,
-    trigger_files: Iterable[Path],
-    chunk_size: float = 4096,
-):
-    """
-    Generates a list of omicron trigger times that satisfy snr threshold
-
-    Args:
-        snr_thresh: snr threshold above which to keep as glitch
-        start: start gpstime
-        stop: stop gpstime
-        window: half window around trigger time to query data for
-        sample_rate: sampling arequency
-        channel: channel name used to read data (including ifo prefix)
-        frame_type: frame type for data discovery w/ gwdatafind
-        trigger_files: List of h5 files of omicron triggers
-    """
-    # importing here due to issues with ciecplib
-    # setting logging. See
-    # https://github.com/ML4GW/mldatafind/issues/30
-    # TODO: move back to top once this is fixed
-    from mldatafind import find_data
-
-    glitches = []
-    snrs = []
-    gpstimes = []
-
-    for trig_file in trigger_files:
-        # load in triggers
-        with h5py.File(trig_file) as f:
-            # restrict triggers to within gps start and stop times
-            # and apply snr threshold
-            triggers = f["triggers"][:]
-            times = triggers["time"][()]
-            mask = (times > start) & (times < stop)
-            mask &= triggers["snr"][()] > snr_thresh
-            triggers = triggers[mask]
-
-        # re-set 'start' and 'stop' so we aren't querying unnecessary data
-        file_start = np.min(triggers["time"]) - window
-        file_stop = np.max(triggers["time"]) + window
-
-        logging.debug(
-            f"Querying {file_stop - file_start} seconds of data "
-            f"for {len(triggers)} triggers from {trig_file}"
-        )
-
-        # TODO: triggers on the edge of chunks will not have enough data.
-        # should only impact 2 * n_chunks triggers, so not a huge deal.
-        generator_list = find_data(
-            [(file_start, file_stop)],
-            [channel],
-            chunk_size=chunk_size,
-        )
-        data_generator = next(generator_list)
-
-        for data in data_generator:
-            # restrict to triggers within current data chunk
-            data = data[channel]
-            times = data.times.value
-            mask = (triggers["time"] > times[0] + window) & (
-                triggers["time"] < times[-1] - window
-            )
-            chunk_triggers = triggers[mask]
-            # query data for each trigger
-            for trigger in chunk_triggers:
-                time = trigger["time"]
-                try:
-                    glitch_ts = data.crop(time - window, time + window)
-                except ValueError:
-                    logging.warning(
-                        f"Data not available for trigger at time: {time}"
-                    )
-                    continue
-                else:
-                    glitch_ts = glitch_ts.resample(sample_rate)
-                    glitches.append(list(glitch_ts.value))
-                    snrs.append(trigger["snr"])
-                    gpstimes.append(time)
-
-    glitches = np.stack(glitches)
-    return glitches, snrs, gpstimes
 
 
 def omicron_main_wrapper(
@@ -332,59 +243,37 @@ def main(
                 omicron_main_wrapper, stop, test_stop, test_ifo_dir, *args
             )
 
-    for future in as_completed(train_futures):
-        ifo = future.result()
-        trigger_dir = train_run_dir / ifo / "merge" / f"{ifo}:{channel}"
-        trigger_files = sorted(list(trigger_dir.glob("*.h5")))
-
-        logging.info(f"Generating glitch dataset for {ifo}")
-        glitches[ifo], snrs[ifo], times[ifo] = generate_glitch_dataset(
-            snr_thresh,
-            start,
-            stop,
-            window,
-            sample_rate,
-            f"{ifo}:{channel}",
-            trigger_files,
-            chunk_size,
-        )
-
-    # store glitches from training set
-    with h5py.File(glitch_file, "w") as f:
-        for ifo in ifos:
-            g = f.create_group(f"{ifo}")
-            g.create_dataset("glitches", data=glitches[ifo])
-            g.create_dataset("snrs", data=snrs[ifo])
-            g.create_dataset("times", data=times[ifo])
-
-    return glitch_file
-
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
     # Required arguments
+    parser.add_argument('intersections', help='Path to the Omicron output',
+                        type=str)
     parser.add_argument('outdir', help='Path to the Omicron output',
                         type=str)
     args = parser.parse_args()
-    main(SNR_THRESH,
-        GLITCH_START,
-        GLITCH_STOP,
-        None, # test_stop
-        Q_MIN,
-        Q_MAX,
-        F_MIN,
-        CLUSTER_DT,
-        CHUNK_DURATION,
-        SEGMENT_DURATION,
-        OVERLAP,
-        MISTMATCH_MAX,
-        WINDOW,
-        args.outdir,
-        None, # logdir
-        CHANNEL,
-        FRAME_TYPE,
-        GLITCH_SAMPLE_RATE,
-        STATE_FLAG,
-        IFOS)
+
+    segments = np.load(args.intersections)
+    for segment in segments:
+        main(SNR_THRESH,
+            segment[0], # start
+            segment[1], # stop
+            None, # test_stop
+            Q_MIN,
+            Q_MAX,
+            F_MIN,
+            CLUSTER_DT,
+            CHUNK_DURATION,
+            SEGMENT_DURATION,
+            OVERLAP,
+            MISTMATCH_MAX,
+            WINDOW,
+            args.outdir+f'/{segment[0]}_{segment[1]}/',
+            None, # logdir
+            CHANNEL,
+            FRAME_TYPE,
+            GLITCH_SAMPLE_RATE,
+            STATE_FLAG,
+            IFOS)

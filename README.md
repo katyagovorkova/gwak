@@ -71,8 +71,8 @@ All the parameters of generation and training are specified in `config.py`, that
 the only place they are specified and the only place through which they can be changed.
 
 ## Running Omicron
-The analysis pipeline starts with fetching 03 background data and running Omicron software on it to
-select loud and quite segments of data taking.
+The analysis pipeline starts with fetching valid 03a background data and running Omicron software on it to select loud and quite segments of data taking.
+To find the valid data segments, we have in the repo under the `data/` folder valid segments for H1 and L1 downloaded from the LIGO website.
 ```
 snakemake -c1 run_omicron
 ```
