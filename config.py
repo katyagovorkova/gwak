@@ -1,3 +1,6 @@
+# Version of the code with which the data was generated
+VERSION = 'v0'
+
 # data generation
 IFOS = ['H1', 'L1']
 STRAIN_START = 1239134846

@@ -1,5 +1,7 @@
-modelclasses = ['bbh', 'sg', 'background', 'glitch', 'timeslides']
-dataclasses = ['bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
+from config import VERSION
+
+modelclasses = ['bbh', 'sg', 'background', 'glitch']
+dataclasses = ['timeslides', 'bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
 wildcard_constraints:
     modelclass = '|'.join([x for x in modelclasses]),
     dataclass = '|'.join([x for x in dataclasses+modelclasses])
@@ -13,7 +15,7 @@ rule find_valid_segments:
     script:
         'scripts/segments_intersection.py'
 
-rule python_omicron:
+rule run_omicron:
     input:
         intersections = rules.find_valid_segments.output.save_path
     params:
@@ -24,13 +26,9 @@ rule python_omicron:
         'ligo-proxy-init {params.user_name}; '
         'python3 scripts/run_omicron.py {input.intersections} {params.folder}'
 
-rule run_omicron:
-    shell:
-        'snakemake -c4 --keep-going python_omicron'
-
 rule fetch_site_data:
     input:
-        omicron = rules.run_omicron.output,
+        omicron = rules.run_omicron.params.folder,
         intersections = rules.find_valid_segments.output.save_path
     output:
         'tmp/dummy_{site}.txt'
@@ -42,7 +40,8 @@ rule fetch_site_data:
 rule generate_dataset:
     input:
         omicron = 'output/omicron/',
-        dependencies = expand(rules.fetch_site_data.output, site=['L1', 'H1'])
+        dependencies = expand(rules.fetch_site_data.output,
+            site=['L1', 'H1'])
     output:
         file = 'output/data/{dataclass}.npy',
     shell:
@@ -51,23 +50,52 @@ rule generate_dataset:
 
 rule pre_processing_step:
     input:
-        file = expand(rules.generate_dataset.output.file, dataclass='{dataclass}')
+        file = expand(rules.generate_dataset.output.file,
+            dataclass='{dataclass}')
     output:
         train_file = 'output/data/train/{dataclass}.npy',
         test_file = 'output/data/test/{dataclass}.npy'
     shell:
         'python3 scripts/pre_processing.py {input.file} {output.train_file} {output.test_file}'
 
+rule upload_train_test_data:
+    input:
+        train_data = expand(rules.pre_processing_step.output.train_file,
+            dataclass='{dataclass}'),
+        test_data = expand(rules.pre_processing_step.output.test_file,
+            dataclass='{dataclass}')
+    output:
+        train_data = '/home/katya.govorkova/gwak/{version}/train/{dataclass}.npy',
+        test_data = '/home/katya.govorkova/gwak/{version}/test/{dataclass}.npy'
+    shell:
+        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/; '
+        'cp {input.train_data} {output.train_data}'
+        'cp {input.test_data} {output.test_data}'
+
+rule upload_generated_data:
+    input:
+        data = expand(rules.generate_dataset.output.file,
+            dataclass='{dataclass}')
+    output:
+        data = '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npy'
+    shell:
+        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/; '
+        'cp {input.data} {output.data}'
+
+rule upload_data:
+    input:
+        expand(rules.upload_train_test_data.output,
+            dataclass=modelclasses,
+            version=VERSION),
+        expand(rules.upload_generated_data.output,
+            dataclass=dataclasses,
+            version=VERSION)
+
 rule train_quak:
-    # input:
-        # data = expand(rules.pre_processing_step.output.train_file, dataclass='{dataclass}')
-    params:
-        data = [
-            '/home/ryan.raikman/s23/gwak/data/train/background.npy',
-            '/home/ryan.raikman/s23/gwak/data/train/bbh.npy',
-            '/home/ryan.raikman/s23/gwak/data/train/glitch.npy',
-            '/home/ryan.raikman/s23/gwak/data/train/sg.npy',
-            ]
+    input:
+        data = expand(rules.upload_train_test_data.output.train_data,
+            dataclass='{dataclass}',
+            version=VERSION)
     output:
         savedir = directory('output/trained/{dataclass}'),
         model_file = 'output/trained/models/{dataclass}.pt'
@@ -77,10 +105,12 @@ rule train_quak:
 
 rule generate_timeslides_for_final_metric_train:
     input:
-        # data_path = expand(rules.generate_dataset.output.file, dataclass='timeslides'),
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
+        data_path = expand(rules.upload_generated_data.output.data,
+            dataclass='timeslides',
+            version=VERSION),
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses)
     params:
-        data_path = '/home/ryan.raikman/s23/gwak/data/timeslides_segs.npy',
         shorten_timeslides = False
     output:
         save_folder_path = directory('output/timeslides/')
@@ -91,19 +121,20 @@ rule generate_timeslides_for_final_metric_train:
 
 rule evaluate_signals:
     input:
-        # source_file = expand(rules.generate_dataset.output.file, dataclass='{signal_dataclass}'),
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
-    params:
-        source_file = lambda w: '/home/ryan.raikman/s23/gwak/data/{w.signal_dataclass}_segs.npy'
+        source_file = expand(rules.upload_generated_data.output.data,
+            dataclass='{signal_dataclass}',
+            version=VERSION),
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses)
     output:
         save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
     shell:
-        'python3 scripts/evaluate_data.py {params.source_file} {output.save_file} {input.model_path}'
+        'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
 
 rule train_final_metric:
     input:
-        signals = expand(rules.evaluate_signals.output.save_file, signal_dataclass=['bbh_fm_optimization']),
-        # timeslides = expand('output/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3])
+        signals = expand(rules.evaluate_signals.output.save_file,
+            signal_dataclass=['bbh_fm_optimization']),
     params:
         timeslides = expand('output/timeslides/timeslide_evals_{i}.npy', i=[1, 2, 3])
     output:
@@ -115,35 +146,35 @@ rule train_final_metric:
 
 rule compute_far:
     input:
-        # data_path = expand(rules.generate_dataset.output.file, dataclass='timeslides'),
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
+        data_path = expand(rules.upload_generated_data.output.data,
+            dataclass='timeslides',
+            version=VERSION),
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses),
         metric_coefs_path = rules.train_final_metric.output.params_file
     params:
-        data_path = '/home/ryan.raikman/s23/gwak/data/timeslides_segs.npy',
         shorten_timeslides = False
     output:
         save_path = 'output/far_bins.npy'
     shell:
-        'python3 scripts/evaluate_timeslides.py {params.data_path} {output.save_path} {input.model_path} \
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
 
 rule quak_plotting_prediction_and_recreation:
     input:
-        model_path = expand(rules.train_quak.output.model_file, dataclass=['bbh', 'sg', 'background', 'glitch']),
-        # test_data = expand(rules.pre_processing_step.output.test_file, dataclass='{dataclass}')
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses),
+        test_data = expand(rules.upload_train_test_data.output.test_data,
+            dataclass='{dataclass}',
+            version=VERSION)
     params:
-        test_data = lambda w: '/home/ryan.raikman/s23/gwak/data/test/{dataclass}.npy'
         reduce_loss = False
     output:
         save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
-        'python3 scripts/quak_predict.py {params.test_data} {output.save_file} {params.reduce_loss} \
+        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
             --model-path {input.model_path} '
-
-rule all_quak_pr:
-    input:
-        expand(rules.quak_plotting_prediction_and_recreation.output.save_file, dataclass=['bbh', 'sg', 'background', 'glitch'])
 
 rule plot_results:
     input:

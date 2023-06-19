@@ -155,15 +155,16 @@ def load_folder(
         # get the glitch times first
         triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
         triggers = []
-        for file in os.listdir(triggers_path):
-            if file[-3:] == ".h5":
-                trigger_start_time = int(file.split("-")[-2])
-                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
-                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
-                        segment_triggers = f['triggers'][:]
-                        triggers.append(segment_triggers)
+        if os.path.exists(triggers_path):
+            for file in os.listdir(triggers_path):
+                if file[-3:] == ".h5":
+                    trigger_start_time = int(file.split("-")[-2])
+                    if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
+                        with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                            segment_triggers = f['triggers'][:]
+                            triggers.append(segment_triggers)
 
-        triggers = np.concatenate(triggers, axis=0)
+            triggers = np.concatenate(triggers, axis=0)
 
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
             if load_start == None or load_stop == None:
