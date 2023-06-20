@@ -155,6 +155,9 @@ def load_folder(
         # get the glitch times first
         triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
         triggers = []
+        # check if Omicron actually finished, if not, go further
+        if not os.path.exists(triggers_path): continue
+
         for file in os.listdir(triggers_path):
             if file[-3:] == ".h5":
                 trigger_start_time = int(file.split("-")[-2])

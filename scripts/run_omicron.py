@@ -258,6 +258,11 @@ if __name__ == "__main__":
 
     segments = np.load(args.intersections)
     for segment in segments:
+        if os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/H1/triggers/H1:{CHANNEL}/') \
+        and os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/L1/triggers/L1:{CHANNEL}/'):
+            print(f'Skippping segment {segment[0]} {segment[1]} because it is already done')
+            continue
+
         main(SNR_THRESH,
             segment[0], # start
             segment[1], # stop
@@ -271,7 +276,7 @@ if __name__ == "__main__":
             OVERLAP,
             MISTMATCH_MAX,
             WINDOW,
-            args.outdir+f'/{segment[0]}_{segment[1]}/',
+            f'{args.outdir}/{segment[0]}_{segment[1]}/',
             None, # logdir
             CHANNEL,
             FRAME_TYPE,
