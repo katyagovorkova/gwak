@@ -64,31 +64,31 @@ rule upload_train_test_data:
             dataclass='{dataclass}'),
         test_data = expand(rules.pre_processing_step.output.test_file,
             dataclass='{dataclass}')
-    output:
+    params:
         train_data = '/home/katya.govorkova/gwak/{version}/train/{dataclass}.npy',
         test_data = '/home/katya.govorkova/gwak/{version}/test/{dataclass}.npy'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/train/; '
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/test/; '
-        'cp {input.train_data} {output.train_data}; '
-        'cp {input.test_data} {output.test_data}'
+        'cp {input.train_data} {params.train_data}; '
+        'cp {input.test_data} {params.test_data}'
 
 rule upload_generated_data:
     input:
         data = expand(rules.generate_dataset.output.file,
             dataclass='{dataclass}')
-    output:
+    params:
         data = '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npy'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
-        'cp {input.data} {output.data}'
+        'cp {input.data} {params.data}'
 
 rule upload_data:
     input:
-        expand(rules.upload_train_test_data.output,
+        expand(rules.upload_train_test_data.params,
             dataclass=modelclasses,
             version=VERSION),
-        expand(rules.upload_generated_data.output,
+        expand(rules.upload_generated_data.params,
             dataclass=dataclasses,
             version=VERSION)
 
