@@ -2,7 +2,6 @@ import os
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
-from torchsummary import summary
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,10 +10,13 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
 from scipy.linalg import dft
 
-from models import (LSTM_AE, LSTM_AE_ERIC, DUMMY_CNN_AE, FAT)
+from models import (
+    LSTM_AE,
+    LSTM_AE_ERIC,
+    DUMMY_CNN_AE,
+    FAT)
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
@@ -26,7 +28,7 @@ from config import (
     OPTIMIZER,
     VALIDATION_SPLIT,
     TRAINING_VERBOSE,
-    NUM_IFOS, 
+    NUM_IFOS,
     SEG_NUM_TIMESTEPS,
     GPU_NAME,
     LIMIT_TRAINING_DATA)
@@ -39,26 +41,30 @@ def main(args):
     if LIMIT_TRAINING_DATA is not None:
         data = data[:LIMIT_TRAINING_DATA]
     # create the model
-    AE = FAT(num_ifos=NUM_IFOS, 
-                num_timesteps=SEG_NUM_TIMESTEPS,
-                BOTTLENECK=BOTTLENECK,
-                FACTOR=FACTOR).to(DEVICE)
-    #print(summary(AE, input_size=(2, 100)))
-    #assert 0
+    if args.model=='dense':
+        AE = FAT(
+            num_ifos=NUM_IFOS,
+            num_timesteps=SEG_NUM_TIMESTEPS,
+            BOTTLENECK=BOTTLENECK,
+            FACTOR=FACTOR).to(DEVICE)
+    elif args.model=='lstm':
+        AE = LSTM_AE(
+            input_dim=NUM_IFOS,
+            encoding_dim=10,
+            h_dims=[64],
+        )
+    elif args.model=='transformer':
+        AE = None
+        print('OOOPS NOT IMPLEMENTED')
 
-    #AE = LSTM_AE(
-    #    input_dim=NUM_IFOS,
-    #    encoding_dim=10,
-    #    h_dims=[64],
-    #)
     optimizer = optim.Adam(AE.parameters())
-    #scheduler = ReduceLROnPlateau(optimizer, 'min')
+
     if LOSS == "MAE":
         loss_fn = nn.L1Loss()
     else:
         # add in support for more losses?
         raise Exception("Unknown loss function")
-    
+
     # create the dataset and validation set
     validation_split_index = int((1-VALIDATION_SPLIT) * len(data))
     train_data = data[:validation_split_index]
@@ -107,9 +113,9 @@ def main(args):
     torch.save(AE.state_dict(), f'{args.save_file}')
 
     # save training history
-    np.save(f'{args.savedir}/loss_hist.npy', 
+    np.save(f'{args.savedir}/loss_hist.npy',
             np.array(training_history['train_loss']))
-    np.save(f'{args.savedir}/val_loss_hist.npy', 
+    np.save(f'{args.savedir}/val_loss_hist.npy',
             np.array(training_history['val_loss']))
 
     # plot training history
@@ -133,5 +139,9 @@ if __name__ == '__main__':
         type=str)
     parser.add_argument('savedir', help='Where to save the plots',
         type=str)
+
+    parser.add_argument('--model', help='Required path to trained model',
+                        type=str, choices=['lstm', 'dense', 'transformer'])
+
     args = parser.parse_args()
     main(args)
