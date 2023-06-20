@@ -94,7 +94,7 @@ rule upload_data:
 
 rule train_quak:
     input:
-        data = expand(rules.upload_train_test_data.output.train_data,
+        data = expand(rules.upload_train_test_data.params.train_data,
             dataclass='{dataclass}',
             version=VERSION)
     output:
@@ -107,7 +107,7 @@ rule train_quak:
 
 rule generate_timeslides_for_final_metric_train:
     input:
-        data_path = expand(rules.upload_generated_data.output.data,
+        data_path = expand(rules.upload_generated_data.params.data,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -124,7 +124,7 @@ rule generate_timeslides_for_final_metric_train:
 
 rule evaluate_signals:
     input:
-        source_file = expand(rules.upload_generated_data.output.data,
+        source_file = expand(rules.upload_generated_data.params.data,
             dataclass='{signal_dataclass}',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -153,7 +153,7 @@ rule train_final_metric:
 
 rule compute_far:
     input:
-        data_path = expand(rules.upload_generated_data.output.data,
+        data_path = expand(rules.upload_generated_data.params.data,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -175,7 +175,7 @@ rule quak_plotting_prediction_and_recreation:
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}'),
-        test_data = expand(rules.upload_train_test_data.output.test_data,
+        test_data = expand(rules.upload_train_test_data.params.test_data,
             dataclass='{dataclass}',
             version=VERSION)
     params:
