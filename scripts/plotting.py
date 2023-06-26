@@ -358,7 +358,6 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     fig.tight_layout()
     plt.savefig(f"{plot_savedir}/{tag}_3_panel_plot.pdf", dpi=300)
     
-    
 def main(args):
     # temporary
     do_corner = True
@@ -379,7 +378,7 @@ def main(args):
 
             corner_plot_data[class_index] = stacked_data
 
-        corner_plotting(corner_plot_data, CLASS_ORDER, args.plot_savedir)
+        corner_plotting(corner_plot_data, CLASS_ORDER, args.plot_savedir, enforce_lim=False)
 
     if do_recreation:
         data_original = [0] * 4
@@ -402,8 +401,13 @@ def main(args):
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         for tag in tags:
+            mod = ""
+            for elem in args.data_predicted_path.split("/")[:-2]:
+                print(elem)
+                mod += elem + "/"
+            print("mod", mod)
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy")
-            snrs = np.load(f"{args.data_predicted_path}/generated/{tag}_varying_snr_injections_SNR.npy")
+            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
 
             snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
 
@@ -418,9 +422,15 @@ def main(args):
 
         ind = 0
         for tag in tags:
-            strains = np.load(f"{args.data_predicted_path}/generated/{tag}_varying_snr_injections.npy", mmap_mode="r")[ind]
+            mod = ""
+            for elem in args.data_predicted_path.split("/")[:-2]:
+                print(elem)
+                mod += elem + "/"
+            print("mod", mod)
+            print("HELLO???", f"{mod}/data/{tag}_varying_snr.npy"   )
+            strains = np.load(f"{mod}/data/{tag}_varying_snr.npy", mmap_mode="r")[ind]
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", mmap_mode="r")[ind]
-            snrs = np.load(f"{args.data_predicted_path}/generated/{tag}_varying_snr_injections_SNR.npy", mmap_mode="r")[ind]
+            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
 
             three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
         

@@ -1,4 +1,5 @@
 from config import VERSION
+from config import SAMPLE_RATE, SEG_NUM_TIMESTEPS
 
 models = ['lstm', 'dense', 'transformer']
 modelclasses = ['bbh', 'sg', 'background', 'glitch']
@@ -65,11 +66,11 @@ rule upload_train_test_data:
         test_data = expand(rules.pre_processing_step.output.test_file,
             dataclass='{dataclass}')
     params:
-        train_data = '/home/katya.govorkova/gwak/{version}/train/{dataclass}.npy',
-        test_data = '/home/katya.govorkova/gwak/{version}/test/{dataclass}.npy'
+        train_data = '/home/ryan.raikman/s23/gwak/4096_200_preprocessed/train/{dataclass}.npy',
+        test_data = '/home/ryan.raikman/s23/gwak/4096_200_preprocessed/test/{dataclass}.npy'
     shell:
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/train/; '
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/test/; '
+        'mkdir -p /home/ryan.raikman/gwak/{wildcards.version}/train/; '
+        'mkdir -p /home/ryan.raikman/gwak/{wildcards.version}/test/; '
         'cp {input.train_data} {params.train_data}; '
         'cp {input.test_data} {params.test_data}'
 
@@ -78,9 +79,9 @@ rule upload_generated_data:
         data = expand(rules.generate_dataset.output.file,
             dataclass='{dataclass}')
     params:
-        data = '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npy'
+        data = '/home/ryan.raikman/gwak/{version}/data/{dataclass}.npy'
     shell:
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
+        'mkdir -p /home/ryan.raikman/gwak/{wildcards.version}/data/; '
         'cp {input.data} {params.data}'
 
 rule upload_data:
@@ -107,26 +108,25 @@ rule train_quak:
 
 rule generate_timeslides_for_final_metric_train:
     input:
-        data_path = expand(rules.upload_generated_data.params.data,
+        data_path = expand(rules.generate_dataset.output.file,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}')
     params:
-        shorten_timeslides = False
+        shorten_timeslides = True
     output:
         save_folder_path = directory('output/{model}/timeslides/')
     shell:
         'mkdir -p {output.save_folder_path}; '
-        'python3 scripts/evaluate_timeslides.py {params.data_path} {output.save_folder_path} {input.model_path} \
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
 
 rule evaluate_signals:
     input:
-        source_file = expand(rules.upload_generated_data.params.data,
-            dataclass='{signal_dataclass}',
-            version=VERSION),
+        source_file = expand(rules.generate_dataset.output.file,
+            dataclass='{signal_dataclass}'),
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}')
@@ -138,11 +138,11 @@ rule evaluate_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_fm_optimization'],
+            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization'],
             model='{model}'),
     params:
         timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',
-            i=[1, 2, 3],
+            i=range(1, 100),
             model='{model}')
     output:
         params_file = 'output/{model}/trained/final_metric_params.npy'
@@ -153,7 +153,7 @@ rule train_final_metric:
 
 rule compute_far:
     input:
-        data_path = expand(rules.upload_generated_data.params.data,
+        data_path = expand(rules.generate_dataset.output.file,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,

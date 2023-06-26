@@ -4,7 +4,7 @@ import argparse
 from torchsummary import summary
 import torch
 # from helper_functions import mae
-from models import LSTM_AE, LSTM_AE_ERIC, DUMMY_CNN_AE, FAT
+from models import LSTM_AE, LSTM_AE_SPLIT, DUMMY_CNN_AE, FAT
 import sys
 import os.path
 sys.path.append(
@@ -21,9 +21,13 @@ DEVICE = torch.device(GPU_NAME)
 from helper_functions import mae_torch
 def quak_eval(data, model_path, reduce_loss=True):
     # data required to be torch tensor at this point
-    model = FAT(num_ifos=NUM_IFOS,
+    model_12 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=BOTTLENECK,
+                    BOTTLENECK=12,
+                    FACTOR=FACTOR).to(DEVICE)
+    model_20 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=20,
                     FACTOR=FACTOR).to(DEVICE)
     
 
@@ -35,6 +39,12 @@ def quak_eval(data, model_path, reduce_loss=True):
         loss['loss'] = dict()
 
     for dpath in model_path:
+        if dpath.split("/")[-1] in ["bbh.pt", "background.pt"]:
+            model = model_12
+        else:
+            assert dpath.split("/")[-1] in ["sg.pt", "glitch.pt"]
+            model = model_20
+        
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         print("WARNING: change .strip() to .pt once model properly renamed!")
         if reduce_loss:

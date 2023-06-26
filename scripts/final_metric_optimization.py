@@ -63,8 +63,9 @@ def main(args):
     signals: shape (N_samples, time_axis, 5)
     backgrounds: shape (time_axis, 5)
     '''
-    np.save(args.save_file, np.array([-1, 1, -1, 1, -1]))
-    return None
+    #np.save(args.save_file, np.array([0, -1, 0, 0, 0]))
+    #return None
+
     signal_evals = []
     if type(args.signal_path) == str:
         args.signal_path = [args.signal_path]
@@ -80,7 +81,11 @@ def main(args):
         timeslide_evals.append(np.load(f'{file_name}'))
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
 
+    signal_evals[:, :, :4] *= -1
+    timeslide_evals[:, :, :4] *= -1
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
+    print(optimal_coeffs.shape)
+    optimal_coeffs[:4] *= -1
     np.save(args.save_file, optimal_coeffs)
 
 

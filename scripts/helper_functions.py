@@ -33,7 +33,8 @@ from config import (
     SHIFT_STEP,
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
-    CHANNEL)
+    CHANNEL,
+    NUM_IFOS)
 DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
@@ -49,10 +50,32 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
-def mae_torch(a, b):
+def mae_torch_(a, b):
     # compute the MAE, do .mean twice:
     # once for the time axis, second time for detector axis
     return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+
+def mae_torch_(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2, )), np.fft.rfft(b, axis=2) ), axis=2)).mean(axis=1)
+    norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    return torch.from_numpy(result/norm).float().to(DEVICE)
+
+
+
+def mae_torch(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    #a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = ((torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(b, dim=2, n=256) ), dim=2) ))).mean(dim=1)
+    norm = torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(a, dim=2, n=256) ), dim=2)).mean(dim=1)
+    #norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    #return torch.from_numpy(result/1).float().to(DEVICE)
+    return result/norm
 
 def std_normalizer(data):
     feature = 1
@@ -95,7 +118,7 @@ def stack_dict_into_numpy_segments(data_dict):
     Input is a dictionary of keys, stack it into numpy array
     '''
     fill_len = len(data_dict['bbh'])
-    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, 100))
+    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, SEG_NUM_TIMESTEPS))
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]
@@ -144,8 +167,9 @@ def load_folder(
     if path[-1] == "/":
         last = -2
     print("PATH", path)
-    path += f"/{STRAIN_START}_{STRAIN_STOP}/"
-    print(path.split("/"))
+    if not path[-3].isnumeric():
+        path += f"/{STRAIN_START}_{STRAIN_STOP}/"
+    #print(path.split("/"))
     start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
 
     loaded_data = dict()
@@ -251,7 +275,7 @@ def get_quiet_segments(
 
     # cut off the edge effects already
     valid_start_times = np.arange(
-        t0, tend - segment_length, segment_length / 100)
+        t0, tend - segment_length, segment_length / SEG_NUM_TIMESTEPS)
     open_times = np.ones(valid_start_times.shape)
     for gt in glitch_times:
         idx = np.searchsorted(valid_start_times, gt)
@@ -494,56 +518,66 @@ def inject_hplus_hcross(
         return psds
     computed_SNR = calc_SNR_new(final_bothdetector_nonoise,
         background, sample_rate, detector_psds=detector_psds)
-    response_scale = np.array(SNR / computed_SNR)[0]
 
-    # now do the injection again
-    final_injects = []
-    final_injects_nonoise = []
-    for i, ifo in enumerate(IFOS):
-        bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
-        bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
-            ifo
-        )
-        full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
-        nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
-        bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
+    response_scales = np.array(SNR / computed_SNR)[0]
 
-        injection = np.zeros(len(bkgX))
-        for mode, polarization in pols.items():  # make sure that this is formatted correctly
-            response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
-                # inclination angle of the detector to the source
-                ra, dec, geocent_time, psi, mode
-
+    print("response scales", response_scales)
+    with_noise = []
+    no_noise = []
+    for response_scale in response_scales:
+        # now do the injection again
+        final_injects = []
+        final_injects_nonoise = []
+        for i, ifo in enumerate(IFOS):
+            bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
+            bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
+                ifo
             )
-            response *= response_scale
-            midp = len(injection) // 2
-            if len(polarization) % 2 == 1:
-                polarization = polarization[:-1]
-            # betting on the fact that the length of polarization is even
-            half_polar = len(polarization) // 2
-            # off by one datapoint if this fails, don't think it matters
-            assert len(polarization) % 2 == 0
-            slx = slice(midp - half_polar, midp + half_polar)
-            if inject_at_end:
-                center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
-                slx = slice(center-half_polar, center+half_polar)
-            injection[slx] += response * polarization
+            full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
+            nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
+            bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
 
-        signal = TimeSeries(
-            injection, times=full_seg.times, unit=full_seg.unit)
+            injection = np.zeros(len(bkgX))
+            for mode, polarization in pols.items():  # make sure that this is formatted correctly
+                response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
+                    # inclination angle of the detector to the source
+                    ra, dec, geocent_time, psi, mode
 
-        full_seg = full_seg.inject(signal)
-        nonoise_seg = nonoise_seg.inject(signal)
-        final_injects.append(full_seg)
-        final_injects_nonoise.append(nonoise_seg)
+                )
+                response *= response_scale
+                midp = len(injection) // 2
+                if len(polarization) % 2 == 1:
+                    polarization = polarization[:-1]
+                # betting on the fact that the length of polarization is even
+                half_polar = len(polarization) // 2
+                # off by one datapoint if this fails, don't think it matters
+                assert len(polarization) % 2 == 0
+                slx = slice(midp - half_polar, midp + half_polar)
+                if inject_at_end:
+                    center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
+                    slx = slice(center-half_polar, center+half_polar)
+                injection[slx] += response * polarization
 
-    final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
-    final_bothdetector_nonoise = np.stack(
-        final_injects_nonoise)  # [:, np.newaxis, :]
+            signal = TimeSeries(
+                injection, times=full_seg.times, unit=full_seg.unit)
 
-    # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
-    return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+            full_seg = full_seg.inject(signal)
+            nonoise_seg = nonoise_seg.inject(signal)
+            final_injects.append(full_seg)
+            final_injects_nonoise.append(nonoise_seg)
 
+        final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
+        final_bothdetector_nonoise = np.stack(
+            final_injects_nonoise)  # [:, np.newaxis, :]
+
+        with_noise.append(final_bothdetector[:, np.newaxis, :])
+        no_noise.append(final_bothdetector_nonoise[:, np.newaxis, :])
+        # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+        #return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+    if len(with_noise) == 1:
+        return with_noise[0], no_noise[0]
+    else:
+        return with_noise, no_noise
 
 def olib_time_domain_sine_gaussian(
         time_array,  # times at which to evaluate the model
@@ -897,12 +931,12 @@ def split_into_segments_torch(data,
     N_slices = (data.shape[2]-seg_len)//overlap
     data = data[:, :, :N_slices*overlap+seg_len]
     feature_length_full = data.shape[2]
-    feature_length = (data.shape[2]//100) *100
+    feature_length = (data.shape[2]//SEG_NUM_TIMESTEPS) *SEG_NUM_TIMESTEPS
     N_slices_limited = (feature_length-seg_len)//overlap
     n_batches = data.shape[0]
     n_detectors = data.shape[1]
 
-    # resulting shape: (batches, N_slices, 2, 100)
+    # resulting shape: (batches, N_slices, 2, SEG_NUM_TIMESTEPS)
     result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
                         device=DEVICE)
 
@@ -920,8 +954,8 @@ def split_into_segments_torch(data,
         end = feature_length-seg_len+offset_families[family_index]
         if end > feature_length:
             end -= seg_len
-        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
-        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
     # do the pieces left over, at the end
     for i in range(1, N_slices - N_slices_limited+1):
         end = int(feature_length_full - i *overlap)

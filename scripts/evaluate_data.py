@@ -22,7 +22,8 @@ from config import (
     CLASS_ORDER,
     N_SMOOTHING_KERNEL,
     DATA_EVAL_MAX_BATCH,
-    DO_SMOOTHING
+    DO_SMOOTHING,
+    SEG_NUM_TIMESTEPS
     )
 DEVICE = torch.device(GPU_NAME)
 

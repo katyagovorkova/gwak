@@ -12,8 +12,7 @@ from scipy.linalg import dft
 
 from models import (
     LSTM_AE,
-    LSTM_AE_ERIC,
-    DUMMY_CNN_AE,
+    LSTM_AE_SPLIT,
     FAT)
 
 import sys
@@ -37,7 +36,12 @@ DEVICE = torch.device(GPU_NAME)
 def main(args):
     # read the input data
     data = np.load(args.data)
+    data = data[np.random.permutation(len(data))]
     print(f'loaded data shape is {data.shape}')
+    curric_data = data + np.random.normal(0, 1, data.shape)
+    print("39!", curric_data.std(axis=2)[:, :, np.newaxis].shape)
+    curric_data = curric_data / curric_data.std(axis=2)[:, :, np.newaxis]
+    
     if LIMIT_TRAINING_DATA is not None:
         data = data[:LIMIT_TRAINING_DATA]
     # create the model
@@ -48,16 +52,16 @@ def main(args):
             BOTTLENECK=BOTTLENECK,
             FACTOR=FACTOR).to(DEVICE)
     elif args.model=='lstm':
-        AE = LSTM_AE(
-            input_dim=NUM_IFOS,
-            encoding_dim=10,
-            h_dims=[64],
-        )
+        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS, 
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=BOTTLENECK,
+                    FACTOR=FACTOR).to(DEVICE)
     elif args.model=='transformer':
         AE = None
         print('OOOPS NOT IMPLEMENTED')
 
     optimizer = optim.Adam(AE.parameters())
+    #optimizer = optim.SGD(AE.parameters(), lr=0.1)
 
     if LOSS == "MAE":
         loss_fn = nn.L1Loss()
@@ -68,27 +72,37 @@ def main(args):
     # create the dataset and validation set
     validation_split_index = int((1-VALIDATION_SPLIT) * len(data))
     train_data = data[:validation_split_index]
+
+    curric_train_data = curric_data[:validation_split_index]
     validation_data = data[validation_split_index:]
+    curric_validation_data = curric_data[validation_split_index:]
 
     train_data = torch.from_numpy(train_data).float().to(DEVICE)
+    curric_train_data = torch.from_numpy(curric_train_data).float().to(DEVICE)
     print(f'training data shape is {train_data.shape}')
     validation_data = torch.from_numpy(validation_data).float().to(DEVICE)
+    curric_validation_data = torch.from_numpy(curric_validation_data).float().to(DEVICE)
 
     dataloader = []
+    dataloader_curriculum = []
     N_batches = len(train_data) // BATCH_SIZE
     for i in range(N_batches-1):
         start, end = i*BATCH_SIZE, (i+1) * BATCH_SIZE
         dataloader.append(train_data[start:end])
+        dataloader_curriculum.append(curric_train_data[start:end])
 
     training_history = {
         'train_loss': [],
-        'val_loss': []
+        'val_loss': [],
+        'noise_amp': []
     }
     # training loop
-
-    for epoch_num in range(EPOCHS):
+    epoch_count = 0
+    for epoch_num in range(2*EPOCHS//4):
+        epoch_count += 1
         ts = time.time()
         epoch_train_loss = 0
+        noise_amp = 0
         for batch in dataloader:
             optimizer.zero_grad()
             #print("shape 83", batch.shape)
@@ -102,12 +116,110 @@ def main(args):
         validation_loss = loss_fn(validation_data,
                                 AE(validation_data))
         training_history['val_loss'].append(validation_loss.item())
+        training_history['noise_amp'].append(noise_amp)
         #scheduler.step(validation_loss)
 
         if TRAINING_VERBOSE:
             elapsed_time = time.time() - ts
             data_name = (args.data).split("/")[-1][:-4]
-            print(f"data: {data_name}, epoch: {epoch_num}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}")
+            print(f"data: {data_name}, epoch: {epoch_count}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}")
+    optimizer = optim.Adam(AE.parameters())
+    for epoch_num in range(2 * EPOCHS//2):
+        epoch_count += 1
+        ts = time.time()
+        epoch_train_loss = 0
+        for i, batch in enumerate(dataloader):
+            optimizer.zero_grad()
+            #clean_batch = dataloader[i]
+            #print("shape 83", batch.shape)
+            noise_amp = 0.005 * (epoch_num//5) * 5
+            noisy_batch = batch+  torch.from_numpy(np.random.normal(0, noise_amp, list(batch.shape ))).float().to(DEVICE)
+            noisy_batch = noisy_batch / torch.std(noisy_batch, dim=2)[:, :, None]
+            output = AE(noisy_batch)
+            loss = loss_fn(batch, output)
+            epoch_train_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+        epoch_train_loss /= N_batches
+        training_history['train_loss'].append(epoch_train_loss)
+        valid_noisy = validation_data+  torch.from_numpy(np.random.normal(0, noise_amp, list(validation_data.shape ))).float().to(DEVICE)
+        valid_noisy = valid_noisy / torch.std(valid_noisy, dim=2)[:, :, None]
+        
+        validation_loss = loss_fn(validation_data,
+                                AE(valid_noisy))
+        training_history['val_loss'].append(validation_loss.item())
+        training_history['noise_amp'].append(noise_amp)
+        #scheduler.step(validation_loss)
+
+        if TRAINING_VERBOSE:
+            elapsed_time = time.time() - ts
+            data_name = (args.data).split("/")[-1][:-4]
+            print(f"data: {data_name}, epoch: {epoch_count}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}, noise: {noise_amp}")
+    optimizer = optim.Adam(AE.parameters())
+    for epoch_num in range(1 * EPOCHS//4):
+        epoch_count += 1
+        ts = time.time()
+        epoch_train_loss = 0
+        for i, batch in enumerate(dataloader):
+            optimizer.zero_grad()
+            #clean_batch = dataloader[i]
+            #print("shape 83", batch.shape)
+            noise_amp = 2.0
+            noisy_batch = batch+  torch.from_numpy(np.random.normal(0, noise_amp, list(batch.shape ))).float().to(DEVICE)
+            noisy_batch = noisy_batch / torch.std(noisy_batch, dim=2)[:, :, None]
+            output = AE(noisy_batch)
+            loss = loss_fn(batch, output)
+            epoch_train_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+        epoch_train_loss /= N_batches
+        training_history['train_loss'].append(epoch_train_loss)
+        valid_noisy = validation_data+  torch.from_numpy(np.random.normal(0, noise_amp, list(validation_data.shape ))).float().to(DEVICE)
+        valid_noisy = valid_noisy / torch.std(valid_noisy, dim=2)[:, :, None]
+        #scheduler.step(validation_loss)
+        validation_loss = loss_fn(validation_data,
+                                AE(valid_noisy))
+        training_history['val_loss'].append(validation_loss.item())
+        training_history['noise_amp'].append(noise_amp)
+        
+
+        if TRAINING_VERBOSE:
+            elapsed_time = time.time() - ts
+            data_name = (args.data).split("/")[-1][:-4]
+            print(f"data: {data_name}, epoch: {epoch_count}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}, noise: {noise_amp}")
+
+    if 0:
+        for epoch_num in range(2 * EPOCHS//2):
+            epoch_count += 1
+            ts = time.time()
+            epoch_train_loss = 0
+            for i, batch in enumerate(dataloader):
+                optimizer.zero_grad()
+                #clean_batch = dataloader[i]
+                #print("shape 83", batch.shape)
+                noise_amp = 0.015*100 - 0.015 * epoch_num
+                noisy_batch = batch+  torch.from_numpy(np.random.normal(0, noise_amp, list(batch.shape ))).float().to(DEVICE)
+                noisy_batch = noisy_batch / torch.std(noisy_batch, dim=2)[:, :, None]
+                output = AE(noisy_batch)
+                loss = loss_fn(batch, output)
+                epoch_train_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+            epoch_train_loss /= N_batches
+            training_history['train_loss'].append(epoch_train_loss)
+            valid_noisy = validation_data+  torch.from_numpy(np.random.normal(0, noise_amp, list(validation_data.shape ))).float().to(DEVICE)
+            valid_noisy = valid_noisy / torch.std(valid_noisy, dim=2)[:, :, None]
+            
+            validation_loss = loss_fn(validation_data,
+                                    AE(valid_noisy))
+            training_history['val_loss'].append(validation_loss.item())
+            #scheduler.step(validation_loss)
+
+            if TRAINING_VERBOSE:
+                elapsed_time = time.time() - ts
+                data_name = (args.data).split("/")[-1][:-4]
+                print(f"data: {data_name}, epoch: {epoch_count}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}, noise: {noise_amp}")
+
 
     # save the model
     torch.save(AE.state_dict(), f'{args.save_file}')
@@ -119,13 +231,19 @@ def main(args):
             np.array(training_history['val_loss']))
 
     # plot training history
-    plt.figure(figsize=(15, 10))
-    plt.plot(np.array(training_history['train_loss']), label='loss')
-    plt.plot(np.array(training_history['val_loss']), label='val loss')
-    plt.legend()
-    plt.xlabel('Number of epochs', fontsize=17)
-    plt.ylabel('Loss', fontsize=17)
-    plt.title('Loss curve for training network', fontsize=17)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(np.array(training_history['train_loss']), label='loss')
+    ax.plot(np.array(training_history['val_loss']), label='val loss')
+    ax.legend()
+    ax.set_xlabel('Number of epochs', fontsize=17)
+    ax.set_ylabel('Loss', fontsize=17)
+    
+    ax_1 = ax.twinx()
+    ax_1.plot(np.array(training_history['noise_amp']), label = 'noise_amp', c='red')
+    ax_1.legend()
+    ax_1.set_ylabel("noise amplitude")
+
+    ax.set_title('Loss curve for training network', fontsize=17)
     plt.savefig(f'{args.savedir}/loss.pdf', dpi=300)
 
 if __name__ == '__main__':

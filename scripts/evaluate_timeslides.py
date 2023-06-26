@@ -29,6 +29,9 @@ def main(args):
 
     data = np.load(args.data_path)
     data = torch.from_numpy(data).to(DEVICE)
+    data = data[:, :data.shape[1]//15]
+    print("SHAPE", data.shape)
+    #assert 0
 
     timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
     if args.fm_shortened_timeslides:
