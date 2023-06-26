@@ -63,8 +63,6 @@ def main(args):
     signals: shape (N_samples, time_axis, 5)
     backgrounds: shape (time_axis, 5)
     '''
-    np.save(args.save_file, np.array([-1, 1, -1, 1, -1]))
-    return None
     signal_evals = []
     if type(args.signal_path) == str:
         args.signal_path = [args.signal_path]

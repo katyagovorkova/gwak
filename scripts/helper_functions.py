@@ -10,7 +10,6 @@ from gwpy.timeseries import TimeSeries
 from lalinference import BurstSineGaussian, BurstSineGaussianF
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
@@ -58,7 +57,7 @@ def std_normalizer(data):
     feature = 1
     if data.shape[1] == 2:
         feature_axis = 2
-        
+
     std_vals = np.std(data, dim=feature_axis)[:, :, np.newaxis]
     return data / std_vals
 
@@ -75,7 +74,7 @@ def stack_dict_into_tensor(data_dict):
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_tensor[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_tensor
 
 def stack_dict_into_numpy(data_dict):
@@ -87,7 +86,7 @@ def stack_dict_into_numpy(data_dict):
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_np
 
 def stack_dict_into_numpy_segments(data_dict):
@@ -95,18 +94,18 @@ def stack_dict_into_numpy_segments(data_dict):
     Input is a dictionary of keys, stack it into numpy array
     '''
     fill_len = len(data_dict['bbh'])
-    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, 100))
+    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, SEG_NUM_TIMESTEPS))
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_np
 
 
 def reduce_to_significance(data):
     '''
     Data is a torch tensor of shape (N_samples, N_features),
-    normalize / calculate significance for each of the axis 
+    normalize / calculate significance for each of the axis
     by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
     '''
     N_batches, N_samples, N_features = data.shape
@@ -128,81 +127,80 @@ def reduce_to_significance(data):
     for i in range(N_splits):
         start, end = i*norm_datapoints, (i+1)*norm_datapoints
         computed_significance[:, start:end] = (data[:, start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
-        
+
     return computed_significance
 
 def load_folder(
         path: str,
-        load_start: int = None,
-        load_stop: int = None):
+        load_start: int=None,
+        load_stop: int=None,
+        glitches: bool=False):
     '''
     load the glitch times and data associated with a "save" folder
     '''
-    start = STRAIN_START
-    end = STRAIN_STOP
-    last = -1
-    if path[-1] == "/":
-        last = -2
-    print("PATH", path)
-    path += f"/{STRAIN_START}_{STRAIN_STOP}/"
-    print(path.split("/"))
+
+    if not glitches:
+        path += f'/{STRAIN_START}_{STRAIN_STOP}/'
+        min_trigger_load = STRAIN_START + load_start
+        max_trigger_load = STRAIN_START + load_stop
     start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
 
     loaded_data = dict()
-    min_trigger_load = start + load_start
-    max_trigger_load = start + load_stop
     for ifo in IFOS:
         # get the glitch times first
-        triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers_path = f'{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/'
         triggers = []
         # check if Omicron actually finished, if not, go further
         if not os.path.exists(triggers_path): continue
 
         for file in os.listdir(triggers_path):
-            if file[-3:] == ".h5":
-                trigger_start_time = int(file.split("-")[-2])
-                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
-                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
+            if file[-3:] == '.h5':
+                print(f'Found the h5 file {file}')
+                if not glitches:
+                    trigger_start_time = int(file.split("-")[-2])
+                    if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
+                        with h5py.File(f'{triggers_path}/{file}', 'r') as f:
+                            print(f'Opening the file {triggers_path}')
+                            segment_triggers = f['triggers'][:]
+                            print(f'Triggers size in the file {segment_triggers.shape}')
+                            triggers.append(segment_triggers)
+                else:
+                    with h5py.File(f'{triggers_path}/{file}', 'r') as f:
+                        print(f'Opening the file {triggers_path}')
                         segment_triggers = f['triggers'][:]
+                        print(f'Triggers size in the file {segment_triggers.shape}')
                         triggers.append(segment_triggers)
-
         triggers = np.concatenate(triggers, axis=0)
 
+        # check if data fetching actually finished, if not, go further
+        if not os.path.exists(f'{path}/data_{ifo}.h5'): continue
+
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
-            if load_start == None or load_stop == None:
-                X = f[f"{ifo}:{CHANNEL}"][:]
+            if load_start==None or load_stop==None or glitches==True:
+                X = f[f'{ifo}:{CHANNEL}'][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
                 datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
-                X = f[f"{ifo}:{CHANNEL}"][datapoints_start:datapoints_stop]
-
-        # some statistics on the data
-        data_statistics = 0
-        if data_statistics:
-            print(f'start: {start}, end: {end}')
-            print(f'duration, seconds: {end-start}')
-            print(f'data length: {len(X)}')
-            print(f'with data sampled at {4*SAMPLE_RATE}, len(data)/duration= {len(X)/4/SAMPLE_RATE}')
+                X = f[f'{ifo}:{CHANNEL}'][datapoints_start:datapoints_stop]
 
         sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
-        data = TimeSeries(X, sample_rate=sample_rate, t0=start + load_start)
-        if data_statistics:
-            print(f'after creating time series, len(data) = {len(data)}')
-            before_resample = len(data)
+        data = TimeSeries(X,
+            sample_rate=sample_rate,
+            t0=start if glitches else start+load_start)
 
         if sample_rate != resample_rate:
             data = data.resample(resample_rate)
 
-        if data_statistics:
-            print(f'after resampling, len(data) = {len(data)}')
-            print(f'ratio before to after: {before_resample/len(data)}')
-
         fftlength = 1
         loaded_data[ifo] = {'triggers': triggers,
                             'data': data,
-                            'asd': data.asd(fftlength=fftlength, overlap=0, method='welch', window='hanning')}
+                            'asd': data.asd(
+                                fftlength=fftlength,
+                                overlap=0,
+                                method='welch',
+                                window='hanning')}
 
     return loaded_data
 
@@ -251,7 +249,7 @@ def get_quiet_segments(
 
     # cut off the edge effects already
     valid_start_times = np.arange(
-        t0, tend - segment_length, segment_length / 100)
+        t0, tend - segment_length, segment_length / SEG_NUM_TIMESTEPS)
     open_times = np.ones(valid_start_times.shape)
     for gt in glitch_times:
         idx = np.searchsorted(valid_start_times, gt)
@@ -483,7 +481,7 @@ def inject_hplus_hcross(
         # no amplitude modifications
         # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
         # None refers to no SNR values being returned
-        return np.stack(final_injects)[:, np.newaxis, :], None 
+        return np.stack(final_injects)[:, np.newaxis, :], None
     final_bothdetector = np.stack(final_injects)[:, np.newaxis, :]
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)[:, np.newaxis, :]
@@ -819,11 +817,11 @@ def clean_gw_events(
     ts,
     tend):
 
-    
+
     convert_index = lambda t: int(SAMPLE_RATE * (t-ts))
     bad_times = []
     for et in event_times:
-        # only take the GW events past 5 second edge, otherwise there will 
+        # only take the GW events past 5 second edge, otherwise there will
         # be problems with removing it from the segment
         if et > ts+GW_EVENT_CLEANING_WINDOW and et < tend-GW_EVENT_CLEANING_WINDOW:
             # convert the GPS time of GW events into indicies
@@ -857,8 +855,8 @@ def clean_gw_events(
     # since those weren't treated for potential GW events
     return cleaned_data[:, clean_window:-clean_window]
 
-def split_into_segments(data, 
-                        overlap=SEGMENT_OVERLAP, 
+def split_into_segments(data,
+                        overlap=SEGMENT_OVERLAP,
                         seg_len=SEG_NUM_TIMESTEPS):
     '''
     Function to slice up data into overlapping segments
@@ -897,12 +895,12 @@ def split_into_segments_torch(data,
     N_slices = (data.shape[2]-seg_len)//overlap
     data = data[:, :, :N_slices*overlap+seg_len]
     feature_length_full = data.shape[2]
-    feature_length = (data.shape[2]//100) *100
+    feature_length = (data.shape[2]//SEG_NUM_TIMESTEPS) *SEG_NUM_TIMESTEPS
     N_slices_limited = (feature_length-seg_len)//overlap
     n_batches = data.shape[0]
     n_detectors = data.shape[1]
 
-    # resulting shape: (batches, N_slices, 2, 100)
+    # resulting shape: (batches, N_slices, 2, SEG_NUM_TIMESTEPS)
     result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
                         device=DEVICE)
 
@@ -920,8 +918,8 @@ def split_into_segments_torch(data,
         end = feature_length-seg_len+offset_families[family_index]
         if end > feature_length:
             end -= seg_len
-        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
-        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
     # do the pieces left over, at the end
     for i in range(1, N_slices - N_slices_limited+1):
         end = int(feature_length_full - i *overlap)

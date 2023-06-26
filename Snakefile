@@ -1,8 +1,9 @@
 from config import VERSION
 
 models = ['lstm', 'dense', 'transformer']
-modelclasses = ['bbh', 'sg', 'background', 'glitch']
-dataclasses = ['timeslides', 'bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
+modelclasses = ['bbh', 'sg', 'background', 'glitches']
+dataclasses = ['timeslides', 'bbh_fm_optimization',
+    'sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
 wildcard_constraints:
     model = '|'.join([x for x in models]),
     modelclass = '|'.join([x for x in modelclasses]),
@@ -42,11 +43,16 @@ rule fetch_site_data:
 rule generate_dataset:
     input:
         omicron = 'output/omicron/',
+        intersections = rules.find_valid_segments.output.save_path,
+    params:
+        dependencies = expand(rules.fetch_site_data.output,
+            site=['L1', 'H1'])
     output:
         file = 'output/data/{dataclass}.npy',
     shell:
         'python3 scripts/generate.py {input.omicron} {output.file} \
-            --stype {wildcards.dataclass}'
+            --stype {wildcards.dataclass} \
+            --intersections {input.intersections}'
 
 rule pre_processing_step:
     input:
@@ -82,6 +88,18 @@ rule upload_generated_data:
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
         'cp {input.data} {output.data}'
+
+rule validate_data:
+    input:
+        train_test_data = expand(rules.upload_train_test_data.output,
+            dataclass=modelclasses,
+            version=VERSION),
+        generated_data = expand(rules.upload_generated_data.output,
+            dataclass=dataclasses,
+            version=VERSION)
+    shell:
+        'mkdir -p data/{VERSION}/; '
+        'python3 scripts/validate_data.py {input.train_test_data} {input.generated_data}'
 
 rule upload_data:
     input:
@@ -138,7 +156,7 @@ rule evaluate_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_fm_optimization'],
+            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization'],
             model='{model}'),
     params:
         timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',
