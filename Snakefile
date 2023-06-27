@@ -66,8 +66,8 @@ rule upload_train_test_data:
         test_data = expand(rules.pre_processing_step.output.test_file,
             dataclass='{dataclass}')
     params:
-        train_data = '/home/ryan.raikman/s23/gwak/4096_200_preprocessed/train/{dataclass}.npy',
-        test_data = '/home/ryan.raikman/s23/gwak/4096_200_preprocessed/test/{dataclass}.npy'
+        train_data = '/home/ryan.raikman/s23/gwak/4096_200_curric/train/{dataclass}.npy',
+        test_data = '/home/ryan.raikman/s23/gwak/4096_200_curric/test/{dataclass}.npy'
     shell:
         'mkdir -p /home/ryan.raikman/gwak/{wildcards.version}/train/; '
         'mkdir -p /home/ryan.raikman/gwak/{wildcards.version}/test/; '

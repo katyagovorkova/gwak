@@ -273,8 +273,18 @@ def inject_signal_curriculum(
                                         get_psds=True,
                                         inject_at_end=inject_at_end)
     #print(f'background segments shape {bkg_segs.shape}')
-    final_data = []
-    sampled_SNR = []
+    
+    sample_SNRS = np.zeros((len(polarizations), len(CURRICULUM_SNRS)))
+    for j in range(len(CURRICULUM_SNRS)):
+        center = CURRICULUM_SNRS[j]
+        sample_SNRS[:, j] = np.random.uniform(center - center/4, center + center/2, len(polarizations))
+    
+    final_data_noise = []
+    final_data_clean = []
+    for i in range(len(CURRICULUM_SNRS)):
+        final_data_noise.append([])
+        final_data_clean.append([])
+    
     for i, pols in enumerate(polarizations):
         # didn't generate enough bkg samples, this is generally fine unless
         # small overall samples
@@ -284,16 +294,21 @@ def inject_signal_curriculum(
                                                     pols,
                                                     SAMPLE_RATE,
                                                     segment_length,
-                                                    SNR=np.array(CURRICULUM_SNRS),
+                                                    SNR=sample_SNRS[i],
                                                     background=loaded_data,
                                                     detector_psds=detector_psds,
                                                     inject_at_end=inject_at_end)
-        bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
-        final_data.append(bandpass_segs)
 
-    if return_injection_snr:
-        return np.hstack(final_data), np.array(sampled_SNR)
-    return np.hstack(final_data)
+        for j, injected_waveform in enumerate(injected_waveforms):
+            noisy_bandpassed_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+            final_data_noise[j].append(noisy_bandpassed_segs)
+        for j, clean_waveform in enumerate(clean_waveforms):
+            clean_bandpassed_segs = whiten_bandpass_bkgs(clean_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+            final_data_clean[j].append(clean_bandpassed_segs)
+
+    final_data_noise = np.array([np.hstack(elem) for elem in final_data_noise])
+    final_data_clean = np.array([np.hstack(elem) for elem in final_data_clean])
+    return final_data_noise, final_data_clean
 
 def generate_backgrounds(
         folder_path: str,
@@ -397,6 +412,38 @@ def sample_injections_main(
     print("out from sample injections", training_data.shape)
     return training_data
 
+def curriculum_sampler(
+        data_noisy,
+        data_clean,
+        target_class: str, 
+        sample_len: int=SEG_NUM_TIMESTEPS):
+    
+    sampler_args = {
+        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE),
+                int(BBH_WINDOW_RIGHT*SAMPLE_RATE), BBH_AMPLITUDE_BAR],
+        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE),
+                int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR]
+        }
+    N_samples_each, bound_low, bound_high, _ = sampler_args[target_class]
+
+    SNR_ind, N_ifos, N_injections, inj_seg_len = data_noisy.shape
+    midp = inj_seg_len //2
+    
+    fill_noisy = np.zeros((SNR_ind, N_injections*N_samples_each, 
+                           N_ifos, sample_len))
+    fill_clean = np.zeros(fill_noisy.shape)
+    for s in range(SNR_ind):
+        for n in range(N_injections):
+            for m in range(N_samples_each):
+                
+                start = np.random.uniform(midp+bound_low, 
+                                          midp+bound_high - sample_len)
+                start = int(start)
+                fill_noisy[s, n*N_samples_each+m, :, :] = data_noisy[s, :, n, start:start+sample_len]
+                fill_clean[s, n*N_samples_each+m, :, :] = data_clean[s, :, n, start:start+sample_len]
+
+    return fill_noisy, fill_clean
+
 def make_snr_sampler(distribution, low, hi):
     if distribution == "uniform":
         def sampler():
@@ -406,6 +453,8 @@ def make_snr_sampler(distribution, low, hi):
         assert False
 
     return sampler
+
+
 def main(args):
     sampled_snr = None
 
@@ -413,26 +462,47 @@ def main(args):
         # 1: generate the polarization files for the signal classes of interest
         BBH_cross, BBH_plus = bbh_polarization_generator(N_TRAIN_INJECTIONS)
 
-        # 2: create the injections with those signal classes
-        BBH_injections = inject_signal(folder_path=args.folder_path,
-                                      data=[BBH_cross, BBH_plus],
+        # 2: create injections with those signal classes
+        noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
+                                      data=[BBH_cross, BBH_plus]
                                       )
         # 3: Turn the injections into segments, ready for training
-        training_data = sample_injections_main(source=None,
-                               target_class=args.stype,
-                               data=BBH_injections)
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "bbh")
+
+        training_data = noisy_samples
+        np.save(f"{args.save_file[:-4]}_clean.npy", clean_samples)
+        if 0:
+            # 2: create the injections with those signal classes
+            BBH_injections = inject_signal(folder_path=args.folder_path,
+                                        data=[BBH_cross, BBH_plus],
+                                        )
+            # 3: Turn the injections into segments, ready for training
+            training_data = sample_injections_main(source=None,
+                                target_class=args.stype,
+                                data=BBH_injections)
 
     elif args.stype == 'sg':
         # 1: generate the polarization files for the signal classes of interest
         SG_cross, SG_plus = sg_polarization_generator(N_TRAIN_INJECTIONS)
 
-        # 2: create the injections with those signal classes
-        SG_injections = inject_signal(folder_path=args.folder_path,
-                                     data=[SG_cross, SG_plus])
+        # 2: create injections with those signal classes
+        noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
+                                      data=[SG_cross, SG_plus]
+                                      )
         # 3: Turn the injections into segments, ready for training
-        training_data = sample_injections_main(source=None,
-                               target_class=args.stype,
-                               data=SG_injections)
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "sg")
+
+        training_data = noisy_samples
+        np.save(f"{args.save_file[:-4]}_clean.npy", clean_samples)
+        if 0:
+            # 2: create the injections with those signal classes
+            SG_injections = inject_signal(folder_path=args.folder_path,
+                                        data=[SG_cross, SG_plus],
+                                        )
+            # 3: Turn the injections into segments, ready for training
+            training_data = sample_injections_main(source=None,
+                                target_class=args.stype,
+                                data=SG_injections)
 
     elif args.stype == 'wnb':
         # 1: generate the polarization files for the signal classes of interest
@@ -539,7 +609,6 @@ def main(args):
                                      SNR=sampler,
                                      return_injection_snr=True)
 
-    
     np.save(args.save_file, training_data)
 
     if sampled_snr is not None:

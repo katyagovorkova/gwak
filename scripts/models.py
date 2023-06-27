@@ -241,6 +241,12 @@ class Decoder_SPLIT(nn.Module):
       num_layers=1,
       batch_first=True
     )
+    self.rnn1 = nn.LSTM(
+      input_size=2,
+      hidden_size=2,
+      num_layers=1,
+      batch_first=True
+    )
     self.linearH = nn.Linear(self.seq_len, self.seq_len)
     self.linearL = nn.Linear(self.seq_len, self.seq_len)
     self.linear1 = nn.Linear(self.hidden_dim, 2**9)
@@ -250,6 +256,8 @@ class Decoder_SPLIT(nn.Module):
 
     self.linearH_2 = nn.Linear(self.seq_len, self.seq_len)
     self.linearL_2 = nn.Linear(self.seq_len, self.seq_len)
+
+    #self.testlast =  nn.Linear()
   def forward(self, x):
     batch_size = x.shape[0]
     
@@ -259,7 +267,11 @@ class Decoder_SPLIT(nn.Module):
     Hx = self.linearH(x)[:, :, None]
     Lx = self.linearL(x)[:, :, None]
 
-    x = torch.cat([Hx, Lx], dim=2)
+    #x = torch.cat([Hx, Lx], dim=2)
+    #print("shape", x.shape)
+    #x, (_, _) = self.rnn1(x)
+    #print("x, a, b", x.shape, a.shape, b.shape)
+    #return x
     Hx, (_, _) = self.rnn1_0(Hx)
     Hx = self.linearH_2(Hx[:, :, 0])[:, :, None]
 

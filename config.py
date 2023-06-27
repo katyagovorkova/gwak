@@ -1,5 +1,5 @@
 # Version of the code with which the data was generated
-VERSION = 'v0'
+VERSION = 'v1'
 
 # data generation
 IFOS = ['H1', 'L1']
@@ -25,7 +25,7 @@ DATA_EVAL_MAX_BATCH = 15
 
 # data sampling arguments
 BBH_WINDOW_LEFT = -0.07
-BBH_WINDOW_RIGHT = 0.07
+BBH_WINDOW_RIGHT = 0.02
 BBH_AMPLITUDE_BAR = 5
 BBH_N_SAMPLES = 5
 SG_WINDOW_LEFT = -0.05
@@ -62,7 +62,7 @@ STATE_FLAG = 'DCS-ANALYSIS_READY_C01:1'
 TEST_SPLIT = 0.9
 BOTTLENECK = 20
 FACTOR = 2
-EPOCHS = 500
+EPOCHS = 400
 BATCH_SIZE = 512
 LOSS = 'MAE'
 OPTIMIZER = 'Adam'
@@ -70,6 +70,7 @@ VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
 CLASS_ORDER = ['background', 'bbh', 'glitch', 'sg']
 LIMIT_TRAINING_DATA = None
+CURRICULUM_SNRS = [256, 128, 64, 32, 16]
 
 # pearson calculation
 MAX_SHIFT = 10e-3
@@ -82,7 +83,7 @@ TIMESLIDE_TOTAL_DURATION = 0.05*30*24*3600
 FM_TIMESLIDE_TOTAL_DURATION = 0.01*30*24*3600
 
 # GPU
-GPU_NAME = "cuda:3"
+GPU_NAME = "cuda:1"
 
 # evolutionary search
 INIT_SIGMA = 0.5

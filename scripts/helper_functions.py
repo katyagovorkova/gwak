@@ -519,9 +519,11 @@ def inject_hplus_hcross(
     computed_SNR = calc_SNR_new(final_bothdetector_nonoise,
         background, sample_rate, detector_psds=detector_psds)
 
-    response_scales = np.array(SNR / computed_SNR)[0]
+    #print("SNR", SNR)
+    #print("computed_SNR", computed_SNR[0])
+    response_scales = np.array(SNR / computed_SNR[0])
 
-    print("response scales", response_scales)
+    #print("response scales", response_scales)
     with_noise = []
     no_noise = []
     for response_scale in response_scales:
