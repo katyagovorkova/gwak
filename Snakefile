@@ -106,6 +106,17 @@ rule train_quak:
         'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir} \
             --model {wildcards.model}'
 
+rule recreation_and_quak_plots:
+    input: 
+        model_path = 'output/{model}/trained/models/',
+        test_path = expand(rules.upload_train_test_data.params.test_data, dataclass="bbh")
+    output:
+        savedir = directory('output/{model}/rec_and_quak/')
+    shell:
+        'mkdir -p {output.savedir};'
+        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.model_path} {output.savedir}'
+
+
 rule generate_timeslides_for_final_metric_train:
     input:
         data_path = expand(rules.generate_dataset.output.file,

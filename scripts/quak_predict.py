@@ -18,16 +18,20 @@ from config import (NUM_IFOS,
 DEVICE = torch.device(GPU_NAME)
 
 
-from helper_functions import mae_torch
+from helper_functions import mae_torch, mae_torch_coherent, mae_torch_noncoherent
 def quak_eval(data, model_path, reduce_loss=True):
     # data required to be torch tensor at this point
     model_12 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=12,
                     FACTOR=FACTOR).to(DEVICE)
-    model_20 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+    model_16 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=20,
+                    BOTTLENECK=16,
+                    FACTOR=FACTOR).to(DEVICE)
+    model_fat = FAT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=12,
                     FACTOR=FACTOR).to(DEVICE)
     
 
@@ -39,20 +43,36 @@ def quak_eval(data, model_path, reduce_loss=True):
         loss['loss'] = dict()
 
     for dpath in model_path:
-        if dpath.split("/")[-1] in ["bbh.pt", "background.pt"]:
+        coherent_loss=False
+        if dpath.split("/")[-1] in ['bbh.pt', 'sg.pt']:
+            coherent_loss=True
+
+        if dpath.split("/")[-1] in ["bbh.pt"]:
             model = model_12
+        elif dpath.split("/")[-1] in ["sg.pt"]:
+            model = model_16
         else:
-            assert dpath.split("/")[-1] in ["sg.pt", "glitch.pt"]
-            model = model_20
+            assert dpath.split("/")[-1] in ["glitch.pt", "background.pt"]
+            model = model_fat
+
+        
         
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         print("WARNING: change .strip() to .pt once model properly renamed!")
         if reduce_loss:
-            loss[os.path.basename(dpath)[:-3]] = \
-                mae_torch(data, model(data).detach())
-        else:
-            loss['loss'][os.path.basename(dpath)[:-3]] = \
-                mae_torch(data, model(data).detach()).cpu().numpy()
+            if coherent_loss:
+                loss[os.path.basename(dpath)[:-3]] = \
+                    mae_torch_coherent(data, model(data).detach())
+            elif not coherent_loss:
+                loss[os.path.basename(dpath)[:-3]] = \
+                    mae_torch_noncoherent(data, model(data).detach())
+        elif not reduce_loss:
+            if coherent_loss:
+                loss['loss'][os.path.basename(dpath)[:-3]] = \
+                    mae_torch_coherent(data, model(data).detach()).cpu().numpy()
+            elif not coherent_loss:
+                loss['loss'][os.path.basename(dpath)[:-3]] = \
+                    mae_torch_noncoherent(data, model(data).detach()).cpu().numpy()
             loss['original'][os.path.basename(dpath)[:-3]] = data[:RECREATION_LIMIT].cpu().numpy()
             loss['recreated'][os.path.basename(dpath)[:-3]] = model(data[:RECREATION_LIMIT]).detach().cpu().numpy()
     return loss

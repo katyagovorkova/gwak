@@ -166,6 +166,9 @@ class LSTM_AE(nn.Module):
 #model which splits and uses separate LSTMs for each detecor channel
 #model which splits and uses separate LSTMs for each detecor channel
 #torch.manual_seed(42)
+def LSTM_N_params(hid, inp):
+   return 4*hid*inp + 4*hid*hid + 2*4*hid   
+
 class Encoder_SPLIT(nn.Module):
   def __init__(self, seq_len, n_features, embedding_dim=64):
     super(Encoder_SPLIT, self).__init__()
@@ -173,54 +176,60 @@ class Encoder_SPLIT(nn.Module):
     self.embedding_dim, self.hidden_dim = embedding_dim, embedding_dim // 2
     self.rnn1_0 = nn.LSTM(
       input_size=1,
-      hidden_size=self.hidden_dim//2,
-      num_layers=1,
+      hidden_size=4,
+      num_layers=2,
       batch_first=True
     )
+    print("183: ", LSTM_N_params(4, 1))
     self.rnn1_1 = nn.LSTM(
       input_size=1,
-      hidden_size=self.hidden_dim//2,
-      num_layers=1,
+      hidden_size=4,
+      num_layers=2,
       batch_first=True
     )
 
     self.rnn2_0 = nn.LSTM(
-      input_size=self.hidden_dim//2,
-      hidden_size=embedding_dim//2,
+      input_size=4,
+      hidden_size=16,
       num_layers=1,
       batch_first=True
     )
+    print("197: ", LSTM_N_params(embedding_dim//2, self.hidden_dim//2))
     self.rnn2_1 = nn.LSTM(
-      input_size=self.hidden_dim//2,
-      hidden_size=embedding_dim//2,
+      input_size=4,
+      hidden_size=16,
       num_layers=1,
       batch_first=True
     )
+    self.encoder_dense_scale = 20
     #self.linear0 = nn.Linear(in_features=2**9, out_features=self.hidden_dim*10)
-    self.linear1 = nn.Linear(in_features=2**9, out_features=self.hidden_dim*5)
-    self.linear2 = nn.Linear(in_features=self.hidden_dim*5, out_features=self.hidden_dim*2)
-    self.linear3 = nn.Linear(in_features=self.hidden_dim*2, out_features=self.embedding_dim)
+    self.linear1 = nn.Linear(in_features=2**8, out_features=self.encoder_dense_scale*4)
+    #self.linear1_1 = nn.Linear(in_features=self.embedding_dim*4, out_features=self.embedding_dim*4)
+    self.linear2 = nn.Linear(in_features=self.encoder_dense_scale*4, out_features=self.encoder_dense_scale*2)
+    self.linear3 = nn.Linear(in_features=self.encoder_dense_scale*2, out_features=self.embedding_dim)
 
-    self.linearH = nn.Linear(embedding_dim//2 * seq_len, 2**8)
-    self.linearL = nn.Linear(embedding_dim//2 * seq_len, 2**8)
+    self.linearH = nn.Linear(4 * seq_len, 2**7)
+    self.linearL = nn.Linear(4 * seq_len, 2**7)
+
   def forward(self, x):
     batch_size = x.shape[0]
     Hx, Lx = x[:, :, 0][:, :, None], x[:, :, 1][:, :, None] 
 
     Hx, (_, _) = self.rnn1_0(Hx)
-    Hx, (_, _) = self.rnn2_0(Hx)
-    Hx = Hx.reshape(batch_size, self.embedding_dim//2*self.seq_len)
+    #Hx, (_, _) = self.rnn2_0(Hx)
+    Hx = Hx.reshape(batch_size, 4*self.seq_len)
     Hx = F.tanh(self.linearH(Hx))
 
     Lx, (_, _) = self.rnn1_1(Lx)
-    Lx, (_, _) = self.rnn2_1(Lx)
-    Lx = Lx.reshape(batch_size, self.embedding_dim//2*self.seq_len)
+    #Lx, (_, _) = self.rnn2_1(Lx)
+    Lx = Lx.reshape(batch_size, 4*self.seq_len)
     Lx = F.tanh(self.linearL(Lx))
 
     x = torch.cat([Hx, Lx], dim=1)
     x = F.tanh(self.linear1(x))
-    x = F.relu(self.linear2(x))
-    x = F.relu(self.linear3(x))
+    #x = F.relu(self.linear1_1(x))
+    x = F.tanh(self.linear2(x))
+    x = F.tanh(self.linear3(x))
 
     return x.reshape((batch_size, self.embedding_dim)) #phil harris way
 
@@ -247,27 +256,32 @@ class Decoder_SPLIT(nn.Module):
       num_layers=1,
       batch_first=True
     )
-    self.linearH = nn.Linear(self.seq_len, self.seq_len)
-    self.linearL = nn.Linear(self.seq_len, self.seq_len)
-    self.linear1 = nn.Linear(self.hidden_dim, 2**9)
-    self.linear2 = nn.Linear(2**9, self.seq_len)
+    self.linearH = nn.Linear(2*self.seq_len, self.seq_len)
+    self.linearL = nn.Linear(2*self.seq_len, self.seq_len)
+    self.linear1 = nn.Linear(self.hidden_dim, 2**7)
+    self.linear2 = nn.Linear(2**7, 2*self.seq_len)
 
     self.output_layer = nn.Linear(self.hidden_dim, n_features)
 
-    self.linearH_2 = nn.Linear(self.seq_len, self.seq_len)
-    self.linearL_2 = nn.Linear(self.seq_len, self.seq_len)
+    self.linearH_2 = nn.Linear(2*self.seq_len, self.seq_len)
+    self.linearL_2 = nn.Linear(2*self.seq_len, self.seq_len)
 
     #self.testlast =  nn.Linear()
+    #self.deconv = nn.ConvTranspose1d(2, 2, kernel_size=4)
   def forward(self, x):
     batch_size = x.shape[0]
     
-    x = F.relu(self.linear1(x))
-    x = F.relu(self.linear2(x))
+    x = F.tanh(self.linear1(x))
+    x = F.tanh(self.linear2(x))
 
     Hx = self.linearH(x)[:, :, None]
     Lx = self.linearL(x)[:, :, None]
 
-    #x = torch.cat([Hx, Lx], dim=2)
+    x = torch.cat([Hx, Lx], dim=2)
+    #x = x.transpose(1, 2)
+    #x = self.deconv(x).transpose(1, 2)[:, 1:-2, :]
+    #print("out", x.shape)
+    return x
     #print("shape", x.shape)
     #x, (_, _) = self.rnn1(x)
     #print("x, a, b", x.shape, a.shape, b.shape)
@@ -279,9 +293,9 @@ class Decoder_SPLIT(nn.Module):
     Lx = self.linearL_2(Lx[:, :, 0])[:, :, None]
     
     x = torch.cat([Hx, Lx], dim=2)
+    x, (_, _) = self.rnn1(x)
 
-
-    return (x)
+    return x
 
 class LSTM_AE_SPLIT(nn.Module):
   def __init__(self, num_ifos, num_timesteps, BOTTLENECK, FACTOR):

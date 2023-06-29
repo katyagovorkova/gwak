@@ -50,10 +50,20 @@ def mae(a, b):
     # sum across all axes except the first one
     return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
 
-def mae_torch_(a, b):
+def mae_torch(a, b):
     # compute the MAE, do .mean twice:
     # once for the time axis, second time for detector axis
     return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+
+def mae_torch_coherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( 1*torch.abs(han-liv)+han+liv )
+
+def mae_torch_noncoherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( -1*torch.abs(han-liv)+han+liv )
 
 def mae_torch_(a, b):
     #highly illegal!!!
@@ -64,9 +74,7 @@ def mae_torch_(a, b):
     norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
     return torch.from_numpy(result/norm).float().to(DEVICE)
 
-
-
-def mae_torch(a, b):
+def mae_torch_(a, b):
     #highly illegal!!!
     assert a.shape[1] == NUM_IFOS
     assert b.shape[1] == NUM_IFOS
@@ -522,7 +530,7 @@ def inject_hplus_hcross(
     #print("SNR", SNR)
     #print("computed_SNR", computed_SNR[0])
     response_scales = np.array(SNR / computed_SNR[0])
-
+    if len(response_scales.shape) == 0: response_scales = [response_scales]
     #print("response scales", response_scales)
     with_noise = []
     no_noise = []

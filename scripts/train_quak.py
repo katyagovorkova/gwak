@@ -14,7 +14,7 @@ from models import (
     LSTM_AE,
     LSTM_AE_SPLIT,
     FAT)
-
+from helper_functions import mae_torch_coherent, mae_torch_noncoherent
 import sys
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
@@ -37,63 +37,71 @@ DEVICE = torch.device(GPU_NAME)
 def main(args):
     data_name = (args.data).split("/")[-1][:-4]
     #SEG_NUM_TIMESTEPS = 100
-    
-    if data_name in ["bbh", "sg"]:
-        # curriculus learning scheme
-        noisy_data = np.load(args.data) #n_currics, n_samples, ifo, timesteps
-        clean_data = np.load(f"{args.data[:-4]}_clean.npy")
-        #noisy_data = noisy_data[:, :, :, :100]
-        #clean_data = clean_data[:, :, :, :100]
-        n_currics = len(noisy_data)
-        print("n_currics", n_currics)
-        # normalization scheme
-        stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
-        noisy_data = noisy_data / stds
-        clean_data = clean_data / stds
+    if 1:
+        if data_name in ["bbh", "sg"]:
+            # curriculus learning scheme
+            noisy_data = np.load(args.data) #n_currics, n_samples, ifo, timesteps
+            clean_data = np.load(f"{args.data[:-4]}_clean.npy")
 
-        #shuffle
-        p = np.random.permutation(noisy_data.shape[1])
-        noisy_data = noisy_data[:, p, :, :]
-        clean_data = clean_data[:, p, :, :]
-    
-    else:
-        assert data_name in ["background", "glitch"]
-        noisy_data = np.load(args.data) # n_samples, ifo, timesteps
-        #noisy_data = noisy_data[:, :, :, :100]
-        assert noisy_data.shape[1] > 1000
-        assert noisy_data.shape[2] == 2
 
-        n_currics = 1
-        noisy_data = noisy_data[np.newaxis, :, :, :]
-        stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
-        noisy_data = noisy_data / stds
-        p = np.random.permutation(noisy_data.shape[1])
-        noisy_data = noisy_data[:, p, :, :]
-        clean_data = noisy_data
+            #noisy_data = noisy_data[:, :, :, :100]
+            #clean_data = clean_data[:, :, :, :100]
+            n_currics = len(noisy_data)
+            print("n_currics", n_currics)
+            # normalization scheme 
+
+            stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
+            noisy_data = noisy_data / stds
+            clean_data = clean_data / stds
+
+            #shuffle
+            p = np.random.permutation(noisy_data.shape[1])
+            noisy_data = noisy_data[:, p, :, :]
+            clean_data = clean_data[:, p, :, :]
+        
+        else:
+            assert data_name in ["background", "glitch"]
+            noisy_data = np.load(args.data) # n_samples, ifo, timesteps
+            #noisy_data = noisy_data[:, :, :, :100]
+            print("in", noisy_data.shape)
+
+            n_currics = 1
+            noisy_data = noisy_data[np.newaxis, :, :, :]
+            stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
+            noisy_data = noisy_data / stds
+            p = np.random.permutation(noisy_data.shape[1])
+            noisy_data = noisy_data[:, p, :, :]
+            clean_data = noisy_data
 
     # for testing purposes
+    np.save(f"{args.data[:-4]}_noisy_process.npy" ,noisy_data)
+    np.save(f"{args.data[:-4]}_clean_process.npy", clean_data)
     
-
+    noisy_data = np.load(f"{args.data[:-4]}_noisy_process.npy")
+    clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
+    n_currics = len(noisy_data)
     # read the input data
-    data = np.load(args.data)
+    #data = np.load(args.data)
 
-    if LIMIT_TRAINING_DATA is not None:
-        data = data[:LIMIT_TRAINING_DATA]
+
+   # if LIMIT_TRAINING_DATA is not None:
+    #    data = data[:LIMIT_TRAINING_DATA]
     # create the model
-    if args.model=='dense':
+    #if args.model=='dense':
+    if data_name in ["background", "glitch"]:
         AE = FAT(
             num_ifos=NUM_IFOS,
             num_timesteps=SEG_NUM_TIMESTEPS,
             BOTTLENECK=BOTTLENECK,
             FACTOR=FACTOR).to(DEVICE)
-    elif args.model=='lstm':
+    elif data_name in ["bbh", "sg"]:
         AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS, 
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=BOTTLENECK,
                     FACTOR=FACTOR).to(DEVICE)
-    elif args.model=='transformer':
-        AE = None
-        print('OOOPS NOT IMPLEMENTED')
+    #elif args.model=='transformer':
+    #    AE = None
+    #    print('OOOPS NOT IMPLEMENTED')
 
     optimizer = optim.Adam(AE.parameters())
     #optimizer = optim.SGD(AE.parameters(), lr=0.1)
@@ -107,7 +115,9 @@ def main(args):
     curriculum_master = []
     for c in range(n_currics):
         #noisy_data, clean_data
+        #data_x, data_y = noisy_data[c], clean_data[c]
         data_x, data_y = noisy_data[c], clean_data[c]
+
         # create the dataset and validation set
         validation_split_index = int((1-VALIDATION_SPLIT) * len(data_x))
 
@@ -139,6 +149,15 @@ def main(args):
         'val_loss': [],
         'curric_step': []
     }
+    if 0:
+        if data_name in ["bbh", "sg"]:
+            def loss_fn(a, b):
+                return torch.mean(mae_torch_coherent(a, b))
+        else:
+            def loss_fn(a, b):
+                return torch.mean(mae_torch_noncoherent(a, b))
+
+
     # training loop
     epoch_count = 0
     for curric_num in range(n_currics):
@@ -163,6 +182,10 @@ def main(args):
             training_history['val_loss'].append(validation_loss.item())
             training_history['curric_step'].append(curric_num)
             #scheduler.step(validation_loss)
+
+
+            #plot_during_train=True
+            #if plot_during_train:
 
             if TRAINING_VERBOSE:
                 elapsed_time = time.time() - ts

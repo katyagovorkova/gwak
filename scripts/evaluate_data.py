@@ -62,9 +62,14 @@ def full_evaluation(data, model_folder_path):
         # do it before significance?
         kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
         # all this transposition is done since convolve takes the axis to work on first
-        final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
-        final_values = torch.transpose(final_values, 1, 2)
-    final_values = reduce_to_significance(final_values)
+        
+        print("66,", final_values.shape)
+        final_values = reduce_to_significance(final_values)
+        #print("68,", final_values.shape)
+        #final_values = torch.transpose(final_values, 1, 2)
+        #print("70,", final_values.shape)
+        #final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
+        print("72,", final_values.shape)
 
     return final_values
 
