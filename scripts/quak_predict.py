@@ -25,9 +25,13 @@ def quak_eval(data, model_path, reduce_loss=True):
                     num_timesteps=SEG_NUM_TIMESTEPS,
                     BOTTLENECK=12,
                     FACTOR=FACTOR).to(DEVICE)
+    model_8 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=4,
+                    FACTOR=FACTOR).to(DEVICE)
     model_16 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=16,
+                    BOTTLENECK=8,
                     FACTOR=FACTOR).to(DEVICE)
     model_fat = FAT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
@@ -48,7 +52,7 @@ def quak_eval(data, model_path, reduce_loss=True):
             coherent_loss=True
 
         if dpath.split("/")[-1] in ["bbh.pt"]:
-            model = model_12
+            model = model_8
         elif dpath.split("/")[-1] in ["sg.pt"]:
             model = model_16
         else:
@@ -56,9 +60,7 @@ def quak_eval(data, model_path, reduce_loss=True):
             model = model_fat
 
         
-        
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
-        print("WARNING: change .strip() to .pt once model properly renamed!")
         if reduce_loss:
             if coherent_loss:
                 loss[os.path.basename(dpath)[:-3]] = \
@@ -82,7 +84,6 @@ def main(args):
     # load the data
     data = np.load(args.test_data)
     data = torch.from_numpy(data).float().to(DEVICE)
-    print(f'loaded data shape is {data.shape}')
     loss = quak_eval(data, args.model_path, args.reduce_loss)
 
     if args.reduce_loss:

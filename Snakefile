@@ -153,14 +153,19 @@ rule train_final_metric:
             model='{model}'),
     params:
         timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',
-            i=range(1, 100),
+            i=range(1, 70),
+            model='{model}'),
+        normfactors = expand('output/{model}/timeslides/normalization_params_{i}.npy',
+            i=range(1, 70),
             model='{model}')
     output:
-        params_file = 'output/{model}/trained/final_metric_params.npy'
+        params_file = 'output/{model}/trained/final_metric_params.npy',
+        norm_factor_file = 'output/{model}/trained/norm_factor_params.npy'
     shell:
-        'python3 scripts/final_metric_optimization.py {output.params_file} \
+        'python3 scripts/final_metric_optimization.py {output.params_file} {output.norm_factor_file} \
         --timeslide-path {params.timeslides} \
-        --signal-path {input.signals}'
+        --signal-path {input.signals} \
+        --norm-factor-path {params.normfactors}'
 
 rule compute_far:
     input:
@@ -171,6 +176,8 @@ rule compute_far:
             dataclass=modelclasses,
             model='{model}'),
         metric_coefs_path = expand(rules.train_final_metric.output.params_file,
+            model='{model}'),
+        norm_factors_path = expand(rules.train_final_metric.output.norm_factor_file,
             model='{model}')
     params:
         shorten_timeslides = False
@@ -178,8 +185,7 @@ rule compute_far:
         save_path = 'output/{model}/far_bins.npy'
     shell:
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
-            --metric-coefs-path {input.metric_coefs_path} \
-            --fm-shortened-timeslides {params.shorten_timeslides}'
+            --metric-coefs-path {input.metric_coefs_path} --norm-factor-path {input.norm_factors_path} --fm-shortened-timeslides {params.shorten_timeslides}'
 
 rule quak_plotting_prediction_and_recreation:
     input:

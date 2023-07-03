@@ -55,21 +55,12 @@ def full_evaluation(data, model_folder_path):
     
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
-    print(quak_predictions.shape, pearson_values.shape)
+    #print(quak_predictions.shape, pearson_values.shape)
     final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
 
     if DO_SMOOTHING:
         # do it before significance?
         kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
-        # all this transposition is done since convolve takes the axis to work on first
-        
-        print("66,", final_values.shape)
-        final_values = reduce_to_significance(final_values)
-        #print("68,", final_values.shape)
-        #final_values = torch.transpose(final_values, 1, 2)
-        #print("70,", final_values.shape)
-        #final_values = convolve(torch.transpose(final_values, 1, 2), kernel, mode='valid')
-        print("72,", final_values.shape)
 
     return final_values
 

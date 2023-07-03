@@ -58,12 +58,12 @@ def mae_torch(a, b):
 def mae_torch_coherent(a, b):
     loss = torch.abs(a-b).mean(axis=-1)
     han, liv = loss[:, 0], loss[:, 1]
-    return 0.5 * ( 1*torch.abs(han-liv)+han+liv )
+    return 0.5 * ( 0*(han-liv)**2+han+liv )
 
 def mae_torch_noncoherent(a, b):
     loss = torch.abs(a-b).mean(axis=-1)
     han, liv = loss[:, 0], loss[:, 1]
-    return 0.5 * ( -1*torch.abs(han-liv)+han+liv )
+    return 0.5 * ( -0*(han-liv)**2+han+liv )
 
 def mae_torch_(a, b):
     #highly illegal!!!
