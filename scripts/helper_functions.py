@@ -4,6 +4,7 @@ import time
 import bilby
 import numpy as np
 import torch
+from math import ceil
 
 from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
@@ -35,23 +36,36 @@ from config import (
     CHANNEL)
 DEVICE = torch.device(GPU_NAME)
 
-def mae(a, b):
-    '''
-    compute MAE across a, b
-    using first dimension as representing each sample
-    '''
-    norm_factor = a[0].size
-    assert a.shape == b.shape
-    diff = np.abs(a - b)
-    N = len(diff)
 
-    # sum across all axes except the first one
-    return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
+def mae_torch_coherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( 0*(han-liv)**2+han+liv )
 
-def mae_torch(a, b):
-    # compute the MAE, do .mean twice:
-    # once for the time axis, second time for detector axis
-    return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+def mae_torch_noncoherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( -0*(han-liv)**2+han+liv )
+
+def mae_torch_(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2, )), np.fft.rfft(b, axis=2) ), axis=2)).mean(axis=1)
+    norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    return torch.from_numpy(result/norm).float().to(DEVICE)
+
+def mae_torch_(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    #a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = ((torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(b, dim=2, n=256) ), dim=2) ))).mean(dim=1)
+    norm = torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(a, dim=2, n=256) ), dim=2)).mean(dim=1)
+    #norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    #return torch.from_numpy(result/1).float().to(DEVICE)
+    return result/norm
 
 def std_normalizer(data):
     feature = 1
@@ -139,13 +153,18 @@ def load_folder(
     load the glitch times and data associated with a "save" folder
     '''
 
-    if not glitches:
+    if glitches is False:
+        start, stop = STRAIN_START, STRAIN_STOP
         path += f'/{STRAIN_START}_{STRAIN_STOP}/'
         min_trigger_load = STRAIN_START + load_start
         max_trigger_load = STRAIN_START + load_stop
-    start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
+    else:
+        start, stop = [int(elem) for elem in path.split("/")[-2].split("_")]
+        min_trigger_load = start + load_start
+        max_trigger_load = start + load_stop
 
     loaded_data = dict()
+    print(f'Loading {path}')
     for ifo in IFOS:
         # get the glitch times first
         triggers_path = f'{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/'
@@ -155,25 +174,19 @@ def load_folder(
 
         for file in os.listdir(triggers_path):
             if file[-3:] == '.h5':
-                print(f'Found the h5 file {file}')
-                if not glitches:
-                    trigger_start_time = int(file.split("-")[-2])
-                    if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
-                        with h5py.File(f'{triggers_path}/{file}', 'r') as f:
-                            print(f'Opening the file {triggers_path}')
-                            segment_triggers = f['triggers'][:]
-                            print(f'Triggers size in the file {segment_triggers.shape}')
-                            triggers.append(segment_triggers)
-                else:
+                trigger_start_time = int(file.split("-")[-2])
+                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load:
                     with h5py.File(f'{triggers_path}/{file}', 'r') as f:
-                        print(f'Opening the file {triggers_path}')
                         segment_triggers = f['triggers'][:]
-                        print(f'Triggers size in the file {segment_triggers.shape}')
                         triggers.append(segment_triggers)
-        triggers = np.concatenate(triggers, axis=0)
+        if triggers == []: continue
+        else:
+            triggers = np.concatenate(triggers, axis=0)
 
         # check if data fetching actually finished, if not, go further
-        if not os.path.exists(f'{path}/data_{ifo}.h5'): continue
+        if not os.path.exists(f'{path}/data_{ifo}.h5'):
+            print(f'Alert!!! NO data for {path}')
+            continue
 
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
             if load_start==None or load_stop==None or glitches==True:
@@ -294,8 +307,7 @@ def slice_bkg_segments(
         slx = slice(int((start_times[i] - t0) * fs),
                     int((start_times[i] - t0) * fs) + N_datapoints)
         slice_segment = data[:, slx]
-        toggle_noise = 1
-        bkg_segs[:, i] = np.array(slice_segment) * toggle_noise
+        bkg_segs[:, i] = np.array(slice_segment)
         bkg_timeseries.append(slice_segment)
 
     return bkg_segs, bkg_timeseries
@@ -492,55 +504,66 @@ def inject_hplus_hcross(
         return psds
     computed_SNR = calc_SNR_new(final_bothdetector_nonoise,
         background, sample_rate, detector_psds=detector_psds)
-    response_scale = np.array(SNR / computed_SNR)[0]
 
-    # now do the injection again
-    final_injects = []
-    final_injects_nonoise = []
-    for i, ifo in enumerate(IFOS):
-        bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
-        bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
-            ifo
-        )
-        full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
-        nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
-        bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
+    response_scales = np.array(SNR / computed_SNR[0])
+    if len(response_scales.shape) == 0: response_scales = [response_scales]
 
-        injection = np.zeros(len(bkgX))
-        for mode, polarization in pols.items():  # make sure that this is formatted correctly
-            response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
-                # inclination angle of the detector to the source
-                ra, dec, geocent_time, psi, mode
-
+    with_noise = []
+    no_noise = []
+    for response_scale in response_scales:
+        # now do the injection again
+        final_injects = []
+        final_injects_nonoise = []
+        for i, ifo in enumerate(IFOS):
+            bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
+            bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
+                ifo
             )
-            response *= response_scale
-            midp = len(injection) // 2
-            if len(polarization) % 2 == 1:
-                polarization = polarization[:-1]
-            # betting on the fact that the length of polarization is even
-            half_polar = len(polarization) // 2
-            # off by one datapoint if this fails, don't think it matters
-            assert len(polarization) % 2 == 0
-            slx = slice(midp - half_polar, midp + half_polar)
-            if inject_at_end:
-                center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
-                slx = slice(center-half_polar, center+half_polar)
-            injection[slx] += response * polarization
+            full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
+            nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
+            bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
 
-        signal = TimeSeries(
-            injection, times=full_seg.times, unit=full_seg.unit)
+            injection = np.zeros(len(bkgX))
+            for mode, polarization in pols.items():  # make sure that this is formatted correctly
+                response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
+                    # inclination angle of the detector to the source
+                    ra, dec, geocent_time, psi, mode
 
-        full_seg = full_seg.inject(signal)
-        nonoise_seg = nonoise_seg.inject(signal)
-        final_injects.append(full_seg)
-        final_injects_nonoise.append(nonoise_seg)
+                )
+                response *= response_scale
+                midp = len(injection) // 2
+                if len(polarization) % 2 == 1:
+                    polarization = polarization[:-1]
+                # betting on the fact that the length of polarization is even
+                half_polar = len(polarization) // 2
+                # off by one datapoint if this fails, don't think it matters
+                assert len(polarization) % 2 == 0
+                slx = slice(midp - half_polar, midp + half_polar)
+                if inject_at_end:
+                    center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
+                    slx = slice(center-half_polar, center+half_polar)
+                injection[slx] += response * polarization
 
-    final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
-    final_bothdetector_nonoise = np.stack(
-        final_injects_nonoise)  # [:, np.newaxis, :]
+            signal = TimeSeries(
+                injection, times=full_seg.times, unit=full_seg.unit)
 
-    # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
-    return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+            full_seg = full_seg.inject(signal)
+            nonoise_seg = nonoise_seg.inject(signal)
+            final_injects.append(full_seg)
+            final_injects_nonoise.append(nonoise_seg)
+
+        final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
+        final_bothdetector_nonoise = np.stack(
+            final_injects_nonoise)  # [:, np.newaxis, :]
+
+        with_noise.append(final_bothdetector[:, np.newaxis, :])
+        no_noise.append(final_bothdetector_nonoise[:, np.newaxis, :])
+        # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+        #return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+    if len(with_noise) == 1:
+        return with_noise[0], no_noise[0]
+    else:
+        return with_noise, no_noise
 
 
 def olib_time_domain_sine_gaussian(

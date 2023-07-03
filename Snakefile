@@ -1,9 +1,18 @@
 from config import VERSION
 
 models = ['lstm', 'dense', 'transformer']
-modelclasses = ['bbh', 'sg', 'background', 'glitches']
-dataclasses = ['timeslides', 'bbh_fm_optimization',
-    'sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr']
+
+signalclasses = ['bbh', 'sg']
+backgroundclasses = ['background', 'glitches']
+modelclasses = signalclasses + backgroundclasses
+dataclasses = [
+    'timeslides',
+    'bbh_fm_optimization',
+    'sg_fm_optimization',
+    'bbh_varying_snr',
+    'sg_varying_snr',
+    'wnb_varying_snr']
+
 wildcard_constraints:
     model = '|'.join([x for x in models]),
     modelclass = '|'.join([x for x in modelclasses]),
@@ -40,7 +49,7 @@ rule fetch_site_data:
         'python3 scripts/fetch_data.py {input.omicron} {input.intersections}\
             --site {wildcards.site}'
 
-rule generate_dataset:
+rule generate_data:
     input:
         omicron = 'output/omicron/',
         intersections = rules.find_valid_segments.output.save_path,
@@ -48,72 +57,35 @@ rule generate_dataset:
         dependencies = expand(rules.fetch_site_data.output,
             site=['L1', 'H1'])
     output:
-        file = 'output/data/{dataclass}.npy',
+        file = 'output/data/{dataclass}.npz'
     shell:
         'python3 scripts/generate.py {input.omicron} {output.file} \
             --stype {wildcards.dataclass} \
             --intersections {input.intersections}'
 
-rule pre_processing_step:
+rule upload_data:
     input:
-        file = expand(rules.generate_dataset.output.file,
-            dataclass='{dataclass}')
-    output:
-        train_file = 'output/data/train/{dataclass}.npy',
-        test_file = 'output/data/test/{dataclass}.npy'
-    shell:
-        'python3 scripts/pre_processing.py {input.file} {output.train_file} {output.test_file}'
-
-rule upload_train_test_data:
-    input:
-        train_data = expand(rules.pre_processing_step.output.train_file,
+        expand(rules.generate_data.output.file,
             dataclass='{dataclass}'),
-        test_data = expand(rules.pre_processing_step.output.test_file,
-            dataclass='{dataclass}')
     output:
-        train_data = '/home/katya.govorkova/gwak/{version}/train/{dataclass}.npy',
-        test_data = '/home/katya.govorkova/gwak/{version}/test/{dataclass}.npy'
-    shell:
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/train/; '
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/test/; '
-        'cp {input.train_data} {output.train_data}; '
-        'cp {input.test_data} {output.test_data}'
-
-rule upload_generated_data:
-    input:
-        data = expand(rules.generate_dataset.output.file,
-            dataclass='{dataclass}')
-    output:
-        data = '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npy'
+        '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
-        'cp {input.data} {output.data}'
+        'cp {input} {output}; '
 
 rule validate_data:
     input:
-        train_test_data = expand(rules.upload_train_test_data.output,
-            dataclass=modelclasses,
-            version=VERSION),
-        generated_data = expand(rules.upload_generated_data.output,
-            dataclass=dataclasses,
+        expand(rules.upload_data.output,
+            dataclass=modelclasses+dataclasses,
             version=VERSION)
     shell:
         'mkdir -p data/{VERSION}/; '
-        'python3 scripts/validate_data.py {input.train_test_data} {input.generated_data}'
-
-rule upload_data:
-    input:
-        expand(rules.upload_train_test_data.output,
-            dataclass=modelclasses,
-            version=VERSION),
-        expand(rules.upload_generated_data.output,
-            dataclass=dataclasses,
-            version=VERSION)
+        'python3 scripts/validate_data.py {input}'
 
 rule train_quak:
     input:
-        data = expand(rules.upload_train_test_data.output.train_data,
-            dataclass='{dataclass}',
+        data = expand(rules.upload_data.output,
+            dataclass=modelclasses,
             version=VERSION)
     output:
         savedir = directory('output/{model}/trained/{dataclass}'),
@@ -123,26 +95,36 @@ rule train_quak:
         'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir} \
             --model {wildcards.model}'
 
+rule recreation_and_quak_plots:
+    input:
+        model_path = 'output/{model}/trained/models/',
+        test_path = expand(rules.upload_train_test_data.params.test_data, dataclass='bbh')
+    output:
+        savedir = directory('output/{model}/plots/')
+    shell:
+        'mkdir -p {output.savedir}; '
+        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.model_path} {output.savedir}'
+
 rule generate_timeslides_for_final_metric_train:
     input:
-        data_path = expand(rules.upload_generated_data.output.data,
+        data_path = expand(rules.upload_data.output,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}')
     params:
-        shorten_timeslides = False
+        shorten_timeslides = True
     output:
         save_folder_path = directory('output/{model}/timeslides/')
     shell:
         'mkdir -p {output.save_folder_path}; '
-        'python3 scripts/evaluate_timeslides.py {params.data_path} {output.save_folder_path} {input.model_path} \
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
 
 rule evaluate_signals:
     input:
-        source_file = expand(rules.upload_generated_data.output.data,
+        source_file = expand(rules.upload_data.output,
             dataclass='{signal_dataclass}',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -160,24 +142,31 @@ rule train_final_metric:
             model='{model}'),
     params:
         timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',
-            i=[1, 2, 3],
+            i=range(1, 70),
+            model='{model}'),
+        normfactors = expand('output/{model}/timeslides/normalization_params_{i}.npy',
+            i=range(1, 70),
             model='{model}')
     output:
-        params_file = 'output/{model}/trained/final_metric_params.npy'
+        params_file = 'output/{model}/trained/final_metric_params.npy',
+        norm_factor_file = 'output/{model}/trained/norm_factor_params.npy'
     shell:
-        'python3 scripts/final_metric_optimization.py {output.params_file} \
+        'python3 scripts/final_metric_optimization.py {output.params_file} {output.norm_factor_file} \
         --timeslide-path {params.timeslides} \
-        --signal-path {input.signals}'
+        --signal-path {input.signals} \
+        --norm-factor-path {params.normfactors}'
 
 rule compute_far:
     input:
-        data_path = expand(rules.upload_generated_data.output.data,
+        data_path = expand(rules.upload_data.output,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}'),
         metric_coefs_path = expand(rules.train_final_metric.output.params_file,
+            model='{model}'),
+        norm_factors_path = expand(rules.train_final_metric.output.norm_factor_file,
             model='{model}')
     params:
         shorten_timeslides = False
@@ -186,6 +175,7 @@ rule compute_far:
     shell:
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
+            --norm-factor-path {input.norm_factors_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
 
 rule quak_plotting_prediction_and_recreation:
@@ -193,7 +183,7 @@ rule quak_plotting_prediction_and_recreation:
         model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             model='{model}'),
-        test_data = expand(rules.upload_train_test_data.output.test_data,
+        test_data = expand(rules.upload_data.output,
             dataclass='{dataclass}',
             version=VERSION)
     params:

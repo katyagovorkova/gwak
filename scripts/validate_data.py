@@ -15,18 +15,31 @@ def main(args):
 
     with open(f'data/{VERSION}/info.txt', 'w') as f:
 
-        for i, dataset in enumerate(args.datasets):
+        for i, dataset_file in enumerate(args.datasets):
 
-            data = np.load(dataset)
+            data = np.load(dataset_file)
             dataname = os.path.basename(dataset).strip('.npy')
 
-            print(f'{dataset}')
-            print(f'Dataset {dataname} shape is {data.shape}')
-            f.write(f'{dataset} \n')
-            f.write(f'Dataset {dataname} shape is {data.shape} \n')
+            if 'data' in data.keys():
+                dataset = data['data']
 
-            ax[i].plot(data[0].flatten())
-            ax[i].set_title(f'{dataset}')
+                print(f'{dataset_file}')
+                print(f'Dataset {dataname} shape is {dataset.shape}')
+                f.write(f'{dataset_file} \n')
+                f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
+
+                ax[i].plot(dataset[0].flatten())
+                ax[i].set_title(f'{dataset_file}')
+            else:
+
+                for data_t in ['clean', 'noisy']:
+                    dataset = data[data_t]
+                    print(f'{dataset_file}')
+                    f.write(f'{dataset_file} {data_t}\n')
+                    f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
+
+                    ax[i].plot(dataset.flatten())
+                    ax[i].set_title(f'{dataset}')
 
     fig.savefig(f'data/{VERSION}/info.pdf')
 

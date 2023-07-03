@@ -67,7 +67,7 @@ def main(args):
     if type(args.signal_path) == str:
         args.signal_path = [args.signal_path]
     for file_name in args.signal_path:
-        signal_evals.append(np.load(f'{file_name}'))
+        signal_evals.append(np.load(f'{file_name}')['data'])
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []
@@ -75,9 +75,28 @@ def main(args):
     if type(args.timeslide_path) == str:
         timeslide_path = [args.timeslide_path]
     for file_name in timeslide_path:
-        timeslide_evals.append(np.load(f'{file_name}'))
-    timeslide_evals = np.concatenate(timeslide_evals, axis=0)
+        timeslide_evals.append(np.load(f'{file_name}')['data'])
 
+    norm_factors = []
+    norm_factors_path = args.norm_factor_path
+    if type(args.norm_factor_path) == str:
+        norm_factors_path = [args.norm_factor_path]
+    for file_name in norm_factors_path:
+        norm_factors.append(np.load(f'{file_name}'))
+
+    norm_factors = np.array(norm_factors)
+    means = np.mean(norm_factors[:, 0, 0, :], axis=0)
+    stds = np.mean(norm_factors[:, 1, 0, :], axis=0)
+    print(means, stds)
+
+    np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
+    timeslide_evals = np.concatenate(timeslide_evals, axis=0)
+    signal_evals = (signal_evals-means)/stds
+    timeslide_evals = (timeslide_evals-means)/stds
+
+    #print(signal_evals.shape)
+    ##print(timeslide_evals.shape)
+    signal_evals = signal_evals[:, 9500:9640, :]
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
     np.save(args.save_file, optimal_coeffs)
 
@@ -89,10 +108,14 @@ if __name__ == '__main__':
     # Required arguments
     parser.add_argument('save_file', type=str,
         help='Where to save the best final metric parameters')
+    parser.add_argument('norm_factor_save_file', type=str,
+        help='Where to save the normalization factors')
     parser.add_argument('--timeslide-path', type=str,
          nargs = '+', help='list[str] pointing to timeslide files ')
     parser.add_argument('--signal-path', type=str,
         nargs= '+', help='list[str] pointing to signal files')
-    
+    parser.add_argument('--norm-factor-path', type=str,
+        nargs= '+', help='list[str] pointing to norm factors')
+
     args = parser.parse_args()
     main(args)
