@@ -716,6 +716,10 @@ def WNB(duration, fs, fmin, fmax, enveloped=True, sidePad=None):
         raise TypeError('sidePad can be boolean or int value.'
                         + ' If set True it is set to ceil(fs/32).')
 
+    def ceil(x):
+        if int(x) == x:
+            return x
+        return int(x) + 1
     df = fmax - fmin
     T = ceil(duration)
 

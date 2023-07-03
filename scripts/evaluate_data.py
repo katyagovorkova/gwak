@@ -37,6 +37,7 @@ def full_evaluation(data, model_folder_path):
 
     assert data.shape[1] == 2
 
+
     clipped_time_axis = (data.shape[2] // SEGMENT_OVERLAP) * SEGMENT_OVERLAP
     data = data[:, :, :clipped_time_axis]
 
@@ -67,6 +68,8 @@ def full_evaluation(data, model_folder_path):
 
 def main(args):
     data = np.load(args.data_path)
+    if data.shape[0] == 2:
+        data = data.swapaxes(0, 1)
     n_batches_total = data.shape[0]
 
     _, timeaxis_size, feature_size = full_evaluation(data[:2], args.model_paths).cpu().numpy().shape

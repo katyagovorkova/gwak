@@ -50,6 +50,7 @@ def main(args):
             print("n_currics", n_currics)
             # normalization scheme 
 
+            noisy_data_ = noisy_data.reshape(5, 90000, 400)
             stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
             noisy_data = noisy_data / stds
             clean_data = clean_data / stds
@@ -81,24 +82,20 @@ def main(args):
     clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
     n_currics = len(noisy_data)
     # read the input data
-    #data = np.load(args.data)
+    
 
+    if data_name == "lstm":
+        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name],
+                FACTOR=FACTOR).to(DEVICE)
+        
+    elif data_name == "dense":
+        AE = FAT(num_ifos=NUM_IFOS,
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name],
+                FACTOR=FACTOR).to(DEVICE)
 
-   # if LIMIT_TRAINING_DATA is not None:
-    #    data = data[:LIMIT_TRAINING_DATA]
-    # create the model
-    #if args.model=='dense':
-    if data_name in ["background", "glitch"]:
-        AE = FAT(
-            num_ifos=NUM_IFOS,
-            num_timesteps=SEG_NUM_TIMESTEPS,
-            BOTTLENECK=BOTTLENECK,
-            FACTOR=FACTOR).to(DEVICE)
-    elif data_name in ["bbh", "sg"]:
-        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS, 
-                    num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=BOTTLENECK,
-                    FACTOR=FACTOR).to(DEVICE)
     #elif args.model=='transformer':
     #    AE = None
     #    print('OOOPS NOT IMPLEMENTED')
@@ -149,15 +146,6 @@ def main(args):
         'val_loss': [],
         'curric_step': []
     }
-    if 0:
-        if data_name in ["bbh", "sg"]:
-            def loss_fn(a, b):
-                return torch.mean(mae_torch_coherent(a, b))
-        else:
-            def loss_fn(a, b):
-                return torch.mean(mae_torch_noncoherent(a, b))
-
-
     # training loop
     epoch_count = 0
     for curric_num in range(n_currics):

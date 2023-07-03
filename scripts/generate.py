@@ -598,9 +598,10 @@ def main(args):
 
     elif args.stype == 'wnb_varying_snr':
         # 1: generate the polarization files for the signal classes of interest
-        WNB_cross, WNB_plus = wnb_polarization_generator(N_TEST_INJECTIONS)
+        WNB_cross, WNB_plus = wnb_polarization_generator(N_VARYING_SNR_INJECTIONS)
 
         sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+
         # 2: create the injections with those signal classes
         training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
                                      data=[WNB_cross, WNB_plus],
@@ -630,7 +631,8 @@ if __name__ == '__main__':
                         type=str, choices=['bbh', 'sg', 'background',
                                            'glitch', 'wnb', 'ccsn', 'timeslides',
                                            'bbh_fm_optimization', 'sg_fm_optimization',
-                                           'bbh_varying_snr', 'sg_varying_snr'])
+                                           'bbh_varying_snr', 'sg_varying_snr',
+                                           'wnb_varying_snr'])
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)
