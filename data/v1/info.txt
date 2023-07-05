@@ -22,3 +22,5 @@ Dataset bbh_varying_snr.npz shape is (2000, 2, 196608)
 Dataset sg_varying_snr.npz shape is (2000, 2, 196608) 
 /home/katya.govorkova/gwak/v1/data/wnb_varying_snr.npz 
 Dataset wnb_varying_snr.npz shape is (2, 500, 196608) 
+/home/katya.govorkova/gwak/v1/data/supernova_varying_snr.npz 
+Dataset supernova_varying_snr.npz shape is (2, 2000, 12288) 

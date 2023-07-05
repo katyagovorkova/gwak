@@ -23,7 +23,6 @@ from config import (
     SAMPLE_RATE,
     STRAIN_START,
     N_TRAIN_INJECTIONS,
-    N_TEST_INJECTIONS,
     N_FM_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
@@ -51,7 +50,7 @@ from config import (
     CURRICULUM_SNRS,
     SNR_SN_LOW,
     SNR_SN_HIGH,
-    LOADED_DATA_SAMPLE_RATE # goes for the SN signals as well
+    LOADED_DATA_SAMPLE_RATE, # goes for the SN signals as well
     SEG_NUM_TIMESTEPS,
     CURRICULUM_SNRS)
 
@@ -591,16 +590,6 @@ def main(args):
             noisy=noisy_samples,
             clean=clean_samples)
 
-    elif args.stype == 'wnb':
-        # 1: generate the polarization files for the signal classes of interest
-        wnb_cross, wnb_plus = wnb_polarization_generator(N_VARYING_SNR_INJECTIONS)
-
-        # 2: create the injections with those signal classes
-        training_data = inject_signal(
-            folder_path=args.folder_path,
-            data=[wnb_cross, wnb_plus])
-        training_data = dict(data=training_data)
-
     elif args.stype == 'background':
 
         # 2.5: generate/fetch the background classes
@@ -763,7 +752,9 @@ if __name__ == '__main__':
         choices=['bbh', 'sg', 'background', 'glitch', 'glitches',
                 'wnb', 'ccsn', 'timeslides',
                 'bbh_fm_optimization', 'sg_fm_optimization',
-                'bbh_varying_snr', 'sg_varying_snr', 'wnb_varying_snr'],
+                'bbh_varying_snr', 'sg_varying_snr',
+                'wnb_varying_snr',
+                'supernova_varying_snr'],
         help='Which type of the injection to generate')
 
     parser.add_argument('--start', type=str, default=None)

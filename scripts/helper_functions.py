@@ -27,7 +27,6 @@ from config import (
     SEG_NUM_TIMESTEPS,
     SEGMENT_OVERLAP,
     CLASS_ORDER,
-    SIGNIFICANCE_NORMALIZATION_DURATION,
     GPU_NAME,
     MAX_SHIFT,
     SHIFT_STEP,
@@ -114,35 +113,6 @@ def stack_dict_into_numpy_segments(data_dict):
         stacked_np[:, stack_index] = data_dict[class_name]
 
     return stacked_np
-
-
-def reduce_to_significance(data):
-    '''
-    Data is a torch tensor of shape (N_samples, N_features),
-    normalize / calculate significance for each of the axis
-    by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
-    '''
-    N_batches, N_samples, N_features = data.shape
-    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE // SEGMENT_OVERLAP)
-    assert  N_samples > norm_datapoints
-
-
-    #take the mean, std by sliding window of size norm_datapoints
-    stacked = torch.reshape(
-        data[:, : (N_samples // norm_datapoints) * norm_datapoints ],
-        (norm_datapoints, -1, N_features)
-    )
-    means = stacked.mean(dim=1)
-    stds = stacked.std(dim=1)
-
-    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=DEVICE)
-
-    N_splits = means.shape[0]
-    for i in range(N_splits):
-        start, end = i*norm_datapoints, (i+1)*norm_datapoints
-        computed_significance[:, start:end] = (data[:, start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
-
-    return computed_significance
 
 def load_folder(
         path: str,
