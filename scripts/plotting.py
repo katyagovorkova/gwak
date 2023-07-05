@@ -29,7 +29,9 @@ from config import (
     SNR_VS_FAR_HL_LABELS,
     SEGMENT_OVERLAP,
     HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN
+    HISTOGRAM_BIN_MIN,
+    VARYING_SNR_LOW,
+    VARYING_SNR_HIGH
 )
 
 def calculate_means(metric_vals, snrs, bar):
@@ -64,11 +66,13 @@ def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
     snr_plot, means_plot, stds_plot = calculate_means(fm_vals, snrs, bar=SNR_VS_FAR_BAR)
 
     plt.figure(figsize=(12, 8))
+    
     plt.xlabel(f"{tag} SNR")
     plt.ylabel("Minimum metric value")
     #plt.ylim(-0.5, 0.5) 
     #plt.xlim(0,110) 
     plt.grid()
+    
     plt.errorbar(snr_plot, means_plot, yerr=stds_plot, xerr=SNR_VS_FAR_BAR//2, fmt="o", color='goldenrod', label = f"{tag}")
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
@@ -77,7 +81,7 @@ def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
             plt.axhline(y=metric_val_label, alpha=0.8**i, label = f"1/{label}", c='black')
 
     plt.legend()
-
+    plt.xlim(VARYING_SNR_LOW-SNR_VS_FAR_BAR/2, VARYING_SNR_HIGH+SNR_VS_FAR_BAR/2)
     plt.savefig(f'{savedir}/snr_vs_far_{tag}.pdf', dpi=300)
     plt.show()
 
@@ -114,9 +118,9 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[0].legend()
     axs[0].grid()
 
-    axs[0].set_xlim(4.5e4, 5e4)
-    axs[1].set_xlim(0.9e4, 1e4)
-    axs[2].set_xlim(0.9e4, 1e4)
+    #axs[0].set_xlim(4.5e4, 5e4)
+    #axs[1].set_xlim(0.9e4, 1e4)
+    #axs[2].set_xlim(0.9e4, 1e4)
 
     colors = [
         'purple', 
@@ -173,7 +177,7 @@ def main(args):
 
     if do_snr_vs_far:
         # I will fix this later
-        tags = ['bbh', 'sg']
+        tags = ['bbh', 'sg', 'wnb']
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
@@ -185,7 +189,7 @@ def main(args):
                 mod += elem + "/"
             print("mod", mod)
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy")
-            data = (data-means)#/stds
+            data = (data-means)/stds
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
 
             snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
@@ -195,7 +199,7 @@ def main(args):
         fake_roc_plotting(far_hist, args.plot_savedir)
 
     if do_3_panel_plot:
-        tags = ['bbh', 'sg']
+        tags = ['bbh', 'sg', 'wnb']
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
@@ -208,7 +212,7 @@ def main(args):
                 mod += elem + "/"
             strains = np.load(f"{mod}/data/{tag}_varying_snr.npy", mmap_mode="r")[ind]
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", mmap_mode="r")[ind]
-            data = (data-means)#/stds
+            data = (data-means)/stds
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
 
             three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)

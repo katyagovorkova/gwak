@@ -68,6 +68,7 @@ def full_evaluation(data, model_folder_path):
 
 def main(args):
     data = np.load(args.data_path)
+    print("loaded data shape:", data.shape)
     if data.shape[0] == 2:
         data = data.swapaxes(0, 1)
     n_batches_total = data.shape[0]

@@ -90,16 +90,13 @@ def main(args):
     norm_factors = np.array(norm_factors)
     means = np.mean(norm_factors[:, 0, 0, :], axis=0)
     stds = np.mean(norm_factors[:, 1, 0, :], axis=0)
-    print(means, stds)
-    #assert 0
+
     np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
     signal_evals = (signal_evals-means)#/stds
-    timeslide_evals = (timeslide_evals-means)#/stds
+    timeslide_evals = (timeslide_evals-means)/stds
 
-    #print(signal_evals.shape)
-    ##print(timeslide_evals.shape)
-    signal_evals = signal_evals[:, 9500:9640, :]
+    signal_evals = signal_evals[:, 1300:1550, :]
     
 
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)

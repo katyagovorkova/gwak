@@ -163,7 +163,7 @@ def wnb_polarization_generator(
     n_injections,
     fmin=400,
     fmax=1000,
-    duration=1): # in seconds
+    duration=0.1): # in seconds
 
     # merge with background
     wnb_hplus = np.zeros((n_injections, SAMPLE_RATE))

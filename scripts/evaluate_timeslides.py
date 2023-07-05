@@ -29,7 +29,7 @@ def main(args):
 
     data = np.load(args.data_path)
     data = torch.from_numpy(data).to(DEVICE)
-    data = data[:, :data.shape[1]//10]
+    data = data[:, :int(data.shape[1]/10)]
     print("SHAPE", data.shape)
     #assert 0
 
@@ -63,11 +63,8 @@ def main(args):
             norm_factors = torch.from_numpy(norm_factors).float().to(DEVICE)
             # flatten batch dimension
             final_values = torch.reshape(final_values, (final_values.shape[0]*final_values.shape[1], final_values.shape[2]))
-            #print("66", final_values.shape)
             means, stds = norm_factors[0], norm_factors[1]
-            final_values = (final_values-means)#/stds
-            #print("69", final_values.shape)
-            #assert 0
+            final_values = (final_values-means)/stds
             final_values = torch.matmul(final_values, metric_vals)
 
             update = torch.histc(final_values, bins=n_bins, 

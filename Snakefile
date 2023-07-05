@@ -147,7 +147,7 @@ rule evaluate_signals:
         'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
 
 rule train_final_metric:
-    input:
+    input:  
         signals = expand(rules.evaluate_signals.output.save_file,
             signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization'],
             model='{model}'),
