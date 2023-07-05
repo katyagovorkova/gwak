@@ -20,7 +20,6 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
     BOTTLENECK,
-    FACTOR,
     EPOCHS,
     BATCH_SIZE,
     LOSS,
@@ -34,29 +33,17 @@ from config import (
     CURRICULUM_SNRS)
 DEVICE = torch.device(GPU_NAME)
 
-from helper_functions import (
-    mae_torch,
-    mae_torch_coherent,
-    mae_torch_noncoherent)
-
 def main(args):
 
     data_name = (args.data).split("/")[-1][:-4]
     #SEG_NUM_TIMESTEPS = 100
     if 1:
-        if data_name in ["bbh", "sg"]:
+        if data_name in ['bbh', 'sg']:
             # curriculus learning scheme
-            noisy_data = np.load(args.data) #n_currics, n_samples, ifo, timesteps
-            clean_data = np.load(f"{args.data[:-4]}_clean.npy")
-
-
-            #noisy_data = noisy_data[:, :, :, :100]
-            #clean_data = clean_data[:, :, :, :100]
+            noisy_data = np.load(args.data)['noisy']
+            clean_data = np.load(args.data)['clean']
             n_currics = len(noisy_data)
-            print("n_currics", n_currics)
             # normalization scheme
-
-            noisy_data_ = noisy_data.reshape(5, 90000, 400)
             stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
             noisy_data = noisy_data / stds
             clean_data = clean_data / stds
@@ -67,10 +54,8 @@ def main(args):
             clean_data = clean_data[:, p, :, :]
 
         else:
-            assert data_name in ["background", "glitch"]
-            noisy_data = np.load(args.data) # n_samples, ifo, timesteps
-            #noisy_data = noisy_data[:, :, :, :100]
-            print("in", noisy_data.shape)
+            assert data_name in ['background', 'glitches']
+            noisy_data = np.load(args.data)['data'] # n_samples, ifo, timesteps
 
             n_currics = 1
             noisy_data = noisy_data[np.newaxis, :, :, :]
@@ -80,25 +65,15 @@ def main(args):
             noisy_data = noisy_data[:, p, :, :]
             clean_data = noisy_data
 
-    # for testing purposes
-    np.save(f"{args.data[:-4]}_noisy_process.npy" ,noisy_data)
-    np.save(f"{args.data[:-4]}_clean_process.npy", clean_data)
-
-    noisy_data = np.load(f"{args.data[:-4]}_noisy_process.npy")
-    clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
-    n_currics = len(noisy_data)
-
-    if data_name == "lstm":
+    if data_name in ['bbh', 'sg']:
         AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                 num_timesteps=SEG_NUM_TIMESTEPS,
-                BOTTLENECK=BOTTLENECK[data_name],
-                FACTOR=FACTOR).to(DEVICE)
+                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
 
-    elif data_name == "dense":
+    elif data_name in ['background', 'glitches']:
         AE = FAT(num_ifos=NUM_IFOS,
                 num_timesteps=SEG_NUM_TIMESTEPS,
-                BOTTLENECK=BOTTLENECK[data_name],
-                FACTOR=FACTOR).to(DEVICE)
+                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
 
     optimizer = optim.Adam(AE.parameters())
 

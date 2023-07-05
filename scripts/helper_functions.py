@@ -46,26 +46,6 @@ def mae_torch_noncoherent(a, b):
     han, liv = loss[:, 0], loss[:, 1]
     return 0.5 * ( -0*(han-liv)**2+han+liv )
 
-def mae_torch_(a, b):
-    #highly illegal!!!
-    assert a.shape[1] == NUM_IFOS
-    assert b.shape[1] == NUM_IFOS
-    a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
-    result = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2, )), np.fft.rfft(b, axis=2) ), axis=2)).mean(axis=1)
-    norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
-    return torch.from_numpy(result/norm).float().to(DEVICE)
-
-def mae_torch_(a, b):
-    #highly illegal!!!
-    assert a.shape[1] == NUM_IFOS
-    assert b.shape[1] == NUM_IFOS
-    #a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
-    result = ((torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(b, dim=2, n=256) ), dim=2) ))).mean(dim=1)
-    norm = torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(a, dim=2, n=256) ), dim=2)).mean(dim=1)
-    #norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
-    #return torch.from_numpy(result/1).float().to(DEVICE)
-    return result/norm
-
 def std_normalizer(data):
     feature = 1
     if data.shape[1] == 2:

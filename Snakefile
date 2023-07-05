@@ -86,7 +86,7 @@ rule validate_data:
 rule train_quak:
     input:
         data = expand(rules.upload_data.params,
-            dataclass=modelclasses,
+            dataclass='{dataclass}',
             version=VERSION)
     output:
         savedir = directory('output/{model}/trained/{dataclass}'),
@@ -203,7 +203,7 @@ rule plot_model_results:
     params:
         evaluation_dir = 'output/{model}/',
     output:
-        save_path = directory('output/{model}/plots/')
+        save_path = directory('output/{model}/reconstruction_plots/')
     shell:
         'mkdir -p {output.save_path}; '
         'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'

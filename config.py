@@ -68,7 +68,7 @@ MODEL = {
     'sg': 'lstm',
     'glitch': 'dense',
     'background': 'dense'}
-EPOCHS = 500
+EPOCHS = 200
 BATCH_SIZE = 512
 LOSS = 'MAE'
 OPTIMIZER = 'Adam'

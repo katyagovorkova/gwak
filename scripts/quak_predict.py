@@ -12,28 +12,16 @@ sys.path.append(
 from config import (NUM_IFOS,
                     SEG_NUM_TIMESTEPS,
                     BOTTLENECK,
-                    FACTOR,
                     GPU_NAME,
                     RECREATION_LIMIT)
 DEVICE = torch.device(GPU_NAME)
 
 from helper_functions import (
-    mae_torch,
     mae_torch_coherent,
     mae_torch_noncoherent)
 
 
 def quak_eval(data, model_path, reduce_loss=True):
-    # data required to be torch tensor at this point
-    model_12 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
-                    num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=12,
-                    FACTOR=FACTOR).to(DEVICE)
-    model_20 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
-                    num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=20,
-                    FACTOR=FACTOR).to(DEVICE)
-
 
     # check if the evaluation has to be done for one model or for several
     loss = dict()
@@ -51,13 +39,11 @@ def quak_eval(data, model_path, reduce_loss=True):
         if MODEL[model_name] == "lstm":
             model = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=BOTTLENECK[model_name],
-                    FACTOR=FACTOR).to(DEVICE)
+                    BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
         elif MODEL[model_name] == "dense":
             model = FAT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=BOTTLENECK[model_name],
-                    FACTOR=FACTOR).to(DEVICE)
+                    BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
 
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         if reduce_loss:
