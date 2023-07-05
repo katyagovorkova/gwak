@@ -4,7 +4,7 @@ import argparse
 from torchsummary import summary
 import torch
 # from helper_functions import mae
-from models import LSTM_AE, LSTM_AE_ERIC, DUMMY_CNN_AE, FAT
+from models import LSTM_AE, LSTM_AE_SPLIT, DUMMY_CNN_AE, FAT
 import sys
 import os.path
 sys.path.append(
@@ -17,15 +17,23 @@ from config import (NUM_IFOS,
                     RECREATION_LIMIT)
 DEVICE = torch.device(GPU_NAME)
 
+from helper_functions import (
+    mae_torch,
+    mae_torch_coherent,
+    mae_torch_noncoherent)
 
-from helper_functions import mae_torch
+
 def quak_eval(data, model_path, reduce_loss=True):
     # data required to be torch tensor at this point
-    model = FAT(num_ifos=NUM_IFOS,
+    model_12 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                     num_timesteps=SEG_NUM_TIMESTEPS,
-                    BOTTLENECK=BOTTLENECK,
+                    BOTTLENECK=12,
                     FACTOR=FACTOR).to(DEVICE)
-    
+    model_20 = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=20,
+                    FACTOR=FACTOR).to(DEVICE)
+
 
     # check if the evaluation has to be done for one model or for several
     loss = dict()
@@ -35,22 +43,46 @@ def quak_eval(data, model_path, reduce_loss=True):
         loss['loss'] = dict()
 
     for dpath in model_path:
+        coherent_loss=False
+        if dpath.split("/")[-1] in ['bbh.pt', 'sg.pt']:
+            coherent_loss=True
+
+        model_name = dpath.split("/")[-1].split(".")[0]
+        if MODEL[model_name] == "lstm":
+            model = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=BOTTLENECK[model_name],
+                    FACTOR=FACTOR).to(DEVICE)
+        elif MODEL[model_name] == "dense":
+            model = FAT(num_ifos=NUM_IFOS,
+                    num_timesteps=SEG_NUM_TIMESTEPS,
+                    BOTTLENECK=BOTTLENECK[model_name],
+                    FACTOR=FACTOR).to(DEVICE)
+
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
-        print("WARNING: change .strip() to .pt once model properly renamed!")
         if reduce_loss:
-            loss[os.path.basename(dpath)[:-3]] = \
-                mae_torch(data, model(data).detach())
-        else:
-            loss['loss'][os.path.basename(dpath)[:-3]] = \
-                mae_torch(data, model(data).detach()).cpu().numpy()
+            if coherent_loss:
+                loss[os.path.basename(dpath)[:-3]] = \
+                    mae_torch_coherent(data, model(data).detach())
+            elif not coherent_loss:
+                loss[os.path.basename(dpath)[:-3]] = \
+                    mae_torch_noncoherent(data, model(data).detach())
+        elif not reduce_loss:
+            if coherent_loss:
+                loss['loss'][os.path.basename(dpath)[:-3]] = \
+                    mae_torch_coherent(data, model(data).detach()).cpu().numpy()
+            elif not coherent_loss:
+                loss['loss'][os.path.basename(dpath)[:-3]] = \
+                    mae_torch_noncoherent(data, model(data).detach()).cpu().numpy()
             loss['original'][os.path.basename(dpath)[:-3]] = data[:RECREATION_LIMIT].cpu().numpy()
             loss['recreated'][os.path.basename(dpath)[:-3]] = model(data[:RECREATION_LIMIT]).detach().cpu().numpy()
     return loss
 
+
 def main(args):
-    
+
     # load the data
-    data = np.load(args.test_data)
+    data = np.load(args.test_data)['data']
     data = torch.from_numpy(data).float().to(DEVICE)
     print(f'loaded data shape is {data.shape}')
     loss = quak_eval(data, args.model_path, args.reduce_loss)
@@ -58,7 +90,7 @@ def main(args):
     if args.reduce_loss:
         # move to CPU
         for key in loss.keys():
-            loss[key] = loss[key].cpu().numpy()        
+            loss[key] = loss[key].cpu().numpy()
 
     if args.save_file: np.savez(args.save_file, **loss)
 
@@ -79,4 +111,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.reduce_loss = args.reduce_loss == "True"
     main(args)
-

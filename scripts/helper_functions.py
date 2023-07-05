@@ -4,13 +4,13 @@ import time
 import bilby
 import numpy as np
 import torch
+from math import ceil
 
 from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
 from lalinference import BurstSineGaussian, BurstSineGaussianF
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
@@ -27,7 +27,6 @@ from config import (
     SEG_NUM_TIMESTEPS,
     SEGMENT_OVERLAP,
     CLASS_ORDER,
-    SIGNIFICANCE_NORMALIZATION_DURATION,
     GPU_NAME,
     MAX_SHIFT,
     SHIFT_STEP,
@@ -36,29 +35,42 @@ from config import (
     CHANNEL)
 DEVICE = torch.device(GPU_NAME)
 
-def mae(a, b):
-    '''
-    compute MAE across a, b
-    using first dimension as representing each sample
-    '''
-    norm_factor = a[0].size
-    assert a.shape == b.shape
-    diff = np.abs(a - b)
-    N = len(diff)
 
-    # sum across all axes except the first one
-    return np.sum(diff.reshape(N, -1), axis=1) / norm_factor
+def mae_torch_coherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( 0*(han-liv)**2+han+liv )
 
-def mae_torch(a, b):
-    # compute the MAE, do .mean twice:
-    # once for the time axis, second time for detector axis
-    return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
+def mae_torch_noncoherent(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * ( -0*(han-liv)**2+han+liv )
+
+def mae_torch_(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2, )), np.fft.rfft(b, axis=2) ), axis=2)).mean(axis=1)
+    norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    return torch.from_numpy(result/norm).float().to(DEVICE)
+
+def mae_torch_(a, b):
+    #highly illegal!!!
+    assert a.shape[1] == NUM_IFOS
+    assert b.shape[1] == NUM_IFOS
+    #a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+    result = ((torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(b, dim=2, n=256) ), dim=2) ))).mean(dim=1)
+    norm = torch.abs(torch.sum(torch.multiply( torch.conj(torch.fft.rfft(a, dim=2, n=256)), torch.fft.rfft(a, dim=2, n=256) ), dim=2)).mean(dim=1)
+    #norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
+    #return torch.from_numpy(result/1).float().to(DEVICE)
+    return result/norm
 
 def std_normalizer(data):
     feature = 1
     if data.shape[1] == 2:
         feature_axis = 2
-        
+
     std_vals = np.std(data, dim=feature_axis)[:, :, np.newaxis]
     return data / std_vals
 
@@ -75,7 +87,7 @@ def stack_dict_into_tensor(data_dict):
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_tensor[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_tensor
 
 def stack_dict_into_numpy(data_dict):
@@ -87,7 +99,7 @@ def stack_dict_into_numpy(data_dict):
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_np
 
 def stack_dict_into_numpy_segments(data_dict):
@@ -95,114 +107,83 @@ def stack_dict_into_numpy_segments(data_dict):
     Input is a dictionary of keys, stack it into numpy array
     '''
     fill_len = len(data_dict['bbh'])
-    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, 100))
+    stacked_np = np.empty((fill_len, len(list(data_dict.keys())), 2, SEG_NUM_TIMESTEPS))
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]
-    
+
     return stacked_np
-
-
-def reduce_to_significance(data):
-    '''
-    Data is a torch tensor of shape (N_samples, N_features),
-    normalize / calculate significance for each of the axis 
-    by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
-    '''
-    N_batches, N_samples, N_features = data.shape
-    norm_datapoints = int(SIGNIFICANCE_NORMALIZATION_DURATION * SAMPLE_RATE // SEGMENT_OVERLAP)
-    assert  N_samples > norm_datapoints
-
-
-    #take the mean, std by sliding window of size norm_datapoints
-    stacked = torch.reshape(
-        data[:, : (N_samples // norm_datapoints) * norm_datapoints ],
-        (norm_datapoints, -1, N_features)
-    )
-    means = stacked.mean(dim=1)
-    stds = stacked.std(dim=1)
-
-    computed_significance = torch.empty((N_batches, N_samples - norm_datapoints, N_features), device=DEVICE)
-
-    N_splits = means.shape[0]
-    for i in range(N_splits):
-        start, end = i*norm_datapoints, (i+1)*norm_datapoints
-        computed_significance[:, start:end] = (data[:, start+norm_datapoints:end+norm_datapoints] - means[i])/stds[i]
-        
-    return computed_significance
 
 def load_folder(
         path: str,
-        load_start: int = None,
-        load_stop: int = None):
+        load_start: int=None,
+        load_stop: int=None,
+        glitches: bool=False):
     '''
     load the glitch times and data associated with a "save" folder
     '''
-    start = STRAIN_START
-    end = STRAIN_STOP
-    last = -1
-    if path[-1] == "/":
-        last = -2
-    print("PATH", path)
-    path += f"/{STRAIN_START}_{STRAIN_STOP}/"
-    print(path.split("/"))
-    start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
+
+    if glitches is False:
+        start, stop = STRAIN_START, STRAIN_STOP
+        path += f'/{STRAIN_START}_{STRAIN_STOP}/'
+        min_trigger_load = STRAIN_START + load_start
+        max_trigger_load = STRAIN_START + load_stop
+    else:
+        start, stop = [int(elem) for elem in path.split("/")[-2].split("_")]
+        min_trigger_load = start + load_start
+        max_trigger_load = start + load_stop
 
     loaded_data = dict()
-    min_trigger_load = start + load_start
-    max_trigger_load = start + load_stop
+    print(f'Loading {path}')
     for ifo in IFOS:
         # get the glitch times first
-        triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers_path = f'{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/'
         triggers = []
         # check if Omicron actually finished, if not, go further
         if not os.path.exists(triggers_path): continue
 
         for file in os.listdir(triggers_path):
-            if file[-3:] == ".h5":
+            if file[-3:] == '.h5':
                 trigger_start_time = int(file.split("-")[-2])
-                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
-                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load:
+                    with h5py.File(f'{triggers_path}/{file}', 'r') as f:
                         segment_triggers = f['triggers'][:]
                         triggers.append(segment_triggers)
+        if triggers == []: continue
+        else:
+            triggers = np.concatenate(triggers, axis=0)
 
-        triggers = np.concatenate(triggers, axis=0)
+        # check if data fetching actually finished, if not, go further
+        if not os.path.exists(f'{path}/data_{ifo}.h5'):
+            print(f'Alert!!! NO data for {path}')
+            continue
 
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
-            if load_start == None or load_stop == None:
-                X = f[f"{ifo}:{CHANNEL}"][:]
+            if load_start==None or load_stop==None or glitches==True:
+                X = f[f'{ifo}:{CHANNEL}'][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
                 datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
-                X = f[f"{ifo}:{CHANNEL}"][datapoints_start:datapoints_stop]
-
-        # some statistics on the data
-        data_statistics = 0
-        if data_statistics:
-            print(f'start: {start}, end: {end}')
-            print(f'duration, seconds: {end-start}')
-            print(f'data length: {len(X)}')
-            print(f'with data sampled at {4*SAMPLE_RATE}, len(data)/duration= {len(X)/4/SAMPLE_RATE}')
+                X = f[f'{ifo}:{CHANNEL}'][datapoints_start:datapoints_stop]
 
         sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
-        data = TimeSeries(X, sample_rate=sample_rate, t0=start + load_start)
-        if data_statistics:
-            print(f'after creating time series, len(data) = {len(data)}')
-            before_resample = len(data)
+        data = TimeSeries(X,
+            sample_rate=sample_rate,
+            t0=start if glitches else start+load_start)
 
         if sample_rate != resample_rate:
             data = data.resample(resample_rate)
 
-        if data_statistics:
-            print(f'after resampling, len(data) = {len(data)}')
-            print(f'ratio before to after: {before_resample/len(data)}')
-
         fftlength = 1
         loaded_data[ifo] = {'triggers': triggers,
                             'data': data,
-                            'asd': data.asd(fftlength=fftlength, overlap=0, method='welch', window='hanning')}
+                            'asd': data.asd(
+                                fftlength=fftlength,
+                                overlap=0,
+                                method='welch',
+                                window='hanning')}
 
     return loaded_data
 
@@ -251,7 +232,7 @@ def get_quiet_segments(
 
     # cut off the edge effects already
     valid_start_times = np.arange(
-        t0, tend - segment_length, segment_length / 100)
+        t0, tend - segment_length, segment_length / SEG_NUM_TIMESTEPS)
     open_times = np.ones(valid_start_times.shape)
     for gt in glitch_times:
         idx = np.searchsorted(valid_start_times, gt)
@@ -296,8 +277,7 @@ def slice_bkg_segments(
         slx = slice(int((start_times[i] - t0) * fs),
                     int((start_times[i] - t0) * fs) + N_datapoints)
         slice_segment = data[:, slx]
-        toggle_noise = 1
-        bkg_segs[:, i] = np.array(slice_segment) * toggle_noise
+        bkg_segs[:, i] = np.array(slice_segment)
         bkg_timeseries.append(slice_segment)
 
     return bkg_segs, bkg_timeseries
@@ -483,7 +463,7 @@ def inject_hplus_hcross(
         # no amplitude modifications
         # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
         # None refers to no SNR values being returned
-        return np.stack(final_injects)[:, np.newaxis, :], None 
+        return np.stack(final_injects)[:, np.newaxis, :], None
     final_bothdetector = np.stack(final_injects)[:, np.newaxis, :]
     final_bothdetector_nonoise = np.stack(
         final_injects_nonoise)[:, np.newaxis, :]
@@ -494,55 +474,66 @@ def inject_hplus_hcross(
         return psds
     computed_SNR = calc_SNR_new(final_bothdetector_nonoise,
         background, sample_rate, detector_psds=detector_psds)
-    response_scale = np.array(SNR / computed_SNR)[0]
 
-    # now do the injection again
-    final_injects = []
-    final_injects_nonoise = []
-    for i, ifo in enumerate(IFOS):
-        bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
-        bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
-            ifo
-        )
-        full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
-        nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
-        bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
+    response_scales = np.array(SNR / computed_SNR[0])
+    if len(response_scales.shape) == 0: response_scales = [response_scales]
 
-        injection = np.zeros(len(bkgX))
-        for mode, polarization in pols.items():  # make sure that this is formatted correctly
-            response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
-                # inclination angle of the detector to the source
-                ra, dec, geocent_time, psi, mode
-
+    with_noise = []
+    no_noise = []
+    for response_scale in response_scales:
+        # now do the injection again
+        final_injects = []
+        final_injects_nonoise = []
+        for i, ifo in enumerate(IFOS):
+            bkgX = bkg_seg[i]  # get rid of noise? to see if signal is showing up
+            bilby_ifo = bilby.gw.detector.networks.get_empty_interferometer(
+                ifo
             )
-            response *= response_scale
-            midp = len(injection) // 2
-            if len(polarization) % 2 == 1:
-                polarization = polarization[:-1]
-            # betting on the fact that the length of polarization is even
-            half_polar = len(polarization) // 2
-            # off by one datapoint if this fails, don't think it matters
-            assert len(polarization) % 2 == 0
-            slx = slice(midp - half_polar, midp + half_polar)
-            if inject_at_end:
-                center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
-                slx = slice(center-half_polar, center+half_polar)
-            injection[slx] += response * polarization
+            full_seg = TimeSeries(bkgX, sample_rate=sample_rate, t0=0)
+            nonoise_seg = TimeSeries(0 * bkgX, sample_rate=sample_rate, t0=0)
+            bilby_ifo.strain_data.set_from_gwpy_timeseries(full_seg)
 
-        signal = TimeSeries(
-            injection, times=full_seg.times, unit=full_seg.unit)
+            injection = np.zeros(len(bkgX))
+            for mode, polarization in pols.items():  # make sure that this is formatted correctly
+                response = bilby_ifo.antenna_response(  # this gives just a float, my interpretation is the
+                    # inclination angle of the detector to the source
+                    ra, dec, geocent_time, psi, mode
 
-        full_seg = full_seg.inject(signal)
-        nonoise_seg = nonoise_seg.inject(signal)
-        final_injects.append(full_seg)
-        final_injects_nonoise.append(nonoise_seg)
+                )
+                response *= response_scale
+                midp = len(injection) // 2
+                if len(polarization) % 2 == 1:
+                    polarization = polarization[:-1]
+                # betting on the fact that the length of polarization is even
+                half_polar = len(polarization) // 2
+                # off by one datapoint if this fails, don't think it matters
+                assert len(polarization) % 2 == 0
+                slx = slice(midp - half_polar, midp + half_polar)
+                if inject_at_end:
+                    center = int(len(injection) - SAMPLE_RATE*EDGE_INJECT_SPACING - half_polar)
+                    slx = slice(center-half_polar, center+half_polar)
+                injection[slx] += response * polarization
 
-    final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
-    final_bothdetector_nonoise = np.stack(
-        final_injects_nonoise)  # [:, np.newaxis, :]
+            signal = TimeSeries(
+                injection, times=full_seg.times, unit=full_seg.unit)
 
-    # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
-    return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+            full_seg = full_seg.inject(signal)
+            nonoise_seg = nonoise_seg.inject(signal)
+            final_injects.append(full_seg)
+            final_injects_nonoise.append(nonoise_seg)
+
+        final_bothdetector = np.stack(final_injects)  # [:, np.newaxis, :]
+        final_bothdetector_nonoise = np.stack(
+            final_injects_nonoise)  # [:, np.newaxis, :]
+
+        with_noise.append(final_bothdetector[:, np.newaxis, :])
+        no_noise.append(final_bothdetector_nonoise[:, np.newaxis, :])
+        # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
+        #return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
+    if len(with_noise) == 1:
+        return with_noise[0], no_noise[0]
+    else:
+        return with_noise, no_noise
 
 
 def olib_time_domain_sine_gaussian(
@@ -819,11 +810,11 @@ def clean_gw_events(
     ts,
     tend):
 
-    
+
     convert_index = lambda t: int(SAMPLE_RATE * (t-ts))
     bad_times = []
     for et in event_times:
-        # only take the GW events past 5 second edge, otherwise there will 
+        # only take the GW events past 5 second edge, otherwise there will
         # be problems with removing it from the segment
         if et > ts+GW_EVENT_CLEANING_WINDOW and et < tend-GW_EVENT_CLEANING_WINDOW:
             # convert the GPS time of GW events into indicies
@@ -857,8 +848,8 @@ def clean_gw_events(
     # since those weren't treated for potential GW events
     return cleaned_data[:, clean_window:-clean_window]
 
-def split_into_segments(data, 
-                        overlap=SEGMENT_OVERLAP, 
+def split_into_segments(data,
+                        overlap=SEGMENT_OVERLAP,
                         seg_len=SEG_NUM_TIMESTEPS):
     '''
     Function to slice up data into overlapping segments
@@ -897,12 +888,12 @@ def split_into_segments_torch(data,
     N_slices = (data.shape[2]-seg_len)//overlap
     data = data[:, :, :N_slices*overlap+seg_len]
     feature_length_full = data.shape[2]
-    feature_length = (data.shape[2]//100) *100
+    feature_length = (data.shape[2]//SEG_NUM_TIMESTEPS) *SEG_NUM_TIMESTEPS
     N_slices_limited = (feature_length-seg_len)//overlap
     n_batches = data.shape[0]
     n_detectors = data.shape[1]
 
-    # resulting shape: (batches, N_slices, 2, 100)
+    # resulting shape: (batches, N_slices, 2, SEG_NUM_TIMESTEPS)
     result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
                         device=DEVICE)
 
@@ -920,8 +911,8 @@ def split_into_segments_torch(data,
         end = feature_length-seg_len+offset_families[family_index]
         if end > feature_length:
             end -= seg_len
-        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, 100)
-        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, 100)
+        result[:, family_index:N_slices_limited:family_count, 0, :] = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
+        result[:, family_index:N_slices_limited:family_count, 1, :] = data[:, 1, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
     # do the pieces left over, at the end
     for i in range(1, N_slices - N_slices_limited+1):
         end = int(feature_length_full - i *overlap)

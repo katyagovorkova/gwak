@@ -12,8 +12,7 @@ from scipy.linalg import dft
 
 from models import (
     LSTM_AE,
-    LSTM_AE_ERIC,
-    DUMMY_CNN_AE,
+    LSTM_AE_SPLIT,
     FAT)
 
 import sys
@@ -31,83 +30,150 @@ from config import (
     NUM_IFOS,
     SEG_NUM_TIMESTEPS,
     GPU_NAME,
-    LIMIT_TRAINING_DATA)
+    LIMIT_TRAINING_DATA,
+    CURRICULUM_SNRS)
 DEVICE = torch.device(GPU_NAME)
 
+from helper_functions import (
+    mae_torch,
+    mae_torch_coherent,
+    mae_torch_noncoherent)
+
 def main(args):
-    # read the input data
-    data = np.load(args.data)
-    print(f'loaded data shape is {data.shape}')
-    if LIMIT_TRAINING_DATA is not None:
-        data = data[:LIMIT_TRAINING_DATA]
-    # create the model
-    if args.model=='dense':
-        AE = FAT(
-            num_ifos=NUM_IFOS,
-            num_timesteps=SEG_NUM_TIMESTEPS,
-            BOTTLENECK=BOTTLENECK,
-            FACTOR=FACTOR).to(DEVICE)
-    elif args.model=='lstm':
-        AE = LSTM_AE(
-            input_dim=NUM_IFOS,
-            encoding_dim=10,
-            h_dims=[64],
-        )
-    elif args.model=='transformer':
-        AE = None
-        print('OOOPS NOT IMPLEMENTED')
+
+    data_name = (args.data).split("/")[-1][:-4]
+    #SEG_NUM_TIMESTEPS = 100
+    if 1:
+        if data_name in ["bbh", "sg"]:
+            # curriculus learning scheme
+            noisy_data = np.load(args.data) #n_currics, n_samples, ifo, timesteps
+            clean_data = np.load(f"{args.data[:-4]}_clean.npy")
+
+
+            #noisy_data = noisy_data[:, :, :, :100]
+            #clean_data = clean_data[:, :, :, :100]
+            n_currics = len(noisy_data)
+            print("n_currics", n_currics)
+            # normalization scheme
+
+            noisy_data_ = noisy_data.reshape(5, 90000, 400)
+            stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
+            noisy_data = noisy_data / stds
+            clean_data = clean_data / stds
+
+            #shuffle
+            p = np.random.permutation(noisy_data.shape[1])
+            noisy_data = noisy_data[:, p, :, :]
+            clean_data = clean_data[:, p, :, :]
+
+        else:
+            assert data_name in ["background", "glitch"]
+            noisy_data = np.load(args.data) # n_samples, ifo, timesteps
+            #noisy_data = noisy_data[:, :, :, :100]
+            print("in", noisy_data.shape)
+
+            n_currics = 1
+            noisy_data = noisy_data[np.newaxis, :, :, :]
+            stds = np.std(noisy_data, axis=-1)[:, :, :, np.newaxis]
+            noisy_data = noisy_data / stds
+            p = np.random.permutation(noisy_data.shape[1])
+            noisy_data = noisy_data[:, p, :, :]
+            clean_data = noisy_data
+
+    # for testing purposes
+    np.save(f"{args.data[:-4]}_noisy_process.npy" ,noisy_data)
+    np.save(f"{args.data[:-4]}_clean_process.npy", clean_data)
+
+    noisy_data = np.load(f"{args.data[:-4]}_noisy_process.npy")
+    clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
+    n_currics = len(noisy_data)
+
+    if data_name == "lstm":
+        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name],
+                FACTOR=FACTOR).to(DEVICE)
+
+    elif data_name == "dense":
+        AE = FAT(num_ifos=NUM_IFOS,
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name],
+                FACTOR=FACTOR).to(DEVICE)
 
     optimizer = optim.Adam(AE.parameters())
 
-    if LOSS == "MAE":
+    if LOSS == 'MAE':
         loss_fn = nn.L1Loss()
     else:
         # add in support for more losses?
         raise Exception("Unknown loss function")
 
-    # create the dataset and validation set
-    validation_split_index = int((1-VALIDATION_SPLIT) * len(data))
-    train_data = data[:validation_split_index]
-    validation_data = data[validation_split_index:]
+    curriculum_master = []
+    for c in range(n_currics):
+        #noisy_data, clean_data
+        data_x, data_y = noisy_data[c], clean_data[c]
+        # create the dataset and validation set
+        validation_split_index = int((1-VALIDATION_SPLIT) * len(data_x))
 
-    train_data = torch.from_numpy(train_data).float().to(DEVICE)
-    print(f'training data shape is {train_data.shape}')
-    validation_data = torch.from_numpy(validation_data).float().to(DEVICE)
+        train_data_x = data_x[:validation_split_index]
+        train_data_x = torch.from_numpy(train_data_x).float().to(DEVICE)
+        train_data_y = data_y[:validation_split_index]
+        train_data_y = torch.from_numpy(train_data_y).float().to(DEVICE)
 
-    dataloader = []
-    N_batches = len(train_data) // BATCH_SIZE
-    for i in range(N_batches-1):
-        start, end = i*BATCH_SIZE, (i+1) * BATCH_SIZE
-        dataloader.append(train_data[start:end])
+        validation_data_x = data_x[validation_split_index:]
+        validation_data_x = torch.from_numpy(validation_data_x).float().to(DEVICE)
+        validation_data_y = data_y[validation_split_index:]
+        validation_data_y = torch.from_numpy(validation_data_y).float().to(DEVICE)
 
+
+        dataloader = []
+        N_batches = len(train_data_x) // BATCH_SIZE
+        for i in range(N_batches-1):
+            start, end = i*BATCH_SIZE, (i+1) * BATCH_SIZE
+            dataloader.append([ train_data_x[start:end] ,
+                               train_data_y[start:end] ])
+
+        curriculum_master.append([
+            dataloader,
+            validation_data_x,
+            validation_data_y
+        ])
     training_history = {
         'train_loss': [],
-        'val_loss': []
+        'val_loss': [],
+        'curric_step': []
     }
     # training loop
+    epoch_count = 0
+    for curric_num in range(n_currics):
+        dataloader, validation_data_x, validation_data_y = curriculum_master[curric_num]
+        for epoch_num in range(EPOCHS//n_currics):
+            epoch_count += 1
+            ts = time.time()
+            epoch_train_loss = 0
+            for batch in dataloader:
+                train_data_x, train_data_y = batch
+                optimizer.zero_grad()
+                #print("shape 83", batch.shape)
+                output = AE(train_data_x)
+                loss = loss_fn(train_data_y, output)
+                epoch_train_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+            epoch_train_loss /= N_batches
+            training_history['train_loss'].append(epoch_train_loss)
+            validation_loss = loss_fn(validation_data_y,
+                                    AE(validation_data_x))
+            training_history['val_loss'].append(validation_loss.item())
+            training_history['curric_step'].append(curric_num)
+            #scheduler.step(validation_loss)
 
-    for epoch_num in range(EPOCHS):
-        ts = time.time()
-        epoch_train_loss = 0
-        for batch in dataloader:
-            optimizer.zero_grad()
-            #print("shape 83", batch.shape)
-            output = AE(batch)
-            loss = loss_fn(batch, output)
-            epoch_train_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-        epoch_train_loss /= N_batches
-        training_history['train_loss'].append(epoch_train_loss)
-        validation_loss = loss_fn(validation_data,
-                                AE(validation_data))
-        training_history['val_loss'].append(validation_loss.item())
-        #scheduler.step(validation_loss)
+            if TRAINING_VERBOSE:
+                elapsed_time = time.time() - ts
 
-        if TRAINING_VERBOSE:
-            elapsed_time = time.time() - ts
-            data_name = (args.data).split("/")[-1][:-4]
-            print(f"data: {data_name}, epoch: {epoch_num}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}")
+                print(f"data: {data_name}, epoch: {epoch_count}, train loss: {epoch_train_loss :.4f}, val loss: {validation_loss :.4f}, time: {elapsed_time :.4f}")
+        # reset the optimizer after each curriculum iteration
+        optimizer = optim.Adam(AE.parameters())
 
     # save the model
     torch.save(AE.state_dict(), f'{args.save_file}')
@@ -119,14 +185,32 @@ def main(args):
             np.array(training_history['val_loss']))
 
     # plot training history
-    plt.figure(figsize=(15, 10))
-    plt.plot(np.array(training_history['train_loss']), label='loss')
-    plt.plot(np.array(training_history['val_loss']), label='val loss')
-    plt.legend()
-    plt.xlabel('Number of epochs', fontsize=17)
-    plt.ylabel('Loss', fontsize=17)
-    plt.title('Loss curve for training network', fontsize=17)
+    centers = CURRICULUM_SNRS
+
+    fig, ax = plt.subplots(1, figsize=(8, 5))
+    epochs = np.linspace(1, epoch_count, epoch_count)
+
+    ax.plot(epochs, np.array(training_history['train_loss']), label = "Training loss")
+    ax.plot(epochs, np.array(training_history['val_loss']), label = "Validation loss")
+
+
+    ax.legend()
+    ax.set_xlabel("Epochs", fontsize=15)
+    ax.set_ylabel("Loss", fontsize=15)
+    ax.grid()
+
+    #ax_1.plot(np.array(training_history['curric_step']), label = 'curric_step', c='red')
+    if n_currics != 1:
+        ax_1 = ax.twinx()
+        for i in range(n_currics):
+            low, high = centers[i]-centers[i]//4, centers[i] + centers[i]//2
+            ax_1.fill_between(epochs[i*EPOCHS//n_currics:(i+1)*EPOCHS//n_currics+1], low, high, color="blue", alpha=0.2)
+        #ax_1.legend()
+        #ax_1.set_yscale("log")
+        ax_1.set_ylabel("SNR range", fontsize=15)
+
     plt.savefig(f'{args.savedir}/loss.pdf', dpi=300)
+
 
 if __name__ == '__main__':
 
