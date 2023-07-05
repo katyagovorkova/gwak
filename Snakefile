@@ -11,7 +11,8 @@ dataclasses = [
     'sg_fm_optimization',
     'bbh_varying_snr',
     'sg_varying_snr',
-    'wnb_varying_snr']
+    'wnb_varying_snr',
+    'supernova_varying_snr']
 
 wildcard_constraints:
     model = '|'.join([x for x in models]),
@@ -98,7 +99,9 @@ rule train_quak:
 rule recreation_and_quak_plots:
     input:
         model_path = 'output/{model}/trained/models/',
-        test_path = expand(rules.upload_train_test_data.params.test_data, dataclass='bbh')
+        test_path = expand(rules.upload_data.output,
+            dataclass='bbh',
+            version=VERSION)
     output:
         savedir = directory('output/{model}/plots/')
     shell:

@@ -11,14 +11,17 @@ from config import VERSION
 
 def main(args):
 
-    fig, ax = plt.subplots(len(args.datasets), figsize=(15, len(args.datasets)*5))
+    fig, ax = plt.subplots(
+        nrows=len(args.datasets)+2,
+        ncols=2,
+        figsize=(15, len(args.datasets)*5))
 
     with open(f'data/{VERSION}/info.txt', 'w') as f:
-
-        for i, dataset_file in enumerate(args.datasets):
+        i = 0
+        for dataset_file in args.datasets:
 
             data = np.load(dataset_file)
-            dataname = os.path.basename(dataset).strip('.npy')
+            dataname = os.path.basename(dataset_file).strip('.npy')
 
             if 'data' in data.keys():
                 dataset = data['data']
@@ -28,18 +31,39 @@ def main(args):
                 f.write(f'{dataset_file} \n')
                 f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
 
-                ax[i].plot(dataset[0].flatten())
-                ax[i].set_title(f'{dataset_file}')
+                ax[i][0].plot(dataset[0,0].flatten())
+                ax[i][1].plot(dataset[0,1].flatten())
+                ax[i][0].set_title(f'{dataset_file}')
             else:
 
-                for data_t in ['clean', 'noisy']:
-                    dataset = data[data_t]
-                    print(f'{dataset_file}')
-                    f.write(f'{dataset_file} {data_t}\n')
-                    f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
+                dataset = data['noisy']
+                print(f'{dataset_file} noisy')
+                f.write(f'{dataset_file} noisy \n')
+                f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
 
-                    ax[i].plot(dataset.flatten())
-                    ax[i].set_title(f'{dataset}')
+                ax[i][0].plot(dataset[0,0,0,:].flatten(), label='noisy')
+                ax[i][1].plot(dataset[0,0,1,:].flatten(), label='noisy')
+                ax[i+1][0].plot(dataset[-1,0,0,:].flatten(), label='noisy')
+                ax[i+1][1].plot(dataset[-1,0,1,:].flatten(), label='noisy')
+                ax[i][0].set_title(f'{dataset_file} first batch')
+                ax[i+1][0].set_title(f'{dataset_file} last batch')
+
+                dataset = data['clean']
+                print(f'{dataset_file} clean')
+                f.write(f'{dataset_file} clean \n')
+                f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
+
+                ax[i][0].plot(dataset[0,0,0,:].flatten(), label='clean')
+                ax[i][1].plot(dataset[0,0,1,:].flatten(), label='clean')
+                ax[i+1][0].plot(dataset[-1,0,0,:].flatten(), label='clean')
+                ax[i+1][1].plot(dataset[-1,0,1,:].flatten(), label='clean')
+
+                ax[i][0].legend()
+                ax[i+1][0].legend()
+
+                i += 1
+
+            i += 1
 
     fig.savefig(f'data/{VERSION}/info.pdf')
 
