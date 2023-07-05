@@ -2,7 +2,7 @@ import os
 import numpy as np
 import bilby
 import argparse
-
+import scipy
 from typing import Callable
 from helper_functions import (
     load_folder,
@@ -51,7 +51,10 @@ from config import (
     VARYING_SNR_LOW,
     VARYING_SNR_HIGH,
     VARYING_SNR_SEGMENT_INJECTION_LENGTH,
-    CURRICULUM_SNRS
+    CURRICULUM_SNRS,
+    SNR_SN_LOW,
+    SNR_SN_HIGH,
+    LOADED_DATA_SAMPLE_RATE # goes for the SN signals as well
     )
 
 
@@ -454,6 +457,57 @@ def make_snr_sampler(distribution, low, hi):
 
     return sampler
 
+def fetch_sn_polarization(path):
+    # load the .txt files for all the phi, theta values as an array of cross and plus numpy arras
+    # resample from the original 16384 down to 4096
+
+    def reduce_name(name):
+        # specific for powell
+        mass, eos, phi, theta, _, mode = name.split("_")
+        phi, theta, mode = phi[3:], theta[5:], mode[:-4]
+        return mass, eos, phi, theta, mode
+
+
+    cross = dict()
+    plus = dict()
+
+    for file in os.listdir(path):
+        mass, eos, phi, theta, mode = reduce_name(file)
+        iden = f"{phi}_{theta}"
+        if mode == "hcross":
+            cross[iden] = np.loadtxt(f"{path}/{file}")
+        else:
+            assert mode == "hplus"
+            plus[iden] = np.loadtxt(f"{path}/{file}")
+            load_len = len(plus[iden]) #for powell, they are all the same
+
+    assert LOADED_DATA_SAMPLE_RATE == 16384
+    downsample_len = int(load_len * SAMPLE_RATE / LOADED_DATA_SAMPLE_RATE)
+    n_samples = len(plus.keys())
+    assert len(cross.keys()) == n_samples
+
+    cross_arr = np.zeros((n_samples, downsample_len))
+    plus_arr = np.zeros((n_samples, downsample_len))
+    for i, iden in enumerate(cross.keys()):
+        assert iden in plus.keys()
+
+        # downsample
+        cross_pol = scipy.signal.resample(cross[iden], downsample_len)
+        plus_pol = scipy.signal.resample(plus[iden], downsample_len)
+
+        # add to arrays
+        cross_arr[i] = cross_pol
+        plus_arr[i] = plus_pol
+
+    return cross_arr, plus_arr
+
+def repeat_arr(arr, n):
+    # repeat a 2-d array n times along axis 0
+    fill = np.zeros( (arr.shape[0] * n, arr.shape[1]))
+    for i in range(n):
+        fill[i*arr.shape[0]:(i+1)*arr.shape[0], :] = arr
+        
+    return fill
 
 def main(args):
     sampled_snr = None
@@ -610,6 +664,27 @@ def main(args):
                                      SNR=sampler,
                                      return_injection_snr=True)
 
+    elif args.stype == "supernova_varying_snr":
+        # 1 : Fetch the polarization files
+        SN_cross, SN_plus = fetch_sn_polarization(args.sn_polarization_path)
+
+        #copy the array to get more samples, approximately equal to N_VARYING_SNR_INJECTIONS
+        #"uniform" prior over the cross and plus, so just copy each one some number of times
+        n_repeat =  int(N_VARYING_SNR_INJECTIONS /len(SN_cross))
+        SN_cross, SN_plus = repeat_arr(SN_cross, n_repeat), repeat_arr(SN_plus, n_repeat)
+
+
+        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, SNR_SN_LOW, SNR_SN_HIGH)
+
+        # 2: create injections with those polarizations
+        training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
+                                     data=[SN_cross, SN_plus],
+                                     segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                     inject_at_end = True,
+                                     SNR=sampler,
+                                     return_injection_snr=True)
+
+
     np.save(args.save_file, training_data)
 
     if sampled_snr is not None:
@@ -632,9 +707,10 @@ if __name__ == '__main__':
                                            'glitch', 'wnb', 'ccsn', 'timeslides',
                                            'bbh_fm_optimization', 'sg_fm_optimization',
                                            'bbh_varying_snr', 'sg_varying_snr',
-                                           'wnb_varying_snr'])
+                                           'wnb_varying_snr', 'supernova_varying_snr'])
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)
+    parser.add_argument('--sn-polarization-path', type=str, default="/home/ryan.raikman/s22/forks/katya/gw-anomaly/data/z85_sfho/")
     args = parser.parse_args()
     main(args)

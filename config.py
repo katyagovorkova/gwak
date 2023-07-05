@@ -117,3 +117,7 @@ VARYING_SNR_SEGMENT_INJECTION_LENGTH = 5
 # false alarm rate calculation
 HISTOGRAM_BIN_DIVISION = 0.05
 HISTOGRAM_BIN_MIN = 500.
+
+# supernova injection
+SNR_SN_LOW = 10
+SNR_SN_HIGH = 200

@@ -177,11 +177,12 @@ def main(args):
 
     if do_snr_vs_far:
         # I will fix this later
-        tags = ['bbh', 'sg', 'wnb']
+        
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
         means, stds = norm_factors[0], norm_factors[1]
+        tags = ['bbh', 'sg', 'wnb', 'supernova']
         for tag in tags:
             mod = ""
             for elem in args.data_predicted_path.split("/")[:-2]:
@@ -199,12 +200,13 @@ def main(args):
         fake_roc_plotting(far_hist, args.plot_savedir)
 
     if do_3_panel_plot:
-        tags = ['bbh', 'sg', 'wnb']
+        
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
         means, stds = norm_factors[0], norm_factors[1]
 
+        tags = ['bbh', 'sg', 'wnb', 'supernova']
         ind = 1
         for tag in tags:
             mod = ""
@@ -216,7 +218,6 @@ def main(args):
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
 
             three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
-        
 
 if __name__ == '__main__':
 

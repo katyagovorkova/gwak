@@ -3,7 +3,7 @@ from config import SAMPLE_RATE, SEG_NUM_TIMESTEPS
 
 models = ['lstm', 'dense', 'transformer']
 modelclasses = ['bbh', 'sg', 'background', 'glitch']
-dataclasses = ['timeslides', 'bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr', 'wnb_varying_snr']
+dataclasses = ['timeslides', 'bbh_fm_optimization','sg_fm_optimization', 'bbh_varying_snr', 'sg_varying_snr', 'wnb_varying_snr', 'supernova_varying_snr']
 wildcard_constraints:
     model = '|'.join([x for x in models]),
     modelclass = '|'.join([x for x in modelclasses]),
