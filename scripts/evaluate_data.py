@@ -53,6 +53,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
     quak_predictions_dict = quak_eval(segments_normalized, model_folder_path)
     quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
     quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
+    #quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, 2*len(CLASS_ORDER)))
 
     pearson_values, (edge_start, edge_end) = pearson_computation(data)
     

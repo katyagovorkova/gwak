@@ -55,6 +55,20 @@ def optimize_hyperplane(signals, backgrounds):
     
     return network.layer.weight.data.cpu().numpy()[0]
 
+def engineered_features(data):
+    #print(data[0, :10, :])
+    newdata = np.zeros(data.shape)
+
+    for i in range(4):
+        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
+        newdata[:, :, 2*i] = (a+b)/2
+        newdata[:, :, 2*i+1] = abs(a-b) / (a+b + 0.01)
+
+    newdata[:, :, -1] = data[:, :, -1]
+
+    #print(newdata[0, :10, :])
+    #assert 0
+    return newdata
 
 def main(args):
     '''
@@ -93,10 +107,19 @@ def main(args):
 
     np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
-    signal_evals = (signal_evals-means)#/stds
+    signal_evals = (signal_evals-means)/stds
     timeslide_evals = (timeslide_evals-means)/stds
 
     signal_evals = signal_evals[:, 1300:1550, :]
+    print(signal_evals.shape)
+    print(timeslide_evals.shape)
+
+    #signal_evals = engineered_features(signal_evals)
+    #print(signal_evals.shape)
+    #timeslide_evals = engineered_features(timeslide_evals)
+    #print(timeslide_evals.shape)
+    print("DONEODONEOENE")
+    #assert 0
     
 
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)

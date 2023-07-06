@@ -65,6 +65,17 @@ def mae_torch_noncoherent(a, b):
     han, liv = loss[:, 0], loss[:, 1]
     return 0.5 * ( -0*(han-liv)**2+han+liv )
 
+def mae_torch_coherent_(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    print("70", loss.shape)
+    return loss
+
+def mae_torch_noncoherent_(a, b):
+    loss = torch.abs(a-b).mean(axis=-1)
+    print("70", loss.shape)
+    return loss
+
+
 def mae_torch_(a, b):
     #highly illegal!!!
     assert a.shape[1] == NUM_IFOS
@@ -106,6 +117,7 @@ def stack_dict_into_tensor(data_dict):
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_tensor[:, stack_index] = data_dict[class_name]
+        #stacked_tensor[:, stack_index*2:stack_index*2+2] = data_dict[class_name]
     
     return stacked_tensor
 
