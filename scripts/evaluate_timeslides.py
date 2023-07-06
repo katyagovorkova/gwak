@@ -29,8 +29,9 @@ def main(args):
 
     data = np.load(args.data_path)
     data = torch.from_numpy(data).to(DEVICE)
-    data = data[:, :int(data.shape[1]/10)]
+    #data = data[:, :int(data.shape[1]/10)]
     print("SHAPE", data.shape)
+    reduction = 10 #for things to fit into memory nicely
     #assert 0
 
     timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
@@ -43,7 +44,9 @@ def main(args):
     for timeslide_num in range(1, n_timeslides+1):
         print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
         ts = time.time()
-        indicies_to_slide = int(timeslide_num*TIMESLIDE_STEP*SAMPLE_RATE)
+        #indicies_to_slide = int(timeslide_num*TIMESLIDE_STEP*SAMPLE_RATE)
+        indicies_to_slide = np.random.uniform(SAMPLE_RATE, data.shape[1]-SAMPLE_RATE)
+        indicies_to_slide = int(indicies_to_slide)
         timeslide = torch.empty(data.shape, device = DEVICE)
 
         # hanford unchanged
@@ -51,6 +54,12 @@ def main(args):
         # livingston slid
         timeslide[1, :indicies_to_slide] = data[1, -indicies_to_slide:]
         timeslide[1, indicies_to_slide:] = data[1, :-indicies_to_slide] 
+        # make a random cut with the reduced shape
+        reduced_len = int(data.shape[1]/reduction)
+        start_point = int(np.random.uniform(0, data.shape[1]-SAMPLE_RATE-reduced_len))
+        timeslide = timeslide[:, start_point:start_point+reduced_len]
+
+
         timeslide = timeslide[:, :(timeslide.shape[1]//1000)*1000]
 
         final_values = full_evaluation(timeslide[None, :, :], args.model_folder_path)

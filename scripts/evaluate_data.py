@@ -28,7 +28,7 @@ from config import (
 DEVICE = torch.device(GPU_NAME)
 
 
-def full_evaluation(data, model_folder_path):
+def full_evaluation(data, model_folder_path, return_midpoints=False):
     '''
     Passed in data is of shape (N_samples, 2, time_axis)
     '''
@@ -42,6 +42,13 @@ def full_evaluation(data, model_folder_path):
     data = data[:, :, :clipped_time_axis]
 
     segments = split_into_segments_torch(data)
+    #print("segments", segments.shape)
+    slice_midpoints = np.arange(SEG_NUM_TIMESTEPS//2, segments.shape[1] * (SEGMENT_OVERLAP) + SEG_NUM_TIMESTEPS//2, SEGMENT_OVERLAP)
+    print(segments.shape, (len(slice_midpoints)))
+    #print(slice_midpoints[:10])
+    #print(len(slice_midpoints))
+    #assert 0
+
     segments_normalized = std_normalizer_torch(segments)
 
     # segments_normalized at this point is (N_batches, N_samples, 2, 100) and
@@ -56,6 +63,7 @@ def full_evaluation(data, model_folder_path):
     
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
+    slice_midpoints = slice_midpoints[edge_start:edge_end]
     #print(quak_predictions.shape, pearson_values.shape)
     final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
 
@@ -63,6 +71,8 @@ def full_evaluation(data, model_folder_path):
         # do it before significance?
         kernel = torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE)/N_SMOOTHING_KERNEL
 
+    if return_midpoints:
+        return final_values, slice_midpoints
     return final_values
 
 
