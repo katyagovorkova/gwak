@@ -12,12 +12,12 @@ class FAT(nn.Module):
         super(FAT, self).__init__()
         self.num_timesteps = num_timesteps
         self.num_ifos = num_ifos
-        self.Linear1 = nn.Linear(num_timesteps*2, 2**9)
-        self.Linear2 = nn.Linear(2**9, 2**11)
-        self.Linear3 = nn.Linear(2**11, BOTTLENECK)
-        self.Linear4 = nn.Linear(BOTTLENECK, 2**11)
-        self.Linear5 = nn.Linear(2**11, 2**9)
-        self.Linear6 = nn.Linear(2**9, num_timesteps*2)
+        self.Linear1 = nn.Linear(num_timesteps*2, 2**7)
+        self.Linear2 = nn.Linear(2**7, 2**9)
+        self.Linear3 = nn.Linear(2**9, BOTTLENECK)
+        self.Linear4 = nn.Linear(BOTTLENECK, 2**9)
+        self.Linear5 = nn.Linear(2**9, 2**7)
+        self.Linear6 = nn.Linear(2**7, num_timesteps*2)
         #self.Conv2 = nn.Conv1d(in_channels=5, out_channels = 2, kernel_size = 5, padding = 'same')
         
     def forward(self, x):

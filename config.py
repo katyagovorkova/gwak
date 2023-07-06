@@ -60,7 +60,7 @@ STATE_FLAG = 'DCS-ANALYSIS_READY_C01:1'
 
 # training
 TEST_SPLIT = 0.9
-BOTTLENECK = {"bbh":4, "sg":8, "glitch":12, "background":12}
+BOTTLENECK = {"bbh":4, "sg":8, "glitch":6, "background":8}
 MODEL = {"bbh": "lstm", "sg":"lstm", "glitch":"dense", "background":"dense"}
 FACTOR = 2
 EPOCHS = 200

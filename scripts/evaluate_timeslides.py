@@ -39,11 +39,12 @@ def main(args):
         timeslide_total_duration = FM_TIMESLIDE_TOTAL_DURATION
 
     sample_length = data.shape[1] / SAMPLE_RATE
-    n_timeslides = int(timeslide_total_duration // sample_length)
+    n_timeslides = int(timeslide_total_duration // sample_length) * reduction
     print("Number of timeslides:", n_timeslides)
     for timeslide_num in range(1, n_timeslides+1):
         print(f"starting timeslide: {timeslide_num}/{n_timeslides}")
-        ts = time.time()
+        #ts = time.time()
+        ts_ = time.time()
         #indicies_to_slide = int(timeslide_num*TIMESLIDE_STEP*SAMPLE_RATE)
         indicies_to_slide = np.random.uniform(SAMPLE_RATE, data.shape[1]-SAMPLE_RATE)
         indicies_to_slide = int(indicies_to_slide)
@@ -61,9 +62,11 @@ def main(args):
 
 
         timeslide = timeslide[:, :(timeslide.shape[1]//1000)*1000]
-
+        #print("loading", time.time()-ts)
+        ts = time.time()
         final_values = full_evaluation(timeslide[None, :, :], args.model_folder_path)
-
+        #print("evaluation", time.time()-ts)
+        ts = time.time()
         if args.metric_coefs_path is not None:
             # compute the dot product and save that instead
             metric_vals = np.load(args.metric_coefs_path)
@@ -92,8 +95,8 @@ def main(args):
             final_values = final_values.detach().cpu().numpy()
             # save as a numpy file, with the index of timeslide_num
             np.save(f"{args.save_path}/timeslide_evals_{timeslide_num}.npy", final_values)
-        
-        print(f"Iteration, {timeslide_num}, done in {time.time() - ts :.3f} s")
+        #print("other things", time.time()-ts)
+        print(f"Iteration, {timeslide_num}, done in {time.time() - ts_ :.3f} s")
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()

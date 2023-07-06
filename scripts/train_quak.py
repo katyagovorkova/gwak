@@ -74,23 +74,24 @@ def main(args):
             noisy_data = noisy_data[:, p, :, :]
             clean_data = noisy_data
 
-    # for testing purposes
-    np.save(f"{args.data[:-4]}_noisy_process.npy" ,noisy_data)
-    np.save(f"{args.data[:-4]}_clean_process.npy", clean_data)
-    
-    noisy_data = np.load(f"{args.data[:-4]}_noisy_process.npy")
-    clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
-    n_currics = len(noisy_data)
-    # read the input data
+    if 0:
+        # for testing purposes
+        np.save(f"{args.data[:-4]}_noisy_process.npy" ,noisy_data)
+        np.save(f"{args.data[:-4]}_clean_process.npy", clean_data)
+        
+        noisy_data = np.load(f"{args.data[:-4]}_noisy_process.npy")
+        clean_data = np.load(f"{args.data[:-4]}_clean_process.npy")
+        n_currics = len(noisy_data)
+        # read the input data
     
 
-    if data_name == "lstm":
+    if data_name in ["bbh", "sg"]:
         AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                 num_timesteps=SEG_NUM_TIMESTEPS,
                 BOTTLENECK=BOTTLENECK[data_name],
                 FACTOR=FACTOR).to(DEVICE)
         
-    elif data_name == "dense":
+    elif data_name in ["background", "glitch"]:
         AE = FAT(num_ifos=NUM_IFOS,
                 num_timesteps=SEG_NUM_TIMESTEPS,
                 BOTTLENECK=BOTTLENECK[data_name],

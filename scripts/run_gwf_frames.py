@@ -5,6 +5,8 @@ from astropy import units as u
 from evaluate_data import full_evaluation 
 import matplotlib.pyplot as plt
 
+from config import SEGMENT_OVERLAP, SAMPLE_RATE
+
 def clustering(x, bar=5*4096/5): #5 second spacing between events
     cluster = []
     cluster.append(x[0])
@@ -80,6 +82,7 @@ def whiten_bandpass_resample(file, sample_rate, bandpass_low, bandpass_high, sav
     means, stds = np.load("/home/ryan.raikman/s22/forks/katya/gw-anomaly/output/lstm/trained/norm_factor_params.npy")
     evals = (evals-means)/stds
     final = np.dot(evals, params)
+    evals = np.multiply(evals, params) #for plotting purposes
     strains = np.stack([np.array(strainH1), np.array(strainL1)])
     if 0:
         np.save("./evals.npy", evals)
@@ -103,35 +106,35 @@ def whiten_bandpass_resample(file, sample_rate, bandpass_low, bandpass_high, sav
         loudest = eval_locations[j]
         
         
-        left_edge = 100
+        left_edge = 200
         right_edge = 400
-        n_points = 500
+        n_points = left_edge+right_edge
         labels = ['background', 'bbh', 'glitch', 'sg', 'pearson']
-        quak_evals_ts = np.linspace(0, n_points*(5/4096), n_points)
+        quak_evals_ts = np.linspace(0, n_points*(SEGMENT_OVERLAP/SAMPLE_RATE), n_points)
         if len(evals[loudest-left_edge:loudest+right_edge, i]) != len(quak_evals_ts):
             continue #bypassing edge effects
             
         fig, axs = plt.subplots(1, 2, figsize=(18, 6))
         for i in range(5):
             axs[0].plot(quak_evals_ts*1000, evals[loudest-left_edge:loudest+right_edge, i], label = labels[i])
-
+        axs[0].plot(quak_evals_ts*1000, final[loudest-left_edge:loudest+right_edge], label = "final metric")
         axs[0].legend()
         axs[0].set_xlabel("Time, (ms)")
-        axs[0].set_ylabel("Relative mean deviation, sigma")
+        axs[0].set_ylabel("Contribution to final metric")
 
         p = midpoints[loudest]
-        left_edge, right_edge = left_edge * 5, right_edge*5
-        strain_ts = np.linspace(0, (right_edge+left_edge)/4096, right_edge+left_edge)
-        axs[1].plot(strain_ts*1000, strains[0, p-left_edge:p+right_edge], label = "Hanford")
-        axs[1].plot(strain_ts*1000, strains[1, p-left_edge:p+right_edge], label = "Livingston")
+        left_edge, right_edge = left_edge * SEGMENT_OVERLAP, right_edge*SEGMENT_OVERLAP
+        strain_ts = np.linspace(0, (right_edge+left_edge)/SAMPLE_RATE, right_edge+left_edge)
+        axs[1].plot(strain_ts*1000, strains[0, p-left_edge:p+right_edge], label = "Hanford", alpha=0.8)
+        axs[1].plot(strain_ts*1000, strains[1, p-left_edge:p+right_edge], label = "Livingston", alpha=0.8)
         axs[1].set_xlabel("Time, (ms)")
         axs[1].set_ylabel("strain")
         axs[1].legend()
-        axs[1].set_title(f"strain index: {p}, gps time: {p/4096:.3f} + {start_point}")
+        axs[1].set_title(f"strain index: {p}, gps time: {p/SAMPLE_RATE:.3f} + {start_point}")
 
     
 
-        plt.savefig(f"{savedir}/{start_point}/graphs_{j}_{p/4096:.3f}.png", dpi=300)
+        plt.savefig(f"{savedir}/{start_point}/graphs_{j}_{p/SAMPLE_RATE:.3f}.png", dpi=300)
         plt.close()
     gps_times = []
     for j in range(len(midpoint_clusters)):
@@ -143,44 +146,52 @@ def whiten_bandpass_resample(file, sample_rate, bandpass_low, bandpass_high, sav
     #compile the desired info
     analysis_results = np.zeros((len(midpoint_clusters), 7))
     #peak GPS, start GPS, end GPS, characteristic_frequency, lower_frequency, upper_frequency, ranking_statistic_value, false_alarm_rate
+    print("midpoint clusters", midpoint_clusters)
     for j in range(len(midpoint_clusters)):
         loudest = eval_locations[j]
-        p = midpoints[loudest]
+        #p = midpoints[loudest]
+        print("152", np.where(midpoints == midpoint_clusters[j]))
+        loc = np.where(midpoints == midpoint_clusters[j])[0][0]
 
-        search_window = int(2.5 * 4096) # 2.5 seconds to the left, 5 seconds to the right (since "loudest" is more or less the start time)
+        
 
-        search_space = midpoints[loudest-search_window:loudest+2*search_window]
+        search_window = int(2.5 * SAMPLE_RATE/SEGMENT_OVERLAP) # 2.5 seconds to the left, 5 seconds to the right (since "loudest" is more or less the start time)
+        search_space = np.arange(loc-search_window, loc+2*search_window, SEGMENT_OVERLAP)
+        #search_space = midpoints[loudest-search_window:loudest+2*search_window]
         start = None
         lowest_midp = None
         lowest_val = 0
         end = None
+        #assert final[midpoints[loudest]
+        print(search_space)
+        print(search_space[0], search_space[-1])
         for s in search_space:
+            #print(np.where(midpoints==x))
+            #s = np.where(midpoints==x)[0][0] #convert to an index for final array
+            
             if s >= 0 and s < len(final) and final[s] < final_metric_bar: # also make sure that the considered window has not extended outside the segment
                 #valid point for consideration
                 if start == None:
-                    start = s
+                    start = midpoints[s]
 
                 if final[s] < lowest_val:
                     lowest_val = final[s]
-                    lowest_midp = s
+                    lowest_midp = midpoints[s]
 
-                end = s
+                end = midpoints[s]
 
         print("start, lowest_val, lowest, end", start, lowest_val, lowest_midp, end)
 
-        analysis_results[j, 0] = lowest_midp/4096 + int(start_point)
-        analysis_results[j, 1] = start/4096 + int(start_point)
-        analysis_results[j, 2] = end/4096 + int(start_point)
-        
-        analysis_results[j, 6] = lowest_val
+        if lowest_midp != None:
 
-
-
+            analysis_results[j, 0] = lowest_midp/4096 + int(start_point)
+            analysis_results[j, 1] = start/4096 + int(start_point)
+            analysis_results[j, 2] = end/4096 + int(start_point)
+            
+            analysis_results[j, 6] = lowest_val
 
     np.save(f"{savedir}/{start_point}/gps_times.npy", gps_times)
     np.savetxt(f"{savedir}/{start_point}/analysis_results_{start_point}_{end_point}.txt", analysis_results)
-    assert 0
-
 
 
 

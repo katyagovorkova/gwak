@@ -1,7 +1,7 @@
 import os
 import argparse
 import numpy as np
-
+import time
 import torch
 from torchaudio.functional import convolve
 
@@ -42,12 +42,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
     data = data[:, :, :clipped_time_axis]
 
     segments = split_into_segments_torch(data)
-    #print("segments", segments.shape)
     slice_midpoints = np.arange(SEG_NUM_TIMESTEPS//2, segments.shape[1] * (SEGMENT_OVERLAP) + SEG_NUM_TIMESTEPS//2, SEGMENT_OVERLAP)
-    print(segments.shape, (len(slice_midpoints)))
-    #print(slice_midpoints[:10])
-    #print(len(slice_midpoints))
-    #assert 0
 
     segments_normalized = std_normalizer_torch(segments)
 
