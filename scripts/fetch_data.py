@@ -32,6 +32,7 @@ if __name__ == '__main__':
     # Required arguments
     parser.add_argument('folder_path', help='Path to the Omicron output',
                         type=str)
+
     parser.add_argument('intersections', help='Path to the intersections file',
                         type=str)
 
