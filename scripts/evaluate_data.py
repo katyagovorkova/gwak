@@ -81,9 +81,10 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
 
 def main(args):
     data = np.load(args.data_path)['data']
-    n_batches_total = data.shape[0]
+    print('loaded data shape:', data.shape)
     if data.shape[0] == 2:
         data = data.swapaxes(0, 1)
+    n_batches_total = data.shape[0]
 
     _, timeaxis_size, feature_size = full_evaluation(
         data[:2], args.model_paths).cpu().numpy().shape

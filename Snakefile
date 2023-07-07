@@ -92,19 +92,9 @@ rule train_quak:
         'mkdir -p {output.savedir}; '
         'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
 
-rule upload_models:
-    input:
-        expand(rules.train_quak.output.model_file,
-            dataclass='{dataclass}'),
-    output:
-        '/home/katya.govorkova/gwak/{version}/models/{dataclass}.pt'
-    shell:
-        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/models/; '
-        'cp {input} {output}; '
-
 rule recreation_and_quak_plots:
     input:
-        models = expand(rules.upload_models.output,
+        models = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         test_path = expand(rules.upload_data.params,
@@ -121,7 +111,7 @@ rule generate_timeslides_for_final_metric_train:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
-        model_path = expand(rules.upload_models.output,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION)
     params:
@@ -138,7 +128,7 @@ rule evaluate_signals:
         source_file = expand(rules.upload_data.params,
             dataclass='{signal_dataclass}',
             version=VERSION),
-        model_path = expand(rules.upload_models.output,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION)
     output:
@@ -170,7 +160,7 @@ rule compute_far:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
-        model_path = expand(rules.upload_models.output,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         metric_coefs_path = rules.train_final_metric.output.params_file,
@@ -187,7 +177,7 @@ rule compute_far:
 
 rule quak_plotting_prediction_and_recreation:
     input:
-        model_path = expand(rules.upload_models.output,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         test_data = expand(rules.upload_data.params,
@@ -206,6 +196,8 @@ rule plot_results:
         rules.compute_far.output.save_path,
         'output/evaluated/bbh_varying_snr_evals.npy',
         'output/evaluated/sg_varying_snr_evals.npy',
+        'output/evaluated/wnb_varying_snr_evals.npy',
+        'output/evaluated/supernova_varying_snr_evals.npy'
     params:
         evaluation_dir = 'output/',
     output:
