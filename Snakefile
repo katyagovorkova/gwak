@@ -1,7 +1,5 @@
 from config import VERSION
 
-models = ['lstm', 'dense', 'transformer']
-
 signalclasses = ['bbh', 'sg']
 backgroundclasses = ['background', 'glitches']
 modelclasses = signalclasses + backgroundclasses
@@ -15,7 +13,6 @@ dataclasses = [
     'supernova_varying_snr']
 
 wildcard_constraints:
-    model = '|'.join([x for x in models]),
     modelclass = '|'.join([x for x in modelclasses]),
     dataclass = '|'.join([x for x in dataclasses+modelclasses])
 
@@ -72,7 +69,7 @@ rule upload_data:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
-        'cp {input} {output}; '
+        'cp {input} {params}; '
 
 rule validate_data:
     input:
@@ -89,37 +86,48 @@ rule train_quak:
             dataclass='{dataclass}',
             version=VERSION)
     output:
-        savedir = directory('output/{model}/trained/{dataclass}'),
-        model_file = 'output/{model}/trained/models/{dataclass}.pt'
+        savedir = directory('output/trained/{dataclass}'),
+        model_file = 'output/trained/models/{dataclass}.pt'
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir} \
-            --model {wildcards.model}'
+        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
+
+rule upload_models:
+    input:
+        expand(rules.train_quak.output.model_file,
+            dataclass='{dataclass}'),
+    output:
+        '/home/katya.govorkova/gwak/{version}/models/{dataclass}.pt'
+    shell:
+        'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/models/; '
+        'cp {input} {output}; '
 
 rule recreation_and_quak_plots:
     input:
-        model_path = 'output/{model}/trained/models/',
+        models = expand(rules.upload_models.output,
+            dataclass=modelclasses,
+            version=VERSION),
         test_path = expand(rules.upload_data.params,
             dataclass='bbh',
             version=VERSION)
     output:
-        savedir = directory('output/{model}/plots/')
+        savedir = directory('output/plots/')
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.model_path} {output.savedir}'
+        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.models} {output.savedir}'
 
 rule generate_timeslides_for_final_metric_train:
     input:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
-        model_path = expand(rules.train_quak.output.model_file,
+        model_path = expand(rules.upload_models.output,
             dataclass=modelclasses,
-            model='{model}')
+            version=VERSION)
     params:
         shorten_timeslides = True
     output:
-        save_folder_path = directory('output/{model}/timeslides/')
+        save_folder_path = directory('output/timeslides/')
     shell:
         'mkdir -p {output.save_folder_path}; '
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
@@ -130,51 +138,47 @@ rule evaluate_signals:
         source_file = expand(rules.upload_data.params,
             dataclass='{signal_dataclass}',
             version=VERSION),
-        model_path = expand(rules.train_quak.output.model_file,
+        model_path = expand(rules.upload_models.output,
             dataclass=modelclasses,
-            model='{model}')
+            version=VERSION)
     output:
-        save_file = 'output/{model}/evaluated/{signal_dataclass}_evals.npy',
+        save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
     shell:
         'python3 scripts/evaluate_data.py {input.source_file} {output.save_file} {input.model_path}'
 
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization'],
-            model='{model}'),
+            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization']),
+        dependencies = rules.generate_timeslides_for_final_metric_train.output
     params:
-        timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',
-            i=range(1, 70),
-            model='{model}'),
-        normfactors = expand('output/{model}/timeslides/normalization_params_{i}.npy',
-            i=range(1, 70),
-            model='{model}')
+        timeslides = expand('output/timeslides/timeslide_evals_{i}.npy',
+            i=range(1, 140)),
+        normfactors = expand('output/timeslides/normalization_params_{i}.npy',
+            i=range(1, 140))
     output:
-        params_file = 'output/{model}/trained/final_metric_params.npy',
-        norm_factor_file = 'output/{model}/trained/norm_factor_params.npy'
+        params_file = 'output/trained/final_metric_params.npy',
+        norm_factor_file = 'output/trained/norm_factor_params.npy'
     shell:
         'python3 scripts/final_metric_optimization.py {output.params_file} {output.norm_factor_file} \
-        --timeslide-path {params.timeslides} \
-        --signal-path {input.signals} \
-        --norm-factor-path {params.normfactors}'
+            --timeslide-path {params.timeslides} \
+            --signal-path {input.signals} \
+            --norm-factor-path {params.normfactors}'
 
 rule compute_far:
     input:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
-        model_path = expand(rules.train_quak.output.model_file,
+        model_path = expand(rules.upload_models.output,
             dataclass=modelclasses,
-            model='{model}'),
-        metric_coefs_path = expand(rules.train_final_metric.output.params_file,
-            model='{model}'),
-        norm_factors_path = expand(rules.train_final_metric.output.norm_factor_file,
-            model='{model}')
+            version=VERSION),
+        metric_coefs_path = rules.train_final_metric.output.params_file,
+        norm_factors_path = rules.train_final_metric.output.norm_factor_file
     params:
         shorten_timeslides = False
     output:
-        save_path = 'output/{model}/far_bins.npy'
+        save_path = 'output/far_bins.npy'
     shell:
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
@@ -183,35 +187,32 @@ rule compute_far:
 
 rule quak_plotting_prediction_and_recreation:
     input:
-        model_path = expand(rules.train_quak.output.model_file,
+        model_path = expand(rules.upload_models.output,
             dataclass=modelclasses,
-            model='{model}'),
+            version=VERSION),
         test_data = expand(rules.upload_data.params,
             dataclass='{dataclass}',
             version=VERSION)
     params:
         reduce_loss = False
     output:
-        save_file = 'output/{model}/evaluated/quak_{dataclass}.npz'
+        save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
         'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
             --model-path {input.model_path} '
 
-rule plot_model_results:
+rule plot_results:
     input:
-        dependencies = rules.compute_far.output.save_path
+        rules.compute_far.output.save_path,
+        'output/evaluated/bbh_varying_snr_evals.npy',
+        'output/evaluated/sg_varying_snr_evals.npy',
     params:
-        evaluation_dir = 'output/{model}/',
+        evaluation_dir = 'output/',
     output:
-        save_path = directory('output/{model}/reconstruction_plots/')
+        save_path = directory('output/paper/')
     shell:
         'mkdir -p {output.save_path}; '
         'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'
-
-rule plot_results:
-    input:
-        expand(rules.plot_model_results.output.save_path,
-            model=models)
 
 rule make_pipeline_plot:
     shell:

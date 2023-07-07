@@ -237,20 +237,17 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
     
 def main(args):
 
-    model_paths = ["bbh.pt", "sg.pt", "background.pt", "glitch.pt"]
-    model_paths = [f"{args.model_path}/{elem}" for elem in model_paths]
-    #do eval on the data
-
+    # do eval on the data
     loss_values_SNR = dict()
     loss_values = dict()
-    do_recreation_plotting=True
+    do_recreation_plotting = True
     if do_recreation_plotting:
         #recreation plotting
         for class_label in CLASS_ORDER:
-            data = np.load(f"{args.test_data_path[:-7]}{class_label}.npy")
             if class_label in ["bbh", "sg"]:
+                data = np.load(f"{args.test_data_path[:-7]}{class_label}.npz")['noisy']
                 loss_values_SNR[class_label] = dict()
-                data_clean = np.load(f"{args.test_data_path[:-7]}{class_label}_clean.npy")
+                data_clean = np.load(f"{args.test_data_path[:-7]}{class_label}.npz")['clean']
                 for SNR_ind in range(len(data)):
                     datum = data[SNR_ind]
                     dat_clean = data_clean[SNR_ind]
@@ -258,7 +255,7 @@ def main(args):
                     datum = datum/stds
                     dat_clean = dat_clean/stds
                     datum = torch.from_numpy(datum).float().to(DEVICE)
-                    evals = quak_eval(datum, model_paths, reduce_loss=False)
+                    evals = quak_eval(datum, args.model_paths, reduce_loss=False)
                     loss_values_SNR[class_label][SNR_ind] = evals['loss']
                     try:
                         os.makedirs(f"{args.savedir}/SNR_{SNR_ind}_{class_label}")
@@ -271,17 +268,18 @@ def main(args):
                         recreated.append(evals['recreated'][class_label_])
                     original = np.stack(original, axis=1)
                     recreated = np.stack(recreated, axis=1)
-                    recreation_plotting(original, 
-                                        recreated, 
+                    recreation_plotting(original,
+                                        recreated,
                                         dat_clean,
                                         f"{args.savedir}/SNR_{SNR_ind}_{class_label}",
                                         class_label)
             else:
+                data = np.load(f"{args.test_data_path[:-7]}{class_label}.npz")['data']
                 datum = data
                 stds = np.std(datum, axis=-1)[:, :, np.newaxis]
                 datum = datum/stds
                 datum = torch.from_numpy(datum).float().to(DEVICE)
-                evals = quak_eval(datum, model_paths, reduce_loss=False)
+                evals = quak_eval(datum, args.model_paths, reduce_loss=False)
                 loss_values[class_label] = evals['loss']
                 try:
                     os.makedirs(f"{args.savedir}/{class_label}/")
@@ -294,13 +292,13 @@ def main(args):
                     recreated.append(evals['recreated'][class_label_])
                 original = np.stack(original, axis=1)
                 recreated = np.stack(recreated, axis=1)
-                recreation_plotting(original, 
-                                    recreated, 
+                recreation_plotting(original,
+                                    recreated,
                                     None,
                                     f"{args.savedir}/{class_label}/",
                                     class_label)
 
-                    
+
     #QUAK plots
     #print(loss_values['background'])
     for SNR_ind in range(5):
@@ -311,7 +309,7 @@ def main(args):
             if class_label in ["sg", "bbh"]:
                 corner_plot_data[class_index] = loss_values_SNR[class_label][SNR_ind]
             else:
-                assert class_label in ["glitch", "background"]
+                assert class_label in ["glitches", "background"]
                 corner_plot_data[class_index] = loss_values[class_label]
             corner_plot_data[class_index] = stack_dict_into_numpy(corner_plot_data[class_index])#[p]#[:, ]
             corner_plot_data[class_index] = corner_plot_data[class_index][np.random.permutation(len(corner_plot_data[class_index]))]
@@ -324,8 +322,8 @@ if __name__ == "__main__":
     # Required arguments
     parser.add_argument('test_data_path', help='Path of test data',
         type=str)
-    parser.add_argument('model_path', help='path to the models',
-        type=str)
+    parser.add_argument('model_paths', help='path to the models',
+        nargs='+', type=str)
     parser.add_argument('savedir', help='path to save the plots',
         type=str)
 

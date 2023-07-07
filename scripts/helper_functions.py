@@ -509,7 +509,6 @@ def inject_hplus_hcross(
         with_noise.append(final_bothdetector[:, np.newaxis, :])
         no_noise.append(final_bothdetector_nonoise[:, np.newaxis, :])
         # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
-        #return final_bothdetector[:, np.newaxis, :], final_bothdetector_nonoise
     if len(with_noise) == 1:
         return with_noise[0], no_noise[0]
     else:
@@ -985,12 +984,9 @@ def far_to_metric(search_time, far_hist):
 
     search_points = total_seconds // search_time
 
-
     i = 0
     while far_hist[:i].sum() < search_points:
         i += 1
 
-
     return i * HISTOGRAM_BIN_DIVISION - HISTOGRAM_BIN_MIN
 
-    

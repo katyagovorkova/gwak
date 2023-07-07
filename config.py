@@ -19,7 +19,7 @@ EDGE_INJECT_SPACING = 1.2
 TRAIN_INJECTION_SEGMENT_LENGTH = 4
 FM_INJECTION_SEGMENT_LENGTH = 15
 FM_INJECTION_SNR = 20
-DO_SMOOTHING = True
+DO_SMOOTHING = False
 N_SMOOTHING_KERNEL = 10
 DATA_EVAL_MAX_BATCH = 3
 
@@ -61,12 +61,12 @@ TEST_SPLIT = 0.9
 BOTTLENECK = {
     'bbh': 4,
     'sg': 8,
-    'glitch': 12,
-    'background': 12}
+    'glitches': 6,
+    'background': 8}
 MODEL = {
     'bbh': 'lstm',
     'sg': 'lstm',
-    'glitch': 'dense',
+    'glitches': 'dense',
     'background': 'dense'}
 EPOCHS = 200
 BATCH_SIZE = 512
@@ -74,7 +74,7 @@ LOSS = 'MAE'
 OPTIMIZER = 'Adam'
 VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
-CLASS_ORDER = ['background', 'bbh', 'glitch', 'sg']
+CLASS_ORDER = ['background', 'bbh', 'glitches', 'sg']
 LIMIT_TRAINING_DATA = None
 CURRICULUM_SNRS = [256, 128, 64, 32, 16]
 
@@ -85,7 +85,7 @@ SHIFT_STEP = 2
 # timeslides
 GW_EVENT_CLEANING_WINDOW = 5
 TIMESLIDE_STEP = 0.5
-TIMESLIDE_TOTAL_DURATION = 0.001*30*24*3600
+TIMESLIDE_TOTAL_DURATION = 6*30*24*3600
 FM_TIMESLIDE_TOTAL_DURATION = 0.01*30*24*3600
 
 # GPU

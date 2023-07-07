@@ -84,9 +84,7 @@ snakemake -c1 fetch_data
 ```
 
 ## Data Generation and pre-processing
-To generate all the necessary samples for the analysis from downloaded data and
-pre-process them for training, use `generate_dataset` and `pre_processing_step` rules.
-Pre-processing includes per-batch standartization
+To generate all the necessary samples for the analysis from downloaded data use `generate_dataset` rule.
 These rules are written using `Wildcards`, such that one rule can be used for
 each of four datasets, eg BBH, SG, glitches and background.
 
@@ -106,8 +104,8 @@ snakemake -c1 calculate_pearson
 ```
 the current implementation is quite slow, so prepare yourself to wait a lot...
 
-## Evolutionary Search training
-To find the optimal coefficients for the final metric, run the evolutionary search with
+## Final metric training
+To find the optimal coefficients for the final metric, run the search with
 ```
 snakemake -c1 train_metric
 ```
