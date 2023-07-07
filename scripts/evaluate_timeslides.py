@@ -4,7 +4,8 @@ import numpy as np
 import time
 
 import torch
-
+import torch.nn as nn
+import torch.nn.functional as F
 from evaluate_data import full_evaluation
 import sys
 sys.path.append(
@@ -16,10 +17,19 @@ from config import (
     SAMPLE_RATE,
     GPU_NAME,
     HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN
+    HISTOGRAM_BIN_MIN,
+    RETURN_INDIV_LOSSES
     )
 DEVICE = torch.device(GPU_NAME)
-
+class LinearModel(nn.Module):
+    def __init__(self, n_dims):
+        super(LinearModel, self).__init__()
+        self.layer = nn.Linear(n_dims, 9)
+        self.layer2 = nn.Linear(9, 1)
+        
+    def forward(self, x):
+        x =  (self.layer(x))
+        return self.layer2(x)
 def main(args):
     if args.metric_coefs_path is not None:
         # initialize histogram
@@ -77,7 +87,15 @@ def main(args):
             final_values = torch.reshape(final_values, (final_values.shape[0]*final_values.shape[1], final_values.shape[2]))
             means, stds = norm_factors[0], norm_factors[1]
             final_values = (final_values-means)/stds
-            final_values = torch.matmul(final_values, metric_vals)
+
+
+            if RETURN_INDIV_LOSSES:
+                model = LinearModel(9).to(DEVICE)#
+                model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
+                final_values = model(final_values).detach()
+
+            else:
+                final_values = torch.matmul(final_values, metric_vals)
 
             update = torch.histc(final_values, bins=n_bins, 
                                  min=-HISTOGRAM_BIN_MIN, max=HISTOGRAM_BIN_MIN)

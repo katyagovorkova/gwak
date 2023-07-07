@@ -31,8 +31,23 @@ from config import (
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
     VARYING_SNR_LOW,
-    VARYING_SNR_HIGH
+    VARYING_SNR_HIGH,
+    GPU_NAME
 )
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+DEVICE = torch.device(GPU_NAME)
+
+class LinearModel(nn.Module):
+    def __init__(self, n_dims):
+        super(LinearModel, self).__init__()
+        self.layer = nn.Linear(n_dims, 9)
+        self.layer2 = nn.Linear(9, 1)
+        
+    def forward(self, x):
+        x = (self.layer(x))
+        return self.layer2(x)
 
 def calculate_means(metric_vals, snrs, bar):
     # helper function for SNR vs FAR plot
@@ -60,6 +75,8 @@ def calculate_means(metric_vals, snrs, bar):
     
 def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
     fm_vals = np.dot(data, metric_coefs)
+    #fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
+
     fm_vals = np.min(fm_vals, axis=1)
     far_vals = compute_fars(fm_vals, far_hist=far_hist)
     print("far_vals", far_vals)
@@ -171,8 +188,12 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
 def main(args):
     # temporary
     do_snr_vs_far = True
-    do_fake_roc = True
-    do_3_panel_plot = True
+    do_fake_roc = False
+    do_3_panel_plot = False
+
+    #model = LinearModel(9).to(DEVICE)
+    #model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
+    #final_values = model(final_values).detach()
 
 
     if do_snr_vs_far:
@@ -190,11 +211,12 @@ def main(args):
                 mod += elem + "/"
             print("mod", mod)
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy")
+            print(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", data.shape)
             data = (data-means)/stds
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
 
             snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
-
+            #snr_vs_far_plotting(data, snrs, , far_hist, tag, args.plot_savedir)
     if do_fake_roc:
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         fake_roc_plotting(far_hist, args.plot_savedir)

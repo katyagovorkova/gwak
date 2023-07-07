@@ -21,10 +21,16 @@ DEVICE = torch.device(GPU_NAME)
 class LinearModel(nn.Module):
     def __init__(self, n_dims):
         super(LinearModel, self).__init__()
+        #self.layer = nn.Linear(n_dims, 9)
+        #self.layer2 = nn.Linear(9, 1)
         self.layer = nn.Linear(n_dims, 1)
         
     def forward(self, x):
-        return self.layer(x)
+        x = (self.layer(x))
+        #return self.layer2(x)
+        #return self.layer()
+        return x
+       
 
 
 def optimize_hyperplane(signals, backgrounds):
@@ -50,9 +56,12 @@ def optimize_hyperplane(signals, backgrounds):
                             1+signal_MV).mean()
         print(network.layer.weight.data.cpu().numpy()[0])
         loss = background_loss + signal_loss
+        #print(loss.item())
         loss.backward()
         optimizer.step()
-    
+
+    #torch.save(network.state_dict(), "./fm_model.pt")
+    #return 0
     return network.layer.weight.data.cpu().numpy()[0]
 
 def engineered_features(data):
@@ -62,7 +71,7 @@ def engineered_features(data):
     for i in range(4):
         a, b = data[:, :, 2*i], data[:, :, 2*i+1]
         newdata[:, :, 2*i] = (a+b)/2
-        newdata[:, :, 2*i+1] = abs(a-b) / (a+b + 0.01)
+        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
 
     newdata[:, :, -1] = data[:, :, -1]
 
@@ -118,12 +127,12 @@ def main(args):
     #print(signal_evals.shape)
     #timeslide_evals = engineered_features(timeslide_evals)
     #print(timeslide_evals.shape)
-    print("DONEODONEOENE")
+    #print("DONEODONEOENE")
     #assert 0
     
 
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
-
+    #return None
     np.save(args.save_file, optimal_coeffs)
 
 

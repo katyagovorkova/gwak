@@ -34,7 +34,8 @@ from config import (
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
     CHANNEL,
-    NUM_IFOS)
+    NUM_IFOS,
+    RETURN_INDIV_LOSSES)
 DEVICE = torch.device(GPU_NAME)
 
 def mae(a, b):
@@ -55,25 +56,25 @@ def mae_torch(a, b):
     # once for the time axis, second time for detector axis
     return torch.abs(a-b).mean(axis=-1).mean(axis=-1)
 
-def mae_torch_coherent(a, b):
-    loss = torch.abs(a-b).mean(axis=-1)
-    han, liv = loss[:, 0], loss[:, 1]
-    return 0.5 * ( 0*(han-liv)**2+han+liv )
 
-def mae_torch_noncoherent(a, b):
-    loss = torch.abs(a-b).mean(axis=-1)
-    han, liv = loss[:, 0], loss[:, 1]
-    return 0.5 * ( -0*(han-liv)**2+han+liv )
+if RETURN_INDIV_LOSSES:
+    def mae_torch_coherent(a, b):
+        loss = torch.abs(a-b).mean(axis=-1)
+        return loss
 
-def mae_torch_coherent_(a, b):
-    loss = torch.abs(a-b).mean(axis=-1)
-    print("70", loss.shape)
-    return loss
+    def mae_torch_noncoherent(a, b):
+        loss = torch.abs(a-b).mean(axis=-1)
+        return loss
+else:
+    def mae_torch_coherent(a, b):
+        loss = torch.abs(a-b).mean(axis=-1)
+        han, liv = loss[:, 0], loss[:, 1]
+        return 0.5 * ( han+liv )
 
-def mae_torch_noncoherent_(a, b):
-    loss = torch.abs(a-b).mean(axis=-1)
-    print("70", loss.shape)
-    return loss
+    def mae_torch_noncoherent(a, b):
+        loss = torch.abs(a-b).mean(axis=-1)
+        han, liv = loss[:, 0], loss[:, 1]
+        return 0.5 * ( han+liv )
 
 
 def mae_torch_(a, b):
@@ -113,11 +114,17 @@ def stack_dict_into_tensor(data_dict):
     Input is a dictionary of keys, stack it into *torch* tensor
     '''
     fill_len = len(data_dict['bbh'])
-    stacked_tensor = torch.empty((fill_len, 4), device=DEVICE)
+    if RETURN_INDIV_LOSSES:
+        stacked_tensor = torch.empty((fill_len, 8), device=DEVICE)
+    else:
+        stacked_tensor = torch.empty((fill_len, 4), device=DEVICE)
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
-        stacked_tensor[:, stack_index] = data_dict[class_name]
-        #stacked_tensor[:, stack_index*2:stack_index*2+2] = data_dict[class_name]
+        
+        if RETURN_INDIV_LOSSES:
+            stacked_tensor[:, stack_index*2:stack_index*2+2] = data_dict[class_name]
+        else:
+            stacked_tensor[:, stack_index] = data_dict[class_name]
     
     return stacked_tensor
 
