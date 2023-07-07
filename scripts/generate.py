@@ -694,7 +694,7 @@ def main(args):
 
     elif args.stype == 'wnb_varying_snr':
         # 1: generate the polarization files for the signal classes of interest
-        wnb_cross, wnb_plus = wnb_polarization_generator(N_TEST_INJECTIONS)
+        wnb_cross, wnb_plus = wnb_polarization_generator(N_VARYING_SNR_INJECTIONS)
 
         sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
         # 2: create the injections with those signal classes

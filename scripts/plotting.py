@@ -128,7 +128,7 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     labels = [
         "background",
         "bbh",
-        "glitch",
+        "glitches",
         "sine-gaussian",
         "pearson"
     ]
@@ -173,7 +173,7 @@ def main(args):
 
     if do_snr_vs_far:
         # I will fix this later
-        tags = ['bbh', 'sg']
+        tags = ['bbh', 'sg', 'wnb', 'supernova']
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
@@ -186,7 +186,7 @@ def main(args):
             print("mod", mod)
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy")
             data = (data-means)#/stds
-            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
+            snrs = np.load(f"output/data/{tag}_varying_snr_SNR.npz.npy")
 
             snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
 
@@ -195,7 +195,7 @@ def main(args):
         fake_roc_plotting(far_hist, args.plot_savedir)
 
     if do_3_panel_plot:
-        tags = ['bbh', 'sg']
+        tags = ['bbh', 'sg', 'wnb', 'supernova']
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
         norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
@@ -206,10 +206,10 @@ def main(args):
             mod = ""
             for elem in args.data_predicted_path.split("/")[:-2]:
                 mod += elem + "/"
-            strains = np.load(f"{mod}/data/{tag}_varying_snr.npy", mmap_mode="r")[ind]
+            strains = np.load(f"output/data/{tag}_varying_snr.npz")['data'][ind]
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", mmap_mode="r")[ind]
             data = (data-means)#/stds
-            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
+            snrs = np.load(f"output/data/{tag}_varying_snr_SNR.npz.npy", mmap_mode="r")[ind]
 
             three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
 
