@@ -87,7 +87,7 @@ rule train_quak:
             dataclass='{dataclass}',
             version=VERSION)
     output:
-        savedir = directory('output/    trained/{dataclass}'),
+        savedir = directory('output/trained/{dataclass}'),
         model_file = 'output/trained/models/{dataclass}.pt'
     shell:
         'mkdir -p {output.savedir}; '

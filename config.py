@@ -42,7 +42,7 @@ GLITCH_WINDOW_RIGHT = 0.05
 GLITCH_N_SAMPLES = 20
 GLITCH_AMPLITUDE_BAR = 5
 
-# Glitch "generation"
+# Glitch 'generation'
 SNR_THRESH = 5
 Q_MIN = 3.3166
 Q_MAX = 108
@@ -60,8 +60,8 @@ STATE_FLAG = 'DCS-ANALYSIS_READY_C01:1'
 
 # training
 TEST_SPLIT = 0.9
-BOTTLENECK = {"bbh":4, "sg":8, "glitch":6, "background":8}
-MODEL = {"bbh": "lstm", "sg":"lstm", "glitch":"dense", "background":"dense"}
+BOTTLENECK = {'bbh':4, 'sg':8, 'glitches':6, 'background':8}
+MODEL = {'bbh': 'lstm', 'sg':'lstm', 'glitches':'dense', 'background':'dense'}
 FACTOR = 2
 EPOCHS = 200
 BATCH_SIZE = 512
@@ -69,7 +69,7 @@ LOSS = 'MAE'
 OPTIMIZER = 'Adam'
 VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
-CLASS_ORDER = ['background', 'bbh', 'glitch', 'sg']
+CLASS_ORDER = ['background', 'bbh', 'glitches', 'sg']
 LIMIT_TRAINING_DATA = None
 CURRICULUM_SNRS = [256, 128, 64, 32, 16]
 
@@ -84,7 +84,7 @@ TIMESLIDE_TOTAL_DURATION = 1.1*24*3600
 FM_TIMESLIDE_TOTAL_DURATION = 0.01*30*24*3600
 
 # GPU
-GPU_NAME = "cuda:3"
+GPU_NAME = 'cuda:3'
 
 # evolutionary search
 INIT_SIGMA = 0.5
@@ -105,11 +105,11 @@ RECREATION_HEIGHT_PER_SAMPLE = 6
 IFO_LABELS = ['Hanford', 'Livingston']
 SNR_VS_FAR_BAR = 5
 SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24*3600, 7*24*3600, 30*24*3600, 4*30*24*3600, 365*24*3600]
-SNR_VS_FAR_HL_LABELS = ["hour", "day", "week", "month", "4 months","year"]
+SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', '4 months','year']
 
 # varying SNR injection
 N_VARYING_SNR_INJECTIONS = 2000
-VARYING_SNR_DISTRIBUTION = "uniform"
+VARYING_SNR_DISTRIBUTION = 'uniform'
 VARYING_SNR_LOW = 10
 VARYING_SNR_HIGH = 100
 VARYING_SNR_SEGMENT_INJECTION_LENGTH = 5
