@@ -24,7 +24,8 @@ from config import (
     DATA_EVAL_MAX_BATCH,
     DO_SMOOTHING,
     SEG_NUM_TIMESTEPS,
-    RETURN_INDIV_LOSSES
+    RETURN_INDIV_LOSSES,
+    SCALE
     )
 DEVICE = torch.device(GPU_NAME)
 
@@ -55,7 +56,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
     quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
     
     if RETURN_INDIV_LOSSES:
-        quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, 2*len(CLASS_ORDER)))
+        quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, SCALE*len(CLASS_ORDER)))
     else:
         quak_predictions = torch.reshape(quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
 

@@ -32,22 +32,55 @@ from config import (
     HISTOGRAM_BIN_MIN,
     VARYING_SNR_LOW,
     VARYING_SNR_HIGH,
-    GPU_NAME
+    GPU_NAME,
+    RETURN_INDIV_LOSSES
 )
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 DEVICE = torch.device(GPU_NAME)
 
+def engineered_features(data):
+    #print(data[0, :10, :])
+    newdata = np.zeros(data.shape)
+
+    for i in range(4):
+        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
+        newdata[:, :, 2*i] = (a+b)/2
+        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
+
+    newdata[:, :, -1] = data[:, :, -1]
+
+    #print(newdata[0, :10, :])
+    #assert 0
+    return newdata
+
+def engineered_features_torch(data):
+    #print(data[0, :10, :])
+    newdata = torch.zeros(data.shape).to(DEVICE)
+
+    for i in range(4):
+        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
+        newdata[:, :, 2*i] = (a+b)/2
+        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
+
+    newdata[:, :, -1] = data[:, :, -1]
+
+    #print(newdata[0, :10, :])
+    #assert 0
+    return newdata
+
 class LinearModel(nn.Module):
-    def __init__(self, n_dims):
-        super(LinearModel, self).__init__()
-        self.layer = nn.Linear(n_dims, 9)
-        self.layer2 = nn.Linear(9, 1)
-        
-    def forward(self, x):
-        x = (self.layer(x))
-        return self.layer2(x)
+        def __init__(self, n_dims):
+            super(LinearModel, self).__init__()
+            self.layer = nn.Linear(17, 4)
+            self.layer1_5 = nn.Linear(4, 2)
+            self.layer2 = nn.Linear(2, 1)
+            self.layer_normal = nn.Linear(17, 1)
+            
+        def forward(self, x):
+            
+            return self.layer_normal(x)
 
 def calculate_means(metric_vals, snrs, bar):
     # helper function for SNR vs FAR plot
@@ -74,12 +107,21 @@ def calculate_means(metric_vals, snrs, bar):
     return snr_plot, means, stds
     
 def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
-    fm_vals = np.dot(data, metric_coefs)
+    if RETURN_INDIV_LOSSES:
+        fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
+    else:
+        fm_vals = np.dot(data, metric_coefs)
     #fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
 
     fm_vals = np.min(fm_vals, axis=1)
     far_vals = compute_fars(fm_vals, far_hist=far_hist)
     print("far_vals", far_vals)
+    print("tag:", tag)
+    #for i, val in enumerate(far_vals):
+    #    if val > 0:
+    #        print("far val", val)
+    #        print("fm val", fm_vals[i])
+    #        #print("backwards", far_to_metric(val, far_hist))
     snr_plot, means_plot, stds_plot = calculate_means(fm_vals, snrs, bar=SNR_VS_FAR_BAR)
 
     plt.figure(figsize=(12, 8))
@@ -162,7 +204,11 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[1].set_title("QUAK + Pearson significances")
     axs[1].legend()
 
-    fm_vals = np.dot(data, metric_coefs)
+    #fm_vals = np.dot(data, metric_coefs)
+    if RETURN_INDIV_LOSSES:
+        fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
+    else:
+        fm_vals = np.dot(data, metric_coefs)
     far_vals = compute_fars(fm_vals, far_hist=far_hist)
 
     axs[2].set_title("Metric value and corresponding FAR")
@@ -188,8 +234,8 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
 def main(args):
     # temporary
     do_snr_vs_far = True
-    do_fake_roc = False
-    do_3_panel_plot = False
+    do_fake_roc = True
+    do_3_panel_plot = True
 
     #model = LinearModel(9).to(DEVICE)
     #model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
@@ -201,8 +247,7 @@ def main(args):
         
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         metric_coefs = np.load(f"{args.data_predicted_path}/trained/final_metric_params.npy")
-        norm_factors = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
-        means, stds = norm_factors[0], norm_factors[1]
+        means, stds = np.load(f"{args.data_predicted_path}/trained/norm_factor_params.npy")
         tags = ['bbh', 'sg', 'wnb', 'supernova']
         for tag in tags:
             mod = ""
@@ -215,8 +260,14 @@ def main(args):
             data = (data-means)/stds
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
 
-            snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
-            #snr_vs_far_plotting(data, snrs, , far_hist, tag, args.plot_savedir)
+            if RETURN_INDIV_LOSSES:
+                model = LinearModel(17).to(DEVICE)#
+                model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
+                #final_values = model(final_values).detach()
+                snr_vs_far_plotting(data[1000:], snrs[1000:], model, far_hist, tag, args.plot_savedir)
+            else:
+                snr_vs_far_plotting(data[1000:], snrs[1000:], metric_coefs, far_hist, tag, args.plot_savedir)
+            #
     if do_fake_roc:
         far_hist = np.load(f"{args.data_predicted_path}/far_bins.npy")
         fake_roc_plotting(far_hist, args.plot_savedir)
@@ -239,7 +290,15 @@ def main(args):
             data = (data-means)/stds
             snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
 
-            three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
+            if RETURN_INDIV_LOSSES:
+                model = LinearModel(17).to(DEVICE)#
+                model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
+                #final_values = model(final_values).detach()
+                #snr_vs_far_plotting(data[1000:], snrs[1000:], model, far_hist, tag, args.plot_savedir)
+                three_panel_plotting(strains[:, 1000:], data[1000:], snrs, model, far_hist, tag, args.plot_savedir)
+            else:
+                #snr_vs_far_plotting(data[1000:], snrs[1000:], metric_coefs, far_hist, tag, args.plot_savedir)
+                three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir)
 
 if __name__ == '__main__':
 

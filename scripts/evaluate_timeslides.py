@@ -21,15 +21,76 @@ from config import (
     RETURN_INDIV_LOSSES
     )
 DEVICE = torch.device(GPU_NAME)
-class LinearModel(nn.Module):
-    def __init__(self, n_dims):
-        super(LinearModel, self).__init__()
-        self.layer = nn.Linear(n_dims, 9)
-        self.layer2 = nn.Linear(9, 1)
+
+def engineered_features(data):
+    #print(data[0, :10, :])
+    newdata = np.zeros(data.shape)
+
+    for i in range(4):
+        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
+        newdata[:, :, 2*i] = (a+b)/2
+        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
+
+    newdata[:, :, -1] = data[:, :, -1]
+
+    #print(newdata[0, :10, :])
+    #assert 0
+    return newdata
+
+def engineered_features_torch(data):
+    #print(data[0, :10, :])
+    newdata = torch.zeros(data.shape).to(DEVICE)
+
+    for i in range(4):
+        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
+        newdata[:, :, 2*i] = (a+b)/2
+        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
+
+    newdata[:, :, -1] = data[:, :, -1]
+
+    #print(newdata[0, :10, :])
+    #assert 0
+    return newdata
+if 0:
+    class LinearModel(nn.Module):
+        def __init__(self, n_dims):
+            super(LinearModel, self).__init__()
+            self.layer = nn.Linear(n_dims, 4)
+            self.layer1_5 = nn.Linear(4, 2)
+            self.layer2 = nn.Linear(2, 1)
+            self.layer_normal = nn.Linear(17, 1)
+            
+        def forward(self, x):
+            if 0:
+                flag = False
+                if len(x.shape) == 2:
+                    x = x[None, :, :]
+                    flag = True
+                x=engineered_features_torch(x)
+
+                for i in range(4):
+                    x[:, :, 2*i+1]=0
+                
+                x = self.layer_normal(x)
+                if flag:
+                    return x[0]
+                return x
+
+            else:
+                return self.layer_normal(x)
+else:
+    class LinearModel(nn.Module):
+        def __init__(self, n_dims):
+            super(LinearModel, self).__init__()
+            self.layer = nn.Linear(n_dims, 4)
+            self.layer1_5 = nn.Linear(4, 2)
+            self.layer2 = nn.Linear(2, 1)
+            self.layer_normal = nn.Linear(17, 1)
+            
+        def forward(self, x):
+            
+            return self.layer_normal(x)
         
-    def forward(self, x):
-        x =  (self.layer(x))
-        return self.layer2(x)
 def main(args):
     if args.metric_coefs_path is not None:
         # initialize histogram
@@ -89,12 +150,16 @@ def main(args):
             final_values = (final_values-means)/stds
 
 
+
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(9).to(DEVICE)#
+                model = LinearModel(17).to(DEVICE)#
                 model.load_state_dict(torch.load("./fm_model.pt", map_location=GPU_NAME))
                 final_values = model(final_values).detach()
+                #print("96")
+                #print(final_values[:100])
 
             else:
+
                 final_values = torch.matmul(final_values, metric_vals)
 
             update = torch.histc(final_values, bins=n_bins, 
@@ -106,6 +171,7 @@ def main(args):
 
         else:
             #print("74", final_values.shape)
+            print("saving, individually")
             means, stds = torch.mean(final_values, axis=-2), torch.std(final_values, axis=-2)
             means, stds = means.detach().cpu().numpy(), stds.detach().cpu().numpy()
             #print("76", means.shape, stds.shape, means, stds)

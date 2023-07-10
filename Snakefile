@@ -149,7 +149,7 @@ rule evaluate_signals:
 rule train_final_metric:
     input:  
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization'],
+            signal_dataclass=['bbh_varying_snr', 'sg_varying_snr'], #
             model='{model}'),
     params:
         timeslides = expand('output/{model}/timeslides/timeslide_evals_{i}.npy',

@@ -13,7 +13,8 @@ sys.path.append(
 from config import (
     GPU_NAME,
     SVM_LR,
-    N_SVM_EPOCHS
+    N_SVM_EPOCHS,
+    RETURN_INDIV_LOSSES
     )
 DEVICE = torch.device(GPU_NAME)
 
@@ -21,15 +22,27 @@ DEVICE = torch.device(GPU_NAME)
 class LinearModel(nn.Module):
     def __init__(self, n_dims):
         super(LinearModel, self).__init__()
-        #self.layer = nn.Linear(n_dims, 9)
-        #self.layer2 = nn.Linear(9, 1)
-        self.layer = nn.Linear(n_dims, 1)
+        self.layer = nn.Linear(n_dims, 4)
+        self.layer1_5 = nn.Linear(4, 2)
+        self.layer2 = nn.Linear(2, 1)
+        self.layer_normal = nn.Linear(17, 1)
         
     def forward(self, x):
-        x = (self.layer(x))
-        #return self.layer2(x)
+        
+        return self.layer_normal(x)
+        x = F.relu(self.layer(x))
+        x = F.tanh(self.layer1_5(x))
+        return self.layer2(x)
         #return self.layer()
         return x
+        print(x.shape)
+        bkg = (x[:, 0] + x[:, 1])/2
+        bbh = (x[:, 2] + x[:, 3])/2
+        glitch = (x[:, 4] + x[:, 5])/2
+        sg = (x[:, 6] + x[:, 7])/2
+        pearson = x[:, 8]
+        x = torch.stack([bkg, bbh, glitch, sg, pearson])
+        print("out, ", x.shape)
        
 
 
@@ -41,27 +54,34 @@ def optimize_hyperplane(signals, backgrounds):
     bkgs = torch.from_numpy(backgrounds).float().to(DEVICE)
     network = LinearModel(n_dims = sigs.shape[2]).to(DEVICE)
     optimizer = optim.Adam(network.parameters(), lr=SVM_LR)
-
     for epoch in range(N_SVM_EPOCHS):
         optimizer.zero_grad()
         background_MV = network(bkgs)
         signal_MV = network(sigs)
         signal_MV = torch.min(signal_MV, dim=1)[0] #second index are the indicies
         zero = torch.tensor(0).to(DEVICE)
-        background_loss = torch.maximum(
-                            zero,
-                            1-background_MV).mean()
-        signal_loss = torch.maximum(
-                            zero,
-                            1+signal_MV).mean()
-        print(network.layer.weight.data.cpu().numpy()[0])
+        #print("background", background_MV[:10])
+        #print("signal", signal_MV[:10])
+        if 0:
+            background_loss = (F.tanh(-1 * background_MV)).mean()
+            signal_loss = (F.tanh(signal_MV)).mean()
+        else:
+            background_loss = torch.maximum(
+                                zero,
+                                1-background_MV).mean()
+            signal_loss = torch.maximum(
+                                zero,
+                                1+signal_MV).mean()
+        
         loss = background_loss + signal_loss
-        #print(loss.item())
+        if epoch % 50 == 0:
+            print(network.layer_normal.weight.data.cpu().numpy()[0])
+            print(loss.item())
         loss.backward()
         optimizer.step()
 
-    #torch.save(network.state_dict(), "./fm_model.pt")
-    #return 0
+    torch.save(network.state_dict(), "./fm_model.pt")
+    return np.zeros(5)
     return network.layer.weight.data.cpu().numpy()[0]
 
 def engineered_features(data):
@@ -93,7 +113,7 @@ def main(args):
     if type(args.signal_path) == str:
         args.signal_path = [args.signal_path]
     for file_name in args.signal_path:
-        signal_evals.append(np.load(f'{file_name}'))
+        signal_evals.append(np.load(f'{file_name}'))#[:1000]
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []
@@ -119,18 +139,23 @@ def main(args):
     signal_evals = (signal_evals-means)/stds
     timeslide_evals = (timeslide_evals-means)/stds
 
-    signal_evals = signal_evals[:, 1300:1550, :]
-    print(signal_evals.shape)
-    print(timeslide_evals.shape)
-
+    signal_evals = signal_evals[:, 1300+130:1400+140, :]
+    #timeslide_evals = np.vstack(timeslide_evals)
     #signal_evals = engineered_features(signal_evals)
-    #print(signal_evals.shape)
     #timeslide_evals = engineered_features(timeslide_evals)
-    #print(timeslide_evals.shape)
-    #print("DONEODONEOENE")
-    #assert 0
+    #print(signal_evals.shape)
+    if 0:
+        print(timeslide_evals[0][0:10])
+        print(signal_evals[0][0:10])
+        
+        np.save("./timeslide_evals.npy", timeslide_evals)
+        np.save("./signal_evals.npy", signal_evals)
+        assert 0
     
-
+    #assert 0
+    #print("signal evals", signal_evals)
+    #print("TIMESLIDE EVALS", timeslide_evals)
+    #assert 0
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)
     #return None
     np.save(args.save_file, optimal_coeffs)
