@@ -133,8 +133,11 @@ def main(args):
     norm_factors = np.array(norm_factors)
     means = np.mean(norm_factors[:, 0, 0, :], axis=0)
     stds = np.mean(norm_factors[:, 1, 0, :], axis=0)
-
-    np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
+    stds[3] = 1
+    stds[7] = 1
+    stds[11] = 1
+    stds[15] = 1
+    
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
     signal_evals = (signal_evals-means)/stds
     timeslide_evals = (timeslide_evals-means)/stds
@@ -144,6 +147,19 @@ def main(args):
     #signal_evals = engineered_features(signal_evals)
     #timeslide_evals = engineered_features(timeslide_evals)
     #print(signal_evals.shape)
+    if 0:
+        signal_evals[:, :, 3] = 0
+        signal_evals[:, :, 7] = 0
+        signal_evals[:, :, 11] = 0
+        signal_evals[:, :, 15] = 0
+        timeslide_evals[:, :, 3] = 0
+        timeslide_evals[:, :, 7] = 0
+        timeslide_evals[:, :, 11] = 0
+        timeslide_evals[:, :, 15] = 0
+        
+    
+    np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
+
     if 0:
         print(timeslide_evals[0][0:10])
         print(signal_evals[0][0:10])
