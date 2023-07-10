@@ -3,7 +3,6 @@ import numpy as np
 import bilby
 import argparse
 import scipy
-from typing import Callable
 from helper_functions import (
     load_folder,
     whiten_bandpass_bkgs,
@@ -14,19 +13,16 @@ from helper_functions import (
     clean_gw_events,
     get_loud_segments,
     slice_bkg_segments
-    )
+)
 
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
-    IFOS,
     SEG_NUM_TIMESTEPS,
     SAMPLE_RATE,
     STRAIN_START,
     N_TRAIN_INJECTIONS,
-    N_TEST_INJECTIONS,
     N_FM_INJECTIONS,
     DATA_SEGMENT_LOAD_START,
     DATA_SEGMENT_LOAD_STOP,
@@ -54,13 +50,13 @@ from config import (
     CURRICULUM_SNRS,
     SNR_SN_LOW,
     SNR_SN_HIGH,
-    LOADED_DATA_SAMPLE_RATE # goes for the SN signals as well
-    )
+    LOADED_DATA_SAMPLE_RATE  # goes for the SN signals as well
+)
 
 
 def generate_timeslides(
-    folder_path:str,
-    event_times_path:str):
+        folder_path: str,
+        event_times_path: str):
     loaded_data = load_folder(folder_path,
                               DATA_SEGMENT_LOAD_START,
                               DATA_SEGMENT_LOAD_STOP)
@@ -69,18 +65,20 @@ def generate_timeslides(
     event_times = np.load(event_times_path)
 
     data = data[:, np.newaxis, :]
-    whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
-    whitened = np.swapaxes(whitened, 0, 1)[0] # batch dimension removed
+    whitened = whiten_bandpass_bkgs(data, SAMPLE_RATE, loaded_data['H1'][
+                                    'asd'], loaded_data['L1']['asd'])
+    whitened = np.swapaxes(whitened, 0, 1)[0]  # batch dimension removed
 
     data_cleaned = clean_gw_events(event_times,
-                                  whitened,
-                                  STRAIN_START+DATA_SEGMENT_LOAD_START,
-                                  STRAIN_START+DATA_SEGMENT_LOAD_STOP)
+                                   whitened,
+                                   STRAIN_START + DATA_SEGMENT_LOAD_START,
+                                   STRAIN_START + DATA_SEGMENT_LOAD_STOP)
     return data_cleaned
 
+
 def bbh_polarization_generator(
-    n_injections,
-    segment_length=2):
+        n_injections,
+        segment_length=2):
 
     bbh_waveform_args = dict(waveform_approximant='IMRPhenomPv2',
                              reference_frequency=50., minimum_frequency=20.)
@@ -122,9 +120,10 @@ def bbh_polarization_generator(
 
     return [crosses, plusses]
 
+
 def sg_polarization_generator(
-    n_injections,
-    segment_length=2):
+        n_injections,
+        segment_length=2):
 
     waveform = olib_time_domain_sine_gaussian
     waveform_generator = bilby.gw.WaveformGenerator(
@@ -162,46 +161,50 @@ def sg_polarization_generator(
 
     return [crosses, plusses]
 
+
 def wnb_polarization_generator(
-    n_injections,
-    fmin=400,
-    fmax=1000,
-    duration=0.1): # in seconds
+        n_injections,
+        fmin=400,
+        fmax=1000,
+        duration=0.1):  # in seconds
 
     # merge with background
     wnb_hplus = np.zeros((n_injections, SAMPLE_RATE))
     wnb_hcross = np.zeros((n_injections, SAMPLE_RATE))
     for i in range(n_injections):
         wnb = WNB(duration, SAMPLE_RATE, fmin, fmax,
-            enveloped=True, sidePad=(SAMPLE_RATE-SAMPLE_RATE*duration)//2)
-        if wnb[0].shape[0]==4095:
+                  enveloped=True, sidePad=(SAMPLE_RATE - SAMPLE_RATE * duration) // 2)
+        if wnb[0].shape[0] == 4095:
             gen_wnb_hplus = np.append(wnb[0], np.array([0]))
             gen_wnb_hcross = np.append(wnb[1], np.array([0]))
-        elif wnb[0].shape[0]==4094:
-            gen_wnb_hplus = np.append(wnb[0], np.array([0,0]))
-            gen_wnb_hcross = np.append(wnb[1], np.array([0,0]))
+        elif wnb[0].shape[0] == 4094:
+            gen_wnb_hplus = np.append(wnb[0], np.array([0, 0]))
+            gen_wnb_hcross = np.append(wnb[1], np.array([0, 0]))
         else:
             gen_wnb_hplus = wnb[0]
             gen_wnb_hcross = wnb[1]
 
-        wnb_hplus[i,:] = gen_wnb_hplus
-        wnb_hcross[i,:] = gen_wnb_hcross
+        wnb_hplus[i, :] = gen_wnb_hplus
+        wnb_hcross[i, :] = gen_wnb_hcross
 
     return wnb_hcross, wnb_hplus
+
 
 def inject_signal(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
         SNR=None,
-        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH, # length of background segment to fetch for each injection
+        # length of background segment to fetch for each injection
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH,
         inject_at_end=False,
         return_injection_snr=False):
 
     loaded_data = load_folder(folder_path,
                               DATA_SEGMENT_LOAD_START,
                               DATA_SEGMENT_LOAD_STOP)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+    detector_data = np.vstack(
+        [loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     polarizations = []
     crosses, plusses = data
@@ -239,32 +242,36 @@ def inject_signal(
                                                        background=loaded_data,
                                                        detector_psds=detector_psds,
                                                        inject_at_end=inject_at_end)
-            bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+            bandpass_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data[
+                                                 'H1']['asd'], loaded_data['L1']['asd'])
             final_data.append(bandpass_segs)
 
     if return_injection_snr:
         return np.hstack(final_data), np.array(sampled_SNR)
     return np.hstack(final_data)
 
+
 def inject_signal_curriculum(
         folder_path: str,  # source of detector data, includes detector data and the omicron glitches/corresponding SNRs
         # source of the polarization files to be injected into the data
         data=None,
         SNR=None,
-        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH, # length of background segment to fetch for each injection
+        # length of background segment to fetch for each injection
+        segment_length=TRAIN_INJECTION_SEGMENT_LENGTH,
         inject_at_end=False,
         return_injection_snr=False):
-    
+
     loaded_data = load_folder(folder_path,
                               DATA_SEGMENT_LOAD_START,
                               DATA_SEGMENT_LOAD_STOP)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+    detector_data = np.vstack(
+        [loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     polarizations = []
     crosses, plusses = data
     for i in range(len(plusses)):
         polarizations.append({'plus': plusses[i], 'cross': crosses[i]})
-    #print(f'requested shape {len(polarizations) * 1}')
+
     bkg_segs = get_background_segs(loaded_data, detector_data, len(
         polarizations) * 1, segment_length)
     detector_psds = inject_hplus_hcross(bkg_segs[:, 0, :],
@@ -275,43 +282,47 @@ def inject_signal_curriculum(
                                         background=loaded_data,
                                         get_psds=True,
                                         inject_at_end=inject_at_end)
-    #print(f'background segments shape {bkg_segs.shape}')
-    
+
     sample_SNRS = np.zeros((len(polarizations), len(CURRICULUM_SNRS)))
     for j in range(len(CURRICULUM_SNRS)):
         center = CURRICULUM_SNRS[j]
-        sample_SNRS[:, j] = np.random.uniform(center - center/4, center + center/2, len(polarizations))
-    
+        sample_SNRS[:, j] = np.random.uniform(
+            center - center / 4, center + center / 2, len(polarizations))
+
     final_data_noise = []
     final_data_clean = []
     for i in range(len(CURRICULUM_SNRS)):
         final_data_noise.append([])
         final_data_clean.append([])
-    
+
     for i, pols in enumerate(polarizations):
         # didn't generate enough bkg samples, this is generally fine unless
         # small overall samples
         if i >= bkg_segs.shape[1]:
             break
         injected_waveforms, clean_waveforms = inject_hplus_hcross(bkg_segs[:, i, :],
-                                                    pols,
-                                                    SAMPLE_RATE,
-                                                    segment_length,
-                                                    SNR=sample_SNRS[i],
-                                                    background=loaded_data,
-                                                    detector_psds=detector_psds,
-                                                    inject_at_end=inject_at_end)
+                                                                  pols,
+                                                                  SAMPLE_RATE,
+                                                                  segment_length,
+                                                                  SNR=sample_SNRS[
+                                                                      i],
+                                                                  background=loaded_data,
+                                                                  detector_psds=detector_psds,
+                                                                  inject_at_end=inject_at_end)
 
         for j, injected_waveform in enumerate(injected_waveforms):
-            noisy_bandpassed_segs = whiten_bandpass_bkgs(injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+            noisy_bandpassed_segs = whiten_bandpass_bkgs(
+                injected_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
             final_data_noise[j].append(noisy_bandpassed_segs)
         for j, clean_waveform in enumerate(clean_waveforms):
-            clean_bandpassed_segs = whiten_bandpass_bkgs(clean_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+            clean_bandpassed_segs = whiten_bandpass_bkgs(
+                clean_waveform, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
             final_data_clean[j].append(clean_bandpassed_segs)
 
     final_data_noise = np.array([np.hstack(elem) for elem in final_data_noise])
     final_data_clean = np.array([np.hstack(elem) for elem in final_data_clean])
     return final_data_noise, final_data_clean
+
 
 def generate_backgrounds(
         folder_path: str,
@@ -321,12 +332,15 @@ def generate_backgrounds(
     loaded_data = load_folder(folder_path,
                               DATA_SEGMENT_LOAD_START,
                               DATA_SEGMENT_LOAD_STOP)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+    detector_data = np.vstack(
+        [loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     bkg_segs = get_background_segs(
         loaded_data, detector_data, n_backgrounds, segment_length)
-    whitened_segs = whiten_bandpass_bkgs(bkg_segs, SAMPLE_RATE, loaded_data['H1']['asd'], loaded_data['L1']['asd'])
+    whitened_segs = whiten_bandpass_bkgs(bkg_segs, SAMPLE_RATE, loaded_data[
+                                         'H1']['asd'], loaded_data['L1']['asd'])
     return whitened_segs
+
 
 def generate_glitches(
         folder_path: str,
@@ -338,16 +352,19 @@ def generate_glitches(
     loaded_data = load_folder(folder_path,
                               load_start,
                               load_stop)
-    detector_data = np.vstack([loaded_data['H1']['data'], loaded_data['L1']['data']])
+    detector_data = np.vstack(
+        [loaded_data['H1']['data'], loaded_data['L1']['data']])
 
     N = n_glitches
-    loud_times_H1 = get_loud_segments(loaded_data["H1"], N, segment_length)
-    loud_times_L1 = get_loud_segments(loaded_data["L1"], N, segment_length)
+    loud_times_H1 = get_loud_segments(loaded_data['H1'], N, segment_length)
+    loud_times_L1 = get_loud_segments(loaded_data['L1'], N, segment_length)
     loud_times = np.union1d(loud_times_H1, loud_times_L1)
-    glitch_segs, _ = slice_bkg_segments(loaded_data["H1"], detector_data, loud_times,
-                                    segment_length)
-    whitened_segs = whiten_bandpass_bkgs(glitch_segs, SAMPLE_RATE, loaded_data["H1"]["asd"], loaded_data["L1"]["asd"])
+    glitch_segs, _ = slice_bkg_segments(loaded_data['H1'], detector_data, loud_times,
+                                        segment_length)
+    whitened_segs = whiten_bandpass_bkgs(glitch_segs, SAMPLE_RATE, loaded_data[
+                                         'H1']['asd'], loaded_data['L1']['asd'])
     return whitened_segs
+
 
 def sampler(
         data,
@@ -358,8 +375,8 @@ def sampler(
         sample_len=SEG_NUM_TIMESTEPS):
 
     fill = np.empty((len(data) * n_samples, 2, sample_len))
-    print("SAMPLER fill shape", fill.shape)
-    print("len(data), n_samples, sample_len", len(data), n_samples, sample_len)
+    print('SAMPLER fill shape', fill.shape)
+    print('len(data), n_samples, sample_len', len(data), n_samples, sample_len)
     midp = data.shape[-1] // 2
     filled_count = 0
     for n in range(len(data)):
@@ -390,19 +407,19 @@ def sample_injections_main(
         data=None):
 
     sampler_args = {
-        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE),
-                int(BBH_WINDOW_RIGHT*SAMPLE_RATE), BBH_AMPLITUDE_BAR],
-        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE),
-                int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR],
+        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT * SAMPLE_RATE),
+                int(BBH_WINDOW_RIGHT * SAMPLE_RATE), BBH_AMPLITUDE_BAR],
+        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT * SAMPLE_RATE),
+               int(SG_WINDOW_RIGHT * SAMPLE_RATE), SG_AMPLITUDE_BAR],
         'background': [BKG_N_SAMPLES, None, None, 0],
-        'glitch': [GLITCH_N_SAMPLES, int(GLITCH_WINDOW_LEFT*SAMPLE_RATE),
+        'glitch': [GLITCH_N_SAMPLES, int(GLITCH_WINDOW_LEFT * SAMPLE_RATE),
                    int(GLITCH_WINDOW_RIGHT * SAMPLE_RATE), GLITCH_AMPLITUDE_BAR]
-        }
+    }
 
     data = data.swapaxes(0, 1)
     N_samples, bound_low, bound_high, amplitude_bar = sampler_args[
         target_class]
-    
+
     if bound_low is None:
         assert bound_high is None
         midp = data.shape[-1] // 2
@@ -412,50 +429,55 @@ def sample_injections_main(
     training_data = sampler(
         data, N_samples, bound_low, bound_high, amplitude_bar)
 
-    print("out from sample injections", training_data.shape)
+    print('out from sample injections', training_data.shape)
     return training_data
+
 
 def curriculum_sampler(
         data_noisy,
         data_clean,
-        target_class: str, 
+        target_class: str,
         sample_len: int=SEG_NUM_TIMESTEPS):
-    
+
     sampler_args = {
-        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT*SAMPLE_RATE),
-                int(BBH_WINDOW_RIGHT*SAMPLE_RATE), BBH_AMPLITUDE_BAR],
-        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT*SAMPLE_RATE),
-                int(SG_WINDOW_RIGHT*SAMPLE_RATE), SG_AMPLITUDE_BAR]
-        }
+        'bbh': [BBH_N_SAMPLES, int(BBH_WINDOW_LEFT * SAMPLE_RATE),
+                int(BBH_WINDOW_RIGHT * SAMPLE_RATE), BBH_AMPLITUDE_BAR],
+        'sg': [SG_N_SAMPLES, int(SG_WINDOW_LEFT * SAMPLE_RATE),
+               int(SG_WINDOW_RIGHT * SAMPLE_RATE), SG_AMPLITUDE_BAR]
+    }
     N_samples_each, bound_low, bound_high, _ = sampler_args[target_class]
 
     SNR_ind, N_ifos, N_injections, inj_seg_len = data_noisy.shape
-    midp = inj_seg_len //2
-    
-    fill_noisy = np.zeros((SNR_ind, N_injections*N_samples_each, 
+    midp = inj_seg_len // 2
+
+    fill_noisy = np.zeros((SNR_ind, N_injections * N_samples_each,
                            N_ifos, sample_len))
     fill_clean = np.zeros(fill_noisy.shape)
     for s in range(SNR_ind):
         for n in range(N_injections):
             for m in range(N_samples_each):
-                
-                start = np.random.uniform(midp+bound_low, 
-                                          midp+bound_high - sample_len)
+
+                start = np.random.uniform(midp + bound_low,
+                                          midp + bound_high - sample_len)
                 start = int(start)
-                fill_noisy[s, n*N_samples_each+m, :, :] = data_noisy[s, :, n, start:start+sample_len]
-                fill_clean[s, n*N_samples_each+m, :, :] = data_clean[s, :, n, start:start+sample_len]
+                fill_noisy[s, n * N_samples_each + m, :,
+                           :] = data_noisy[s, :, n, start:start + sample_len]
+                fill_clean[s, n * N_samples_each + m, :,
+                           :] = data_clean[s, :, n, start:start + sample_len]
 
     return fill_noisy, fill_clean
 
+
 def make_snr_sampler(distribution, low, hi):
-    if distribution == "uniform":
+    if distribution == 'uniform':
         def sampler():
             return np.random.uniform(low, hi)
     else:
-        print("Invalid or unimplemented distribution choice", distribution)
+        print('Invalid or unimplemented distribution choice', distribution)
         assert False
 
     return sampler
+
 
 def fetch_sn_polarization(path):
     # load the .txt files for all the phi, theta values as an array of cross and plus numpy arras
@@ -463,23 +485,22 @@ def fetch_sn_polarization(path):
 
     def reduce_name(name):
         # specific for powell
-        mass, eos, phi, theta, _, mode = name.split("_")
+        mass, eos, phi, theta, _, mode = name.split('_')
         phi, theta, mode = phi[3:], theta[5:], mode[:-4]
         return mass, eos, phi, theta, mode
-
 
     cross = dict()
     plus = dict()
 
     for file in os.listdir(path):
         mass, eos, phi, theta, mode = reduce_name(file)
-        iden = f"{phi}_{theta}"
-        if mode == "hcross":
-            cross[iden] = np.loadtxt(f"{path}/{file}")
+        iden = f'{phi}_{theta}'
+        if mode == 'hcross':
+            cross[iden] = np.loadtxt(f'{path}/{file}')
         else:
-            assert mode == "hplus"
-            plus[iden] = np.loadtxt(f"{path}/{file}")
-            load_len = len(plus[iden]) #for powell, they are all the same
+            assert mode == 'hplus'
+            plus[iden] = np.loadtxt(f'{path}/{file}')
+            load_len = len(plus[iden])  # for powell, they are all the same
 
     assert LOADED_DATA_SAMPLE_RATE == 16384
     downsample_len = int(load_len * SAMPLE_RATE / LOADED_DATA_SAMPLE_RATE)
@@ -501,39 +522,32 @@ def fetch_sn_polarization(path):
 
     return cross_arr, plus_arr
 
+
 def repeat_arr(arr, n):
     # repeat a 2-d array n times along axis 0
-    fill = np.zeros( (arr.shape[0] * n, arr.shape[1]))
+    fill = np.zeros((arr.shape[0] * n, arr.shape[1]))
     for i in range(n):
-        fill[i*arr.shape[0]:(i+1)*arr.shape[0], :] = arr
-        
+        fill[i * arr.shape[0]:(i + 1) * arr.shape[0], :] = arr
+
     return fill
+
 
 def main(args):
     sampled_snr = None
 
     if args.stype == 'bbh':
         # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(N_TRAIN_INJECTIONS)
+        bbh_cross, bbh_plus = bbh_polarization_generator(N_TRAIN_INJECTIONS)
 
         # 2: create injections with those signal classes
         noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
-                                      data=[BBH_cross, BBH_plus]
-                                      )
+                                                data=[bbh_cross, bbh_plus]
+                                                )
         # 3: Turn the injections into segments, ready for training
-        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "bbh")
-
-        training_data = noisy_samples
-        np.save(f"{args.save_file[:-4]}_clean.npy", clean_samples)
-        if 0:
-            # 2: create the injections with those signal classes
-            BBH_injections = inject_signal(folder_path=args.folder_path,
-                                        data=[BBH_cross, BBH_plus],
-                                        )
-            # 3: Turn the injections into segments, ready for training
-            training_data = sample_injections_main(source=None,
-                                target_class=args.stype,
-                                data=BBH_injections)
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'bbh')
+        training_data = dict(
+            noisy=noisy_samples,
+            clean=clean_samples)
 
     elif args.stype == 'sg':
         # 1: generate the polarization files for the signal classes of interest
@@ -541,154 +555,154 @@ def main(args):
 
         # 2: create injections with those signal classes
         noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
-                                      data=[SG_cross, SG_plus]
-                                      )
+                                                data=[SG_cross, SG_plus]
+                                                )
         # 3: Turn the injections into segments, ready for training
-        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "sg")
-
-        training_data = noisy_samples
-        np.save(f"{args.save_file[:-4]}_clean.npy", clean_samples)
-        if 0:
-            # 2: create the injections with those signal classes
-            SG_injections = inject_signal(folder_path=args.folder_path,
-                                        data=[SG_cross, SG_plus],
-                                        )
-            # 3: Turn the injections into segments, ready for training
-            training_data = sample_injections_main(source=None,
-                                target_class=args.stype,
-                                data=SG_injections)
-
-    elif args.stype == 'wnb':
-        # 1: generate the polarization files for the signal classes of interest
-        WNB_cross, WNB_plus = wnb_polarization_generator(N_TEST_INJECTIONS)
-
-        # 2: create the injections with those signal classes
-        training_data = inject_signal(folder_path=args.folder_path,
-                                     data=[WNB_cross, WNB_plus])
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'sg')
+        training_data = dict(
+            noisy=noisy_samples,
+            clean=clean_samples)
 
     elif args.stype == 'background':
 
         # 2.5: generate/fetch the background classes
         backgrounds = generate_backgrounds(folder_path=args.folder_path,
-                                       n_backgrounds=N_TRAIN_INJECTIONS)
+                                           n_backgrounds=N_TRAIN_INJECTIONS)
         # 3: Turn the injections into segments, ready for training
         training_data = sample_injections_main(source=None,
-                               target_class=args.stype,
-                               data=backgrounds)
+                                               target_class=args.stype,
+                                               data=backgrounds)
+        training_data = dict(data=training_data)
 
     elif args.stype == 'glitch':
         if args.start is not None:
             assert args.stop is not None
             glitches = generate_glitches(folder_path=args.folder_path,
-                                    n_glitches=N_TRAIN_INJECTIONS,
-                                    load_start=int(args.start), load_stop=int(args.stop))
-            args.save_file = f"{args.save_file[:-4]}_{args.start}_{args.stop}{args.save_file[-4:]}"
+                                         n_glitches=N_TRAIN_INJECTIONS,
+                                         load_start=int(args.start), load_stop=int(args.stop))
+            args.save_file = f'{args.save_file[:-4]}_{args.start}_{args.stop}{args.save_file[-4:]}'
         else:
             glitches = generate_glitches(folder_path=args.folder_path,
-                                        n_glitches=N_TRAIN_INJECTIONS)
+                                         n_glitches=N_TRAIN_INJECTIONS)
         training_data = sample_injections_main(source=None,
-                               target_class=args.stype,
-                               data=glitches)
+                                               target_class=args.stype,
+                                               data=glitches)
+        training_data = dict(data=training_data)
 
-        print("FINAL SHAPE FROM GLITCHES", training_data.shape)
+    elif args.stype == 'glitches':
+        segments = np.load(args.intersections)
+        datums = []
+
+        for segment in segments:
+            start, stop = segment[0], segment[1]
+            seglen = stop - start
+            if seglen < 3600:
+                continue
+
+            full_path = f'./output/omicron/{start}_{stop}/'
+
+            for j in range(seglen // 3600):
+                split_start, split_stop = j * 3600, (j + 1) * 3600
+                args = argparse.Namespace(
+                    folder_path=full_path,
+                    save_file=f'{full_path}/glitch.npy',
+                    stype='glitch',
+                    start=split_start,
+                    stop=split_stop)
+
+                datum = main(args)
+                if datum == 'empty':
+                    continue
+
+                datums.append(datum)
+
+        training_data = np.concatenate(datums, axis=0)
+        print(f'Total glitch shape is {training_data.shape}')
+        training_data = dict(data=training_data)
 
     elif args.stype == 'timeslides':
         event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
-        training_data = generate_timeslides(args.folder_path, event_times_path=event_times_path)
+        training_data = generate_timeslides(
+            args.folder_path, event_times_path=event_times_path)
+        training_data = dict(data=training_data)
 
-    elif args.stype == "bbh_fm_optimization":
+    elif args.stype == 'bbh_varying_snr' or args.stype == 'bbh_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(N_FM_INJECTIONS)
+        bbh_cross, bbh_plus = bbh_polarization_generator(
+            N_VARYING_SNR_INJECTIONS)
 
-        sampler = make_snr_sampler("uniform", FM_INJECTION_SNR, FM_INJECTION_SNR)
-        # 2: create the injections with those signal classes
-        BBH_injections = inject_signal(folder_path=args.folder_path,
-                                      data=[BBH_cross, BBH_plus],
-                                      segment_length=FM_INJECTION_SEGMENT_LENGTH,
-                                      inject_at_end=True,
-                                      SNR=sampler)
-        training_data = BBH_injections.swapaxes(0, 1)
-
-    elif args.stype == "sg_fm_optimization":
-        # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_FM_INJECTIONS)
-
-        sampler = make_snr_sampler("uniform", FM_INJECTION_SNR, FM_INJECTION_SNR)
-        # 2: create the injections with those signal classes
-        SG_injections = inject_signal(folder_path=args.folder_path,
-                                      data=[SG_cross, SG_plus],
-                                      segment_length=FM_INJECTION_SEGMENT_LENGTH,
-                                      inject_at_end=True,
-                                      SNR=sampler)
-        training_data = SG_injections.swapaxes(0, 1)
-
-    elif args.stype == "bbh_varying_snr":
-        # 1: generate the polarization files for the signal classes of interest
-        BBH_cross, BBH_plus = bbh_polarization_generator(N_VARYING_SNR_INJECTIONS)
-
-        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        sampler = make_snr_sampler(
+            VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
         # 2: create the injections with those signal classes
         BBH_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                      data=[BBH_cross, BBH_plus],
-                                      segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
-                                      inject_at_end=True,
-                                      SNR=sampler,
-                                      return_injection_snr = True)
+                                                    data=[bbh_cross, bbh_plus],
+                                                    segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                                    inject_at_end=True,
+                                                    SNR=sampler,
+                                                    return_injection_snr=True)
         training_data = BBH_injections.swapaxes(0, 1)
+        training_data = dict(data=training_data)
 
-    elif args.stype == "sg_varying_snr":
+    elif args.stype == 'sg_varying_snr' or args.stype == 'sg_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
         SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS)
 
-        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        sampler = make_snr_sampler(
+            VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
         # 2: create the injections with those signal classes
         SG_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                      data=[SG_cross, SG_plus],
-                                      segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
-                                      inject_at_end=True,
-                                      SNR=sampler,
-                                      return_injection_snr = True)
+                                                   data=[SG_cross, SG_plus],
+                                                   segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                                   inject_at_end=True,
+                                                   SNR=sampler,
+                                                   return_injection_snr=True)
         training_data = SG_injections.swapaxes(0, 1)
+        training_data = dict(data=training_data)
 
     elif args.stype == 'wnb_varying_snr':
         # 1: generate the polarization files for the signal classes of interest
-        WNB_cross, WNB_plus = wnb_polarization_generator(N_VARYING_SNR_INJECTIONS)
+        WNB_cross, WNB_plus = wnb_polarization_generator(
+            N_VARYING_SNR_INJECTIONS)
 
-        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
+        sampler = make_snr_sampler(
+            VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
 
         # 2: create the injections with those signal classes
         training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                     data=[WNB_cross, WNB_plus],
-                                     segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
-                                     inject_at_end = True,
-                                     SNR=sampler,
-                                     return_injection_snr=True)
+                                                   data=[WNB_cross, WNB_plus],
+                                                   segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                                   inject_at_end=True,
+                                                   SNR=sampler,
+                                                   return_injection_snr=True)
+        training_data = dict(data=training_data)
 
-    elif args.stype == "supernova_varying_snr":
+    elif args.stype == 'supernova_varying_snr':
         # 1 : Fetch the polarization files
         SN_cross, SN_plus = fetch_sn_polarization(args.sn_polarization_path)
 
-        #copy the array to get more samples, approximately equal to N_VARYING_SNR_INJECTIONS
-        #"uniform" prior over the cross and plus, so just copy each one some number of times
-        n_repeat =  int(N_VARYING_SNR_INJECTIONS /len(SN_cross))
-        SN_cross, SN_plus = repeat_arr(SN_cross, n_repeat), repeat_arr(SN_plus, n_repeat)
+        # copy the array to get more samples, approximately equal to N_VARYING_SNR_INJECTIONS
+        #'uniform' prior over the cross and plus, so just copy each one some number of times
+        n_repeat = int(N_VARYING_SNR_INJECTIONS / len(SN_cross))
+        SN_cross, SN_plus = repeat_arr(
+            SN_cross, n_repeat), repeat_arr(SN_plus, n_repeat)
 
-
-        sampler = make_snr_sampler(VARYING_SNR_DISTRIBUTION, SNR_SN_LOW, SNR_SN_HIGH)
+        sampler = make_snr_sampler(
+            VARYING_SNR_DISTRIBUTION, SNR_SN_LOW, SNR_SN_HIGH)
 
         # 2: create injections with those polarizations
         training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                     data=[SN_cross, SN_plus],
-                                     segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
-                                     inject_at_end = True,
-                                     SNR=sampler,
-                                     return_injection_snr=True)
+                                                   data=[SN_cross, SN_plus],
+                                                   segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
+                                                   inject_at_end=True,
+                                                   SNR=sampler,
+                                                   return_injection_snr=True)
+        training_data = dict(data=training_data)
 
-
-    np.save(args.save_file, training_data)
+    np.savez(args.save_file, **training_data)
 
     if sampled_snr is not None:
-        snr_save_path = f"{args.save_file[:-4]}_SNR{args.save_file[-4:]}" # drop it in between name and .npy
+        # drop it in between name and .npy
+        snr_save_path = f'{args.save_file[:-4]}_SNR{args.save_file[-4:]}'
         np.save(snr_save_path, sampled_snr)
 
 
@@ -704,13 +718,14 @@ if __name__ == '__main__':
 
     parser.add_argument('--stype', help='Which type of the injection to generate',
                         type=str, choices=['bbh', 'sg', 'background',
-                                           'glitch', 'wnb', 'ccsn', 'timeslides',
+                                           'glitch', 'glitches', 'wnb', 'ccsn', 'timeslides',
                                            'bbh_fm_optimization', 'sg_fm_optimization',
                                            'bbh_varying_snr', 'sg_varying_snr',
                                            'wnb_varying_snr', 'supernova_varying_snr'])
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)
-    parser.add_argument('--sn-polarization-path', type=str, default="/home/ryan.raikman/s22/forks/katya/gw-anomaly/data/z85_sfho/")
+    parser.add_argument('--sn-polarization-path', type=str,
+                        default='/home/ryan.raikman/s22/forks/katya/gw-anomaly/data/z85_sfho/')
     args = parser.parse_args()
     main(args)

@@ -30,12 +30,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Required arguments
-    parser.add_argument('folder_path', help='Path to the Omicron output',
-                        type=str)
-    parser.add_argument('intersections', help='Path to the intersections file',
-                        type=str)
+    parser.add_argument('folder_path', type=str,
+                        help='Path to the Omicron output')
 
-    parser.add_argument('--site', help='Where to save the file with injections',
-                        type=str, choices=['L1', 'H1'])
+    parser.add_argument('intersections', type=str,
+                        help='Path to the intersections file')
+
+    parser.add_argument('--site', type=str, choices=['L1', 'H1'],
+                        help='Where to save the file with injections')
+
     args = parser.parse_args()
     main(args)

@@ -60,8 +60,9 @@ STATE_FLAG = 'DCS-ANALYSIS_READY_C01:1'
 
 # training
 TEST_SPLIT = 0.9
-BOTTLENECK = {'bbh':4, 'sg':8, 'glitches':6, 'background':8}
-MODEL = {'bbh': 'lstm', 'sg':'lstm', 'glitches':'dense', 'background':'dense'}
+BOTTLENECK = {'bbh': 4, 'sg': 8, 'glitches': 6, 'background': 8}
+MODEL = {'bbh': 'lstm', 'sg': 'lstm',
+         'glitches': 'dense', 'background': 'dense'}
 FACTOR = 2
 EPOCHS = 200
 BATCH_SIZE = 512
@@ -80,11 +81,11 @@ SHIFT_STEP = 2
 # timeslides
 GW_EVENT_CLEANING_WINDOW = 5
 TIMESLIDE_STEP = 0.5
-TIMESLIDE_TOTAL_DURATION = 1.1*24*3600
-FM_TIMESLIDE_TOTAL_DURATION = 0.01*30*24*3600
+TIMESLIDE_TOTAL_DURATION = 1.1 * 24 * 3600
+FM_TIMESLIDE_TOTAL_DURATION = 0.01 * 30 * 24 * 3600
 
 # GPU
-GPU_NAME = 'cuda:3'
+GPU_NAME = 'cuda:1'
 
 # evolutionary search
 INIT_SIGMA = 0.5
@@ -96,7 +97,7 @@ NOISE = 0.01
 SVM_LR = 0.01
 N_SVM_EPOCHS = 5000
 
-# plotting 
+# plotting
 SPEED = True
 RECREATION_LIMIT = 50
 RECREATION_SAMPLES_PER_PLOT = 6
@@ -104,8 +105,9 @@ RECREATION_WIDTH = 12
 RECREATION_HEIGHT_PER_SAMPLE = 6
 IFO_LABELS = ['Hanford', 'Livingston']
 SNR_VS_FAR_BAR = 5
-SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24*3600, 7*24*3600, 30*24*3600, 4*30*24*3600, 365*24*3600]
-SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', '4 months','year']
+SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24 * 3600, 7 * 24 *
+                               3600, 30 * 24 * 3600, 4 * 30 * 24 * 3600, 365 * 24 * 3600]
+SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', '4 months', 'year']
 
 # varying SNR injection
 N_VARYING_SNR_INJECTIONS = 2000

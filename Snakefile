@@ -14,7 +14,7 @@ dataclasses = [
 
 wildcard_constraints:
     modelclass = '|'.join([x for x in modelclasses]),
-    dataclass = '|'.join([x for x in dataclasses+modelclasses])
+    dataclass = '|'.join([x for x in dataclasses + modelclasses])
 
 
 rule find_valid_segments:
@@ -54,7 +54,7 @@ rule generate_data:
         intersections = rules.find_valid_segments.output.save_path,
     params:
         dependencies = expand(rules.fetch_site_data.output,
-            site=['L1', 'H1'])
+                              site=['L1', 'H1'])
     output:
         file = 'output/data/{dataclass}.npz'
     shell:
@@ -65,7 +65,7 @@ rule generate_data:
 rule upload_data:
     input:
         expand(rules.generate_data.output.file,
-            dataclass='{dataclass}'),
+               dataclass='{dataclass}'),
     params:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
@@ -75,8 +75,8 @@ rule upload_data:
 rule validate_data:
     input:
         expand(rules.upload_data.params,
-            dataclass=modelclasses+dataclasses,
-            version=VERSION)
+               dataclass=modelclasses + dataclasses,
+               version=VERSION)
     shell:
         'mkdir -p data/{VERSION}/; '
         'python3 scripts/validate_data.py {input}'
@@ -84,8 +84,8 @@ rule validate_data:
 rule train_quak:
     input:
         data = expand(rules.upload_data.params,
-            dataclass='{dataclass}',
-            version=VERSION)
+                      dataclass='{dataclass}',
+                      version=VERSION)
     output:
         savedir = directory('output/trained/{dataclass}'),
         model_file = 'output/trained/models/{dataclass}.pt'
@@ -96,11 +96,11 @@ rule train_quak:
 rule recreation_and_quak_plots:
     input:
         models = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION),
+                        dataclass=modelclasses,
+                        version=VERSION),
         test_path = expand(rules.upload_data.params,
-            dataclass='bbh',
-            version=VERSION)
+                           dataclass='bbh',
+                           version=VERSION)
     output:
         savedir = directory('output/plots/')
     shell:
@@ -110,10 +110,10 @@ rule recreation_and_quak_plots:
 rule generate_timeslides_for_final_metric_train:
     input:
         data_path = expand(rules.upload_data.params,
-            dataclass='timeslides',
-            version=VERSION),
+                           dataclass='timeslides',
+                           version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses)
+                            dataclass=modelclasses)
     params:
         shorten_timeslides = True
     output:
@@ -126,10 +126,10 @@ rule generate_timeslides_for_final_metric_train:
 rule evaluate_signals:
     input:
         source_file = expand(rules.upload_data.params,
-            dataclass='{signal_dataclass}',
-            version=VERSION),
+                             dataclass='{signal_dataclass}',
+                             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses)
+                            dataclass=modelclasses)
     output:
         save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
     shell:
@@ -138,13 +138,13 @@ rule evaluate_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_varying_snr', 'sg_varying_snr']),
+                         signal_dataclass=['bbh_varying_snr', 'sg_varying_snr']),
         dependencies = rules.generate_timeslides_for_final_metric_train.output
     params:
         timeslides = expand('output/timeslides/timeslide_evals_{i}.npy',
-            i=range(1, 140)),
+                            i=range(1, 140)),
         normfactors = expand('output/timeslides/normalization_params_{i}.npy',
-            i=range(1, 140))
+                             i=range(1, 140))
     output:
         params_file = 'output/trained/final_metric_params.npy',
         norm_factor_file = 'output/trained/norm_factor_params.npy'
@@ -157,10 +157,10 @@ rule train_final_metric:
 rule compute_far:
     input:
         data_path = expand(rules.upload_data.params,
-            dataclass='timeslides',
-            version=VERSION),
+                           dataclass='timeslides',
+                           version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses),
+                            dataclass=modelclasses),
         metric_coefs_path = rules.train_final_metric.output.params_file,
         norm_factors_path = rules.train_final_metric.output.norm_factor_file
     params:
@@ -176,10 +176,10 @@ rule compute_far:
 rule quak_plotting_prediction_and_recreation:
     input:
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses),
+                            dataclass=modelclasses),
         test_data = expand(rules.upload_data.params,
-            dataclass='{dataclass}',
-            version=VERSION)
+                           dataclass='{dataclass}',
+                           version=VERSION)
     params:
         reduce_loss = False
     output:
