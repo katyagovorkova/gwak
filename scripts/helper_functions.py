@@ -1,4 +1,5 @@
 import os
+import sys
 import h5py
 import time
 import bilby
@@ -9,7 +10,6 @@ from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
 from lalinference import BurstSineGaussian, BurstSineGaussianF
 
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
@@ -184,7 +184,7 @@ def stack_dict_into_numpy_segments(data_dict):
 def reduce_to_significance(data):
     '''
     Data is a torch tensor of shape (N_samples, N_features),
-    normalize / calculate significance for each of the axis 
+    normalize / calculate significance for each of the axis
     by std/mean of SIGNIFICANCE_NORMALIZATION_DURATION
     '''
     N_batches, N_samples, N_features = data.shape
@@ -214,78 +214,74 @@ def reduce_to_significance(data):
 
 def load_folder(
         path: str,
-        load_start: int = None,
-        load_stop: int = None):
+        load_start: int=None,
+        load_stop: int=None,
+        glitches: bool=False):
     '''
     load the glitch times and data associated with a "save" folder
     '''
-    start = STRAIN_START
-    end = STRAIN_STOP
-    last = -1
-    if path[-1] == "/":
-        last = -2
-    print("PATH", path)
-    if not path[-3].isnumeric():
-        path += f"/{STRAIN_START}_{STRAIN_STOP}/"
-    # print(path.split("/"))
-    start, end = [int(elem) for elem in path.split("/")[-2].split("_")]
+
+    if glitches is False:
+        start, stop = STRAIN_START, STRAIN_STOP
+        path += f'/{STRAIN_START}_{STRAIN_STOP}/'
+        min_trigger_load = STRAIN_START + load_start
+        max_trigger_load = STRAIN_START + load_stop
+    else:
+        start, stop = [int(elem) for elem in path.split("/")[-2].split("_")]
+        min_trigger_load = start + load_start
+        max_trigger_load = start + load_stop
 
     loaded_data = dict()
-    min_trigger_load = start + load_start
-    max_trigger_load = start + load_stop
+    print(f'Loading {path}')
     for ifo in IFOS:
         # get the glitch times first
-        triggers_path = f"{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/"
+        triggers_path = f'{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/'
         triggers = []
         # check if Omicron actually finished, if not, go further
-        if not os.path.exists(triggers_path):
-            continue
+        if not os.path.exists(triggers_path): continue
 
         for file in os.listdir(triggers_path):
-            if file[-3:] == ".h5":
+            if file[-3:] == '.h5':
                 trigger_start_time = int(file.split("-")[-2])
-                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load - 70:
-                    with h5py.File(f"{triggers_path}/{file}", "r") as f:
+                if trigger_start_time > min_trigger_load and trigger_start_time < max_trigger_load:
+                    with h5py.File(f'{triggers_path}/{file}', 'r') as f:
                         segment_triggers = f['triggers'][:]
                         triggers.append(segment_triggers)
+        if triggers == []: continue
+        else:
+            triggers = np.concatenate(triggers, axis=0)
 
-        triggers = np.concatenate(triggers, axis=0)
+        # check if data fetching actually finished, if not, go further
+        if not os.path.exists(f'{path}/data_{ifo}.h5'):
+            print(f'Alert!!! NO data for {path}')
+            continue
 
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
-            if load_start == None or load_stop == None:
-                X = f[f"{ifo}:{CHANNEL}"][:]
+            if load_start==None or load_stop==None or glitches==True:
+                X = f[f'{ifo}:{CHANNEL}'][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
                 datapoints_stop = int(load_stop * LOADED_DATA_SAMPLE_RATE)
-                X = f[f"{ifo}:{CHANNEL}"][datapoints_start:datapoints_stop]
-
-        # some statistics on the data
-        data_statistics = 0
-        if data_statistics:
-            print(f'start: {start}, end: {end}')
-            print(f'duration, seconds: {end-start}')
-            print(f'data length: {len(X)}')
-            print(f'with data sampled at {4*SAMPLE_RATE}, len(data)/duration= {len(X)/4/SAMPLE_RATE}')
+                X = f[f'{ifo}:{CHANNEL}'][datapoints_start:datapoints_stop]
 
         sample_rate = LOADED_DATA_SAMPLE_RATE
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
-        data = TimeSeries(X, sample_rate=sample_rate, t0=start + load_start)
-        if data_statistics:
-            print(f'after creating time series, len(data) = {len(data)}')
-            before_resample = len(data)
+        data = TimeSeries(X,
+            sample_rate=sample_rate,
+            t0=start if glitches else start+load_start)
 
         if sample_rate != resample_rate:
             data = data.resample(resample_rate)
 
-        if data_statistics:
-            print(f'after resampling, len(data) = {len(data)}')
-            print(f'ratio before to after: {before_resample/len(data)}')
-
         fftlength = 1
         loaded_data[ifo] = {'triggers': triggers,
                             'data': data,
-                            'asd': data.asd(fftlength=fftlength, overlap=0, method='welch', window='hanning')}
+                            'asd': data.asd(
+                                fftlength=fftlength,
+                                overlap=0,
+                                method='welch',
+                                window='hanning')}
 
     return loaded_data
 

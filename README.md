@@ -18,7 +18,7 @@ pip install snakemake
 
 To make pytorch available, do 
 ```
-pip install torch==1.11.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+pip install torch==2.0.1
 ```
 
 Good thing to do before running (only has to be done once) is to create

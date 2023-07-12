@@ -92,7 +92,7 @@ def main(args):
     if type(args.signal_path) == str:
         args.signal_path = [args.signal_path]
     for file_name in args.signal_path:
-        signal_evals.append(np.load(f'{file_name}'))['data']  # [:1000]
+        signal_evals.append(np.load(f'{file_name}'))  # [:1000]
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []

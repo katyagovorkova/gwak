@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
+from final_metric_optimization import LinearModel
 from helper_functions import (
     stack_dict_into_numpy,
     stack_dict_into_numpy_segments,
@@ -73,20 +74,6 @@ def engineered_features_torch(data):
     return newdata
 
 
-class LinearModel(nn.Module):
-
-    def __init__(self, n_dims):
-        super(LinearModel, self).__init__()
-        self.layer = nn.Linear(17, 4)
-        self.layer1_5 = nn.Linear(4, 2)
-        self.layer2 = nn.Linear(2, 1)
-        self.layer_normal = nn.Linear(17, 1)
-
-    def forward(self, x):
-
-        return self.layer_normal(x)
-
-
 def calculate_means(metric_vals, snrs, bar):
     # helper function for SNR vs FAR plot
     means, stds = [], []
@@ -132,6 +119,11 @@ def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
     snr_plot, means_plot, stds_plot = calculate_means(
         fm_vals, snrs, bar=SNR_VS_FAR_BAR)
 
+    # print(snr_plot)
+    # print(means_plot)
+
+    print(stds_plot)
+
     plt.figure(figsize=(12, 8))
 
     plt.xlabel(f"{tag} SNR")
@@ -140,7 +132,12 @@ def snr_vs_far_plotting(data, snrs, metric_coefs, far_hist, tag, savedir):
     # plt.xlim(0,110)
     plt.grid()
 
-    plt.errorbar(snr_plot, means_plot, yerr=stds_plot, xerr=SNR_VS_FAR_BAR // 2, fmt="o", color='goldenrod', label=f"{tag}")
+    plt.errorbar(snr_plot, means_plot,
+        yerr=stds_plot,
+        xerr=SNR_VS_FAR_BAR // 2,
+        fmt="o",
+        color='goldenrod',
+        label=f"{tag}")
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
         metric_val_label = far_to_metric(
@@ -188,10 +185,6 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[0].set_ylabel("Whitened strain")
     axs[0].legend()
     axs[0].grid()
-
-    #axs[0].set_xlim(4.5e4, 5e4)
-    #axs[1].set_xlim(0.9e4, 1e4)
-    #axs[2].set_xlim(0.9e4, 1e4)
 
     colors = [
         'purple',
@@ -271,7 +264,7 @@ def main(args):
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy")
             print(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", data.shape)
             data = (data - means) / stds
-            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy")
+            snrs = np.load(f"output/data/{tag}_varying_snr_SNR.npz.npy")
 
             if RETURN_INDIV_LOSSES:
                 model = LinearModel(17).to(DEVICE)
@@ -301,10 +294,10 @@ def main(args):
             mod = ""
             for elem in args.data_predicted_path.split("/")[:-2]:
                 mod += elem + "/"
-            strains = np.load(f"{mod}/data/{tag}_varying_snr.npy", mmap_mode="r")[ind]
+            strains = np.load(f"output/data/{tag}_varying_snr.npy", mmap_mode="r")[ind]
             data = np.load(f"{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy", mmap_mode="r")[ind]
             data = (data - means) / stds
-            snrs = np.load(f"{mod}/data/{tag}_varying_snr_SNR.npy", mmap_mode="r")[ind]
+            snrs = np.load(f"output/data/{tag}_varying_snr_SNR.npz.npy", mmap_mode="r")[ind]
 
             if RETURN_INDIV_LOSSES:
                 model = LinearModel(17).to(DEVICE)

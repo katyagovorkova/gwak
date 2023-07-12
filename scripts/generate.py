@@ -349,9 +349,15 @@ def generate_glitches(
         load_start=DATA_SEGMENT_LOAD_START,
         load_stop=DATA_SEGMENT_LOAD_STOP):
 
-    loaded_data = load_folder(folder_path,
-                              load_start,
-                              load_stop)
+    loaded_data = load_folder(
+        folder_path,
+        load_start,
+        load_stop,
+        glitches=True)
+
+    if 'H1' not in loaded_data.keys() or 'L1' not in loaded_data.keys():
+        return 'empty'
+
     detector_data = np.vstack(
         [loaded_data['H1']['data'], loaded_data['L1']['data']])
 
@@ -580,14 +586,18 @@ def main(args):
             glitches = generate_glitches(folder_path=args.folder_path,
                                          n_glitches=N_TRAIN_INJECTIONS,
                                          load_start=int(args.start), load_stop=int(args.stop))
-            args.save_file = f'{args.save_file[:-4]}_{args.start}_{args.stop}{args.save_file[-4:]}'
         else:
             glitches = generate_glitches(folder_path=args.folder_path,
                                          n_glitches=N_TRAIN_INJECTIONS)
+
+        if glitches=='empty':
+            return 'empty'
+
         training_data = sample_injections_main(source=None,
-                                               target_class=args.stype,
-                                               data=glitches)
-        training_data = dict(data=training_data)
+                               target_class=args.stype,
+                               data=glitches)
+
+        return training_data
 
     elif args.stype == 'glitches':
         segments = np.load(args.intersections)
@@ -603,14 +613,14 @@ def main(args):
 
             for j in range(seglen // 3600):
                 split_start, split_stop = j * 3600, (j + 1) * 3600
-                args = argparse.Namespace(
+                j_args = argparse.Namespace(
                     folder_path=full_path,
                     save_file=f'{full_path}/glitch.npy',
                     stype='glitch',
                     start=split_start,
                     stop=split_stop)
 
-                datum = main(args)
+                datum = main(j_args)
                 if datum == 'empty':
                     continue
 
@@ -725,6 +735,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)
+    parser.add_argument('--intersections', type=str, default=None)
     parser.add_argument('--sn-polarization-path', type=str,
                         default='/home/ryan.raikman/s22/forks/katya/gw-anomaly/data/z85_sfho/')
     args = parser.parse_args()

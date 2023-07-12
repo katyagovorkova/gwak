@@ -66,15 +66,15 @@ rule upload_data:
     input:
         expand(rules.generate_data.output.file,
                dataclass='{dataclass}'),
-    params:
+    output:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
-        'cp {input} {params}; '
+        'cp {input} {output}; '
 
 rule validate_data:
     input:
-        expand(rules.upload_data.params,
+        expand(rules.upload_data.output,
                dataclass=modelclasses + dataclasses,
                version=VERSION)
     shell:
@@ -83,7 +83,7 @@ rule validate_data:
 
 rule train_quak:
     input:
-        data = expand(rules.upload_data.params,
+        data = expand(rules.upload_data.output,
                       dataclass='{dataclass}',
                       version=VERSION)
     output:
@@ -98,7 +98,7 @@ rule recreation_and_quak_plots:
         models = expand(rules.train_quak.output.model_file,
                         dataclass=modelclasses,
                         version=VERSION),
-        test_path = expand(rules.upload_data.params,
+        test_path = expand(rules.upload_data.output,
                            dataclass='bbh',
                            version=VERSION)
     output:
@@ -109,7 +109,7 @@ rule recreation_and_quak_plots:
 
 rule generate_timeslides_for_final_metric_train:
     input:
-        data_path = expand(rules.upload_data.params,
+        data_path = expand(rules.upload_data.output,
                            dataclass='timeslides',
                            version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -125,7 +125,7 @@ rule generate_timeslides_for_final_metric_train:
 
 rule evaluate_signals:
     input:
-        source_file = expand(rules.upload_data.params,
+        source_file = expand(rules.upload_data.output,
                              dataclass='{signal_dataclass}',
                              version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -156,7 +156,7 @@ rule train_final_metric:
 
 rule compute_far:
     input:
-        data_path = expand(rules.upload_data.params,
+        data_path = expand(rules.upload_data.output,
                            dataclass='timeslides',
                            version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
@@ -177,7 +177,7 @@ rule quak_plotting_prediction_and_recreation:
     input:
         model_path = expand(rules.train_quak.output.model_file,
                             dataclass=modelclasses),
-        test_data = expand(rules.upload_data.params,
+        test_data = expand(rules.upload_data.output,
                            dataclass='{dataclass}',
                            version=VERSION)
     params:

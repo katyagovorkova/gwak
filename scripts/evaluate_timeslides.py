@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from final_metric_optimization import LinearModel
 from evaluate_data import full_evaluation
 import sys
 sys.path.append(
@@ -49,20 +50,6 @@ def engineered_features_torch(data):
     return newdata
 
 
-class LinearModel(nn.Module):
-
-    def __init__(self, n_dims):
-        super(LinearModel, self).__init__()
-        self.layer = nn.Linear(n_dims, 4)
-        self.layer1_5 = nn.Linear(4, 2)
-        self.layer2 = nn.Linear(2, 1)
-        self.layer_normal = nn.Linear(17, 1)
-
-    def forward(self, x):
-
-        return self.layer_normal(x)
-
-
 def main(args):
     if args.metric_coefs_path is not None:
         # initialize histogram
@@ -73,7 +60,7 @@ def main(args):
     data = np.load(args.data_path)['data']
     data = torch.from_numpy(data).to(DEVICE)
 
-    reduction = 10  # for things to fit into memory nicely
+    reduction = 20  # for things to fit into memory nicely
 
     timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
     if args.fm_shortened_timeslides:
@@ -146,8 +133,6 @@ def main(args):
 
             # save as a numpy file, with the index of timeslide_num
             np.save(f'{args.save_path}/timeslide_evals_{timeslide_num}.npy', final_values)
-
-        print(f'Iteration, {timeslide_num}, done in {time.time() - ts_ :.3f} s')
 
 
 if __name__ == '__main__':
