@@ -60,9 +60,18 @@ STATE_FLAG = 'DCS-ANALYSIS_READY_C01:1'
 
 # training
 TEST_SPLIT = 0.9
-BOTTLENECK = {'bbh': 4, 'sg': 8, 'glitches': 6, 'background': 8}
-MODEL = {'bbh': 'lstm', 'sg': 'lstm',
-         'glitches': 'dense', 'background': 'dense'}
+BOTTLENECK = {
+    'bbh': 4,
+    'sglf': 8,
+    'sghf': 8,
+    'glitches': 6,
+    'background': 8}
+MODEL = {
+    'bbh': 'lstm',
+    'sglf': 'lstm',
+    'sghf': 'lstm',
+    'glitches': 'dense',
+    'background': 'dense'}
 FACTOR = 2
 EPOCHS = 200
 BATCH_SIZE = 512
@@ -70,7 +79,7 @@ LOSS = 'MAE'
 OPTIMIZER = 'Adam'
 VALIDATION_SPLIT = 0.15
 TRAINING_VERBOSE = True
-CLASS_ORDER = ['background', 'bbh', 'glitches', 'sg']
+CLASS_ORDER = ['background', 'bbh', 'glitches', 'sglf', 'sghf']
 LIMIT_TRAINING_DATA = None
 CURRICULUM_SNRS = [256, 128, 64, 32, 16]
 
@@ -105,9 +114,8 @@ RECREATION_WIDTH = 12
 RECREATION_HEIGHT_PER_SAMPLE = 6
 IFO_LABELS = ['Hanford', 'Livingston']
 SNR_VS_FAR_BAR = 5
-SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24 * 3600, 7 * 24 *
-                               3600, 30 * 24 * 3600, 4 * 30 * 24 * 3600, 365 * 24 * 3600]
-SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', '4 months', 'year']
+SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24*3600, 7*24*3600, 30*24*3600, 365*24*3600]
+SNR_VS_FAR_HL_LABELS = ["hour", "day", "week", "month","year"]
 
 # varying SNR injection
 N_VARYING_SNR_INJECTIONS = 2000

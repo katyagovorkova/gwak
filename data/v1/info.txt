@@ -1,0 +1,26 @@
+/home/katya.govorkova/gwak/v1/data/bbh.npz noisy 
+Dataset bbh.npz shape is (5, 100000, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/bbh.npz clean 
+Dataset bbh.npz shape is (5, 100000, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/sg.npz noisy 
+Dataset sg.npz shape is (5, 100000, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/sg.npz clean 
+Dataset sg.npz shape is (5, 100000, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/background.npz 
+Dataset background.npz shape is (100000, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/glitches.npz 
+Dataset glitches.npz shape is (49818, 2, 200) 
+/home/katya.govorkova/gwak/v1/data/timeslides.npz 
+Dataset timeslides.npz shape is (2, 14696448) 
+/home/katya.govorkova/gwak/v1/data/bbh_fm_optimization.npz 
+Dataset bbh_fm_optimization.npz shape is (500, 2, 12288) 
+/home/katya.govorkova/gwak/v1/data/sg_fm_optimization.npz 
+Dataset sg_fm_optimization.npz shape is (500, 2, 12288) 
+/home/katya.govorkova/gwak/v1/data/bbh_varying_snr.npz 
+Dataset bbh_varying_snr.npz shape is (2000, 2, 12288) 
+/home/katya.govorkova/gwak/v1/data/sg_varying_snr.npz 
+Dataset sg_varying_snr.npz shape is (2000, 2, 12288) 
+/home/katya.govorkova/gwak/v1/data/wnb_varying_snr.npz 
+Dataset wnb_varying_snr.npz shape is (2, 2000, 12288) 
+/home/katya.govorkova/gwak/v1/data/supernova_varying_snr.npz 
+Dataset supernova_varying_snr.npz shape is (2, 2000, 12288) 

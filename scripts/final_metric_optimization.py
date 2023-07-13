@@ -89,10 +89,17 @@ def main(args):
     backgrounds: shape (time_axis, 5)
     '''
     signal_evals = []
-    if type(args.signal_path) == str:
-        args.signal_path = [args.signal_path]
+    midp_map = {
+        'bbh_varying_snr_evals.npy': 1440,
+        'sg_varying_snr_evals.npy': 1440,
+        'wnbhf_varying_snr_evals.npy': 1850,
+        'wnblf_varying_snr_evals.npy': 1850,
+        'supernova_varying_snr_evals.npy': 2150}
+
     for file_name in args.signal_path:
-        signal_evals.append(np.load(f'{file_name}'))  # [:1000]
+        mid = midp_map[file_name.split("/")[-1]]
+        signal_evals.append(np.load(f'{file_name}')[:, mid-150:mid+150, :])#[:1000]
+
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []
@@ -117,7 +124,6 @@ def main(args):
     signal_evals = (signal_evals - means) / stds
     timeslide_evals = (timeslide_evals - means) / stds
 
-    signal_evals = signal_evals[:, 1300 + 130:1400 + 140, :]
     np.save(args.norm_factor_save_file, np.stack([means, stds], axis=0))
 
     optimal_coeffs = optimize_hyperplane(signal_evals, timeslide_evals)

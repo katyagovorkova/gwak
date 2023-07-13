@@ -123,7 +123,8 @@ def bbh_polarization_generator(
 
 def sg_polarization_generator(
         n_injections,
-        segment_length=2):
+        segment_length=2,
+        prior_file='data/SG.prior'):
 
     waveform = olib_time_domain_sine_gaussian
     waveform_generator = bilby.gw.WaveformGenerator(
@@ -132,7 +133,6 @@ def sg_polarization_generator(
         time_domain_source_model=waveform,
         waveform_arguments=None
     )
-    prior_file = 'data/SG.prior'
     priors = bilby.gw.prior.PriorDict(prior_file)
     injection_parameters = priors.sample(n_injections)
     injection_parameters = [
@@ -565,6 +565,22 @@ def main(args):
                                                 )
         # 3: Turn the injections into segments, ready for training
         noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'sg')
+        training_data = dict(
+            noisy=noisy_samples,
+            clean=clean_samples)
+
+    elif 'sg' in args.stype:
+        # 1: generate the polarization files for the signal classes of interest
+        sg_cross, sg_plus = sg_polarization_generator(N_TRAIN_INJECTIONS,
+            prior_file=f'data/{args.stype}.prior')
+
+        # 2: create injections with those signal classes
+        noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
+                                      data=[sg_cross, sg_plus]
+                                      )
+        # 3: Turn the injections into segments, ready for training
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "sg")
+
         training_data = dict(
             noisy=noisy_samples,
             clean=clean_samples)

@@ -5,3 +5,5 @@ output/
 *.DS_Store*
 *.pdf
 *.ffl
+tmp/*
+*._*.py

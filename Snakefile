@@ -1,6 +1,6 @@
 from config import VERSION
 
-signalclasses = ['bbh', 'sg']
+signalclasses = ['bbh', 'sglf', 'sghf']
 backgroundclasses = ['background', 'glitches']
 modelclasses = signalclasses + backgroundclasses
 dataclasses = [
@@ -9,7 +9,14 @@ dataclasses = [
     'sg_fm_optimization',
     'bbh_varying_snr',
     'sg_varying_snr',
-    'wnb_varying_snr',
+    'wnbhf_varying_snr',
+    'wnblf_varying_snr',
+    'supernova_varying_snr']
+fm_training_classes = [
+    'bbh_varying_snr',
+    'sg_varying_snr',
+    'wnbhf_varying_snr',
+    'wnblf_varying_snr',
     'supernova_varying_snr']
 
 wildcard_constraints:
