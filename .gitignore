@@ -7,3 +7,4 @@ output/
 *.ffl
 tmp/*
 *._*.py
+*.pt
