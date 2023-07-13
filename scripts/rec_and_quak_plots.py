@@ -82,13 +82,16 @@ def corner_plotting(
         'Blues',
         'Greens',
         'Reds',
+        'Browns',
         'Purples']
 
     one_D_colors = [
         'purple',
         'blue',
         'green',
-        'red'
+        'red',
+        'sienna',
+        'orange'
     ]
 
     # do the 1-d plots
@@ -99,8 +102,10 @@ def corner_plotting(
 
             if labels[j] == 'glitch':
                 LBL = 'Glitches'
-            elif labels[j] == 'sg':
-                LBL = 'SG Injection'
+            elif labels[i] == 'sglf':
+                lbl = 'SG Injection, 64-512 Hz'
+            elif labels[i] == 'sghf':
+                lbl = 'SG Injection, 512-1024 Hz'
             elif labels[j] == 'bbh':
                 LBL = 'BBH'
             elif labels[j] == 'background':
@@ -147,8 +152,10 @@ def corner_plotting(
     for i in range(N):
         if labels[i] == 'glitch':
             lbl = 'Glitches'
-        elif labels[i] == 'sg':
-            lbl = 'SG Injection'
+        elif labels[i] == 'sglf':
+            lbl = 'SG Injection, 64-512 Hz'
+        elif labels[i] == 'sghf':
+            lbl = 'SG Injection, 512-1024 Hz'
         elif labels[i] == 'bbh':
             lbl = 'BBH'
         elif labels[i] == 'background':
@@ -180,7 +187,9 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
         'purple',
         'blue',
         'green',
-        'red'
+        'red',
+        'sienna',
+        'orange'
     ]
     i = CLASS_ORDER.index(class_name)
     # for i, class_name in enumerate(CLASS_ORDER):
@@ -256,7 +265,7 @@ def main(args):
     if do_recreation_plotting:
         # recreation plotting
         for class_label in CLASS_ORDER:
-            if class_label in ["bbh", "sg"]:
+            if class_label in ['bbh', 'sglf', 'sghf']:
                 loss_values_SNR[class_label] = dict()
                 data = np.load(f"{args.test_data_path[:-7]}{class_label}.npz")['noisy']
                 data_clean = np.load(f"{args.test_data_path[:-7]}{class_label}.npz")['clean']
@@ -310,25 +319,22 @@ def main(args):
                                     f"{args.savedir}/{class_label}/",
                                     class_label)
 
-    # # QUAK plots
-    # # print(loss_values['background'])
-    # for SNR_ind in range(5):
-    #     corner_plot_data = [0] * 4
+    # QUAK plots
+    for SNR_ind in range(5):
+        corner_plot_data = [0] * 4
 
-    #     for class_label in CLASS_ORDER:
-    #         class_index = CLASS_ORDER.index(class_label)
-    #         if class_label in ["sg", "bbh"]:
-    #             corner_plot_data[class_index] = loss_values_SNR[
-    #                 class_label][SNR_ind]
-    #         else:
-    #             assert class_label in ["glitch", "background"]
-    #             corner_plot_data[class_index] = loss_values[class_label]
-    #         corner_plot_data[class_index] = stack_dict_into_numpy(
-    #             corner_plot_data[class_index])  # [p]#[:, ]
-    #         corner_plot_data[class_index] = corner_plot_data[class_index][
-    #             np.random.permutation(len(corner_plot_data[class_index]))]
+        for class_label in CLASS_ORDER:
+            class_index = CLASS_ORDER.index(class_label)
+            if class_label in ['sghf', 'sglf', 'bbh']:
+                corner_plot_data[class_index] = loss_values_SNR[class_label][SNR_ind]
+            else:
+                assert class_label in ['glitch', 'background']
+                corner_plot_data[class_index] = loss_values[class_label]
+            corner_plot_data[class_index] = stack_dict_into_numpy(corner_plot_data[class_index])#[p]#[:, ]
+            corner_plot_data[class_index] = corner_plot_data[class_index][np.random.permutation(len(corner_plot_data[class_index]))]
 
-    #     corner_plotting(corner_plot_data, CLASS_ORDER, f"{args.savedir}", SNR_ind=SNR_ind, loglog=False)
+    corner_plotting(corner_plot_data, CLASS_ORDER, f"{args.savedir}", SNR_ind=SNR_ind, loglog=False)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

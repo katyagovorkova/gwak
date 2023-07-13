@@ -685,17 +685,27 @@ def main(args):
         training_data = SG_injections.swapaxes(0, 1)
         training_data = dict(data=training_data)
 
-    elif args.stype == 'wnb_varying_snr':
+    elif 'wnb' in args.stype:
+
+        if 'wnblf' in args.stype:
+            fmin=40
+            fmax=400
+        else:
+            fmin=400
+            fmax=1000
+
         # 1: generate the polarization files for the signal classes of interest
-        WNB_cross, WNB_plus = wnb_polarization_generator(
-            N_VARYING_SNR_INJECTIONS)
+        wnb_cross, wnb_plus = wnb_polarization_generator(
+            N_VARYING_SNR_INJECTIONS,
+            fmin=fmin,
+            fmax=fmax)
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
 
         # 2: create the injections with those signal classes
         training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                                   data=[WNB_cross, WNB_plus],
+                                                   data=[wnb_cross, wnb_plus],
                                                    segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
                                                    inject_at_end=True,
                                                    SNR=sampler,
@@ -747,7 +757,8 @@ if __name__ == '__main__':
                                            'glitch', 'glitches', 'wnb', 'ccsn', 'timeslides',
                                            'bbh_fm_optimization', 'sg_fm_optimization',
                                            'bbh_varying_snr', 'sg_varying_snr',
-                                           'wnb_varying_snr', 'supernova_varying_snr'])
+                                           'wnbhf_varying_snr', 'wnblf_varying_snr',
+                                           'supernova_varying_snr'])
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)

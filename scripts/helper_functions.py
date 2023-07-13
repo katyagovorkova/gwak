@@ -60,15 +60,8 @@ def mae_torch(a, b):
 
 
 if RETURN_INDIV_LOSSES:
-    def mae_torch_coherent_(a, b):
-        loss = torch.abs(a - b).mean(axis=-1)
-        return loss
 
-    def mae_torch_noncoherent_(a, b):
-        loss = torch.abs(a - b).mean(axis=-1)
-        return loss
-
-    def mae_torch_coherent(a, b):
+    def freq_loss_torch(a, b):
         a_ = torch.fft.rfft(a, axis=-1)
         b_ = torch.fft.rfft(b, axis=-1)
         a2b = torch.abs(torch.linalg.vecdot(a_, b_, axis=-1))
@@ -77,9 +70,6 @@ if RETURN_INDIV_LOSSES:
         b2b = torch.abs(torch.linalg.vecdot(
             b_[:, 0, :], b_[:, 1, :], axis=-1))[:, None]
         return torch.hstack([a2b, a2a, b2b])
-
-    def mae_torch_noncoherent(a, b):
-        return mae_torch_coherent(a, b)
 
 else:
     def mae_torch_coherent(a, b):
@@ -139,9 +129,9 @@ def stack_dict_into_tensor(data_dict):
     '''
     fill_len = len(data_dict['bbh'])
     if RETURN_INDIV_LOSSES:
-        stacked_tensor = torch.empty((fill_len, 4 * SCALE), device=DEVICE)
+        stacked_tensor = torch.empty((fill_len, len(CLASS_ORDER) * SCALE), device=DEVICE)
     else:
-        stacked_tensor = torch.empty((fill_len, 4), device=DEVICE)
+        stacked_tensor = torch.empty((fill_len, len(CLASS_ORDER)), device=DEVICE)
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
 
@@ -159,7 +149,7 @@ def stack_dict_into_numpy(data_dict):
     Input is a dictionary of keys, stack it into numpy array
     '''
     fill_len = len(data_dict['bbh'])
-    stacked_np = np.empty((fill_len, 4))
+    stacked_np = np.empty((fill_len, len(CLASS_ORDER)))
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
         stacked_np[:, stack_index] = data_dict[class_name]

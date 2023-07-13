@@ -24,6 +24,7 @@ from config import (
     EPOCHS,
     BATCH_SIZE,
     LOSS,
+    MODEL,
     OPTIMIZER,
     VALIDATION_SPLIT,
     TRAINING_VERBOSE,
@@ -37,7 +38,7 @@ DEVICE = torch.device(GPU_NAME)
 
 def main(args):
     data_name = (args.data).split('/')[-1][:-4]
-    if data_name in ['bbh', 'sg']:
+    if data_name in ['bbh', 'sglf', 'sghf']:
 
         # curriculum learning scheme
         # n_currics, n_samples, ifo, timesteps
@@ -57,13 +58,7 @@ def main(args):
         noisy_data = noisy_data[:, p, :, :]
         clean_data = clean_data[:, p, :, :]
 
-        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
-                           num_timesteps=SEG_NUM_TIMESTEPS,
-                           BOTTLENECK=BOTTLENECK[data_name],
-                           FACTOR=FACTOR).to(DEVICE)
-
-    else:
-        assert data_name in ['background', 'glitches']
+    elif data_name in ['background', 'glitches']:
         noisy_data = np.load(args.data)['data']  # n_samples, ifo, timesteps
         #noisy_data = noisy_data[:, :, :, :100]
         print('in', noisy_data.shape)
@@ -76,10 +71,15 @@ def main(args):
         noisy_data = noisy_data[:, p, :, :]
         clean_data = noisy_data
 
+    if MODEL[data_name] == 'lstm':
+        AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
+
+    elif MODEL[data_name] == 'dense':
         AE = FAT(num_ifos=NUM_IFOS,
-                 num_timesteps=SEG_NUM_TIMESTEPS,
-                 BOTTLENECK=BOTTLENECK[data_name],
-                 FACTOR=FACTOR).to(DEVICE)
+                num_timesteps=SEG_NUM_TIMESTEPS,
+                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
 
     optimizer = optim.Adam(AE.parameters())
     loss_fn = nn.L1Loss()
@@ -88,6 +88,7 @@ def main(args):
     for c in range(n_currics):
         # noisy_data, clean_data
         data_x, data_y = noisy_data[c], clean_data[c]
+        data_x_last, data_y_last = noisy_data[-1], clean_data[-1]
 
         # create the dataset and validation set
         validation_split_index = int((1 - VALIDATION_SPLIT) * len(data_x))
@@ -97,10 +98,10 @@ def main(args):
         train_data_y = data_y[:validation_split_index]
         train_data_y = torch.from_numpy(train_data_y).float().to(DEVICE)
 
-        validation_data_x = data_x[validation_split_index:]
+        validation_data_x = data_x_last[validation_split_index:]
         validation_data_x = torch.from_numpy(
             validation_data_x).float().to(DEVICE)
-        validation_data_y = data_y[validation_split_index:]
+        validation_data_y = data_y_last[validation_split_index:]
         validation_data_y = torch.from_numpy(
             validation_data_y).float().to(DEVICE)
 

@@ -11,7 +11,7 @@ from config import(
 
 class FAT(nn.Module):
 
-    def __init__(self, num_ifos, num_timesteps, BOTTLENECK, FACTOR):
+    def __init__(self, num_ifos, num_timesteps, BOTTLENECK):
         super(FAT, self).__init__()
         self.num_timesteps = num_timesteps
         self.num_ifos = num_ifos
@@ -24,22 +24,24 @@ class FAT(nn.Module):
         #self.Conv2 = nn.Conv1d(in_channels=5, out_channels = 2, kernel_size = 5, padding = 'same')
 
     def forward(self, x):
+
         batch_size = x.shape[0]
-        x = x.view(-1, self.num_timesteps * self.num_ifos)
+
+        x = x.reshape(-1, self.num_timesteps*self.num_ifos)
         x = F.relu(self.Linear1(x))
         x = F.relu(self.Linear2(x))
         x = F.relu(self.Linear3(x))
         x = F.relu(self.Linear4(x))
         x = F.tanh(self.Linear5(x))
         x = (self.Linear6(x))
-        x = x.view(batch_size, self.num_ifos, self.num_timesteps)
-        #x = self.Conv2(x)
+        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
+
         return x
 
 
 class DUMMY_CNN_AE(nn.Module):
 
-    def __init__(self, num_ifos, num_timesteps, BOTTLENECK, FACTOR):
+    def __init__(self, num_ifos, num_timesteps, BOTTLENECK):
         super(DUMMY_CNN_AE, self).__init__()
         print("WARNING: Change this with Eric's actual LSTM model!")
         self.num_timesteps = num_timesteps
@@ -159,7 +161,7 @@ class Decoder(nn.Module):
 
 class LSTM_AE(nn.Module):
 
-    def __init__(self, num_ifos, num_timesteps, BOTTLENECK, FACTOR):
+    def __init__(self, num_ifos, num_timesteps, BOTTLENECK):
         super(LSTM_AE, self).__init__()
         print("WARNING: This is LITERALLY Eric's model!!!")
         for i in range(50):
@@ -316,7 +318,7 @@ class Decoder_SPLIT(nn.Module):
 
 class LSTM_AE_SPLIT(nn.Module):
 
-    def __init__(self, num_ifos, num_timesteps, BOTTLENECK, FACTOR):
+    def __init__(self, num_ifos, num_timesteps, BOTTLENECK):
         super(LSTM_AE_SPLIT, self).__init__()
 
         self.num_timesteps = num_timesteps

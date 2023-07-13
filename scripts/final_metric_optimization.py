@@ -22,7 +22,7 @@ class LinearModel(nn.Module):
 
     def __init__(self, n_dims):
         super(LinearModel, self).__init__()
-        self.layer = nn.Linear(17, 1)
+        self.layer = nn.Linear(21, 1)
 
     def forward(self, x):
 

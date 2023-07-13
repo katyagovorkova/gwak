@@ -1,12 +1,12 @@
 import os
 import numpy as np
 import argparse
-
 import torch
-# from helper_functions import mae
+
+from helper_functions import mae_torch, freq_loss_torch
 from models import LSTM_AE, LSTM_AE_SPLIT, DUMMY_CNN_AE, FAT
+
 import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (NUM_IFOS,
@@ -17,9 +17,6 @@ from config import (NUM_IFOS,
                     GPU_NAME,
                     RECREATION_LIMIT)
 DEVICE = torch.device(GPU_NAME)
-
-
-from helper_functions import mae_torch, mae_torch_coherent, mae_torch_noncoherent
 
 
 def quak_eval(data, model_path, reduce_loss=True):
@@ -41,30 +38,28 @@ def quak_eval(data, model_path, reduce_loss=True):
         if MODEL[model_name] == "lstm":
             model = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                                   num_timesteps=SEG_NUM_TIMESTEPS,
-                                  BOTTLENECK=BOTTLENECK[model_name],
-                                  FACTOR=FACTOR).to(DEVICE)
+                                  BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
         elif MODEL[model_name] == "dense":
             model = FAT(num_ifos=NUM_IFOS,
                         num_timesteps=SEG_NUM_TIMESTEPS,
-                        BOTTLENECK=BOTTLENECK[model_name],
-                        FACTOR=FACTOR).to(DEVICE)
+                        BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
 
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         if reduce_loss:
             if coherent_loss:
                 loss[os.path.basename(dpath)[:-3]] = \
-                    mae_torch_coherent(data, model(data).detach())
+                    freq_loss_torch(data, model(data).detach())
             elif not coherent_loss:
                 loss[os.path.basename(dpath)[:-3]] = \
                     mae_torch_noncoherent(data, model(data).detach())
         elif not reduce_loss:
             if coherent_loss:
                 loss['loss'][os.path.basename(dpath)[:-3]] = \
-                    mae_torch_coherent(data, model(
+                    mae_torch(data, model(
                         data).detach()).cpu().numpy()
             elif not coherent_loss:
                 loss['loss'][os.path.basename(dpath)[:-3]] = \
-                    mae_torch_noncoherent(data, model(
+                    mae_torch(data, model(
                         data).detach()).cpu().numpy()
             loss['original'][os.path.basename(
                 dpath)[:-3]] = data[:RECREATION_LIMIT].cpu().numpy()
