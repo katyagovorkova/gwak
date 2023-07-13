@@ -28,6 +28,7 @@ def quak_eval(data, model_path, reduce_loss=True):
         loss['original'] = dict()
         loss['recreated'] = dict()
         loss['loss'] = dict()
+        loss['freq_loss'] = dict()
 
     for dpath in model_path:
         coherent_loss = False
@@ -51,16 +52,21 @@ def quak_eval(data, model_path, reduce_loss=True):
                     freq_loss_torch(data, model(data).detach())
             elif not coherent_loss:
                 loss[os.path.basename(dpath)[:-3]] = \
-                    mae_torch_noncoherent(data, model(data).detach())
+                    freq_loss_torch(data, model(data).detach())
         elif not reduce_loss:
             if coherent_loss:
                 loss['loss'][os.path.basename(dpath)[:-3]] = \
                     mae_torch(data, model(
                         data).detach()).cpu().numpy()
+                loss['freq_loss'][os.path.basename(dpath)[:-3]] = \
+                    freq_loss_torch(data, model(data).detach())
+
             elif not coherent_loss:
                 loss['loss'][os.path.basename(dpath)[:-3]] = \
                     mae_torch(data, model(
                         data).detach()).cpu().numpy()
+                loss['freq_loss'][os.path.basename(dpath)[:-3]] = \
+                    freq_loss_torch(data, model(data).detach())
             loss['original'][os.path.basename(
                 dpath)[:-3]] = data[:RECREATION_LIMIT].cpu().numpy()
             loss['recreated'][os.path.basename(

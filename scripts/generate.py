@@ -555,21 +555,7 @@ def main(args):
             noisy=noisy_samples,
             clean=clean_samples)
 
-    elif args.stype == 'sg':
-        # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_TRAIN_INJECTIONS)
-
-        # 2: create injections with those signal classes
-        noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
-                                                data=[SG_cross, SG_plus]
-                                                )
-        # 3: Turn the injections into segments, ready for training
-        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'sg')
-        training_data = dict(
-            noisy=noisy_samples,
-            clean=clean_samples)
-
-    elif 'sg' in args.stype:
+    elif args.stype == 'sglf' or args.stype == 'sghf':
         # 1: generate the polarization files for the signal classes of interest
         sg_cross, sg_plus = sg_polarization_generator(N_TRAIN_INJECTIONS,
             prior_file=f'data/{args.stype}.prior')
@@ -579,7 +565,7 @@ def main(args):
                                       data=[sg_cross, sg_plus]
                                       )
         # 3: Turn the injections into segments, ready for training
-        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, "sg")
+        noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'sg')
 
         training_data = dict(
             noisy=noisy_samples,
@@ -669,9 +655,10 @@ def main(args):
         training_data = BBH_injections.swapaxes(0, 1)
         training_data = dict(data=training_data)
 
-    elif args.stype == 'sg_varying_snr' or args.stype == 'sg_fm_optimization':
+    elif args.stype == 'sglf_varying_snr' or args.stype == 'sghf_varying_snr'or args.stype == 'sglf_fm_optimization' or args.stype == 'sghf_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS)
+        SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS,
+		prior_file=f'data/{args.stype}[:4].prior')
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
@@ -753,10 +740,12 @@ if __name__ == '__main__':
                         type=str)
 
     parser.add_argument('--stype', help='Which type of the injection to generate',
-                        type=str, choices=['bbh', 'sg', 'background',
-                                           'glitch', 'glitches', 'wnb', 'ccsn', 'timeslides',
-                                           'bbh_fm_optimization', 'sg_fm_optimization',
-                                           'bbh_varying_snr', 'sg_varying_snr',
+                        type=str, choices=['bbh', 'sglf', 'sghf', 'background',
+                                           'glitch', 'glitches', 'timeslides',
+                                           'bbh_fm_optimization', 
+				           'sghf_fm_optimization','sglf_fm_optimization',
+                                           'bbh_varying_snr', 
+                                           'sghf_varying_snr','sglf_varying_snr',
                                            'wnbhf_varying_snr', 'wnblf_varying_snr',
                                            'supernova_varying_snr'])
 

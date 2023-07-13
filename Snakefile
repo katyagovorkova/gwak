@@ -3,21 +3,18 @@ from config import VERSION
 signalclasses = ['bbh', 'sglf', 'sghf']
 backgroundclasses = ['background', 'glitches']
 modelclasses = signalclasses + backgroundclasses
-dataclasses = [
-    'timeslides',
-    'bbh_fm_optimization',
-    'sg_fm_optimization',
-    'bbh_varying_snr',
-    'sg_varying_snr',
-    'wnbhf_varying_snr',
-    'wnblf_varying_snr',
-    'supernova_varying_snr']
 fm_training_classes = [
-    'bbh_varying_snr',
-    'sg_varying_snr',
+    'bbh_fm_optimization',
+    'sghf_fm_optimization',
+    'sglf_fm_optimization',
     'wnbhf_varying_snr',
     'wnblf_varying_snr',
     'supernova_varying_snr']
+dataclasses = fm_training_classes +[
+    'timeslides',
+    'bbh_varying_snr',
+    'sghf_varying_snr',
+    'sglf_varying_snr']
 
 wildcard_constraints:
     modelclass = '|'.join([x for x in modelclasses]),
@@ -107,12 +104,14 @@ rule recreation_and_quak_plots:
                         version=VERSION),
         test_path = expand(rules.upload_data.output,
                            dataclass='bbh',
-                           version=VERSION)
+                           version=VERSION),
+        fm_model_path = rules.train_final_metric.output.fm_model_path
     output:
         savedir = directory('output/plots/')
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.models} {output.savedir}'
+        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.models} \
+            {input.fm_model_path} {output.savedir}'
 
 rule generate_timeslides_for_final_metric_train:
     input:
@@ -120,7 +119,7 @@ rule generate_timeslides_for_final_metric_train:
                            dataclass='timeslides',
                            version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-                            dataclass=modelclasses)
+                            dataclass=modelclasses),
     params:
         shorten_timeslides = True
     output:
@@ -154,9 +153,11 @@ rule train_final_metric:
                              i=range(1, 140))
     output:
         params_file = 'output/trained/final_metric_params.npy',
-        norm_factor_file = 'output/trained/norm_factor_params.npy'
+        norm_factor_file = 'output/trained/norm_factor_params.npy',
+        fm_model_path = 'output/trained/fm_model.pt'
     shell:
-        'python3 scripts/final_metric_optimization.py {output.params_file} {output.norm_factor_file} \
+        'python3 scripts/final_metric_optimization.py {output.params_file} \
+            {output.fm_model_path} {output.norm_factor_file} \
             --timeslide-path {params.timeslides} \
             --signal-path {input.signals} \
             --norm-factor-path {params.normfactors}'
@@ -169,13 +170,15 @@ rule compute_far:
         model_path = expand(rules.train_quak.output.model_file,
                             dataclass=modelclasses),
         metric_coefs_path = rules.train_final_metric.output.params_file,
-        norm_factors_path = rules.train_final_metric.output.norm_factor_file
+        norm_factors_path = rules.train_final_metric.output.norm_factor_file,
+        fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
         shorten_timeslides = False
     output:
         save_path = 'output/far_bins.npy'
     shell:
         'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
+            --fm-model-path {input.fm_model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
             --norm-factor-path {input.norm_factors_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
@@ -197,18 +200,22 @@ rule quak_plotting_prediction_and_recreation:
 
 rule plot_results:
     input:
-        rules.compute_far.output.save_path,
-        'output/evaluated/bbh_varying_snr_evals.npy',
-        'output/evaluated/sg_varying_snr_evals.npy',
-        'output/evaluated/wnb_varying_snr_evals.npy',
-        'output/evaluated/supernova_varying_snr_evals.npy'
+        dependencies = [rules.compute_far.output.save_path,
+            'output/evaluated/bbh_varying_snr_evals.npy',
+            'output/evaluated/sglf_varying_snr_evals.npy',
+            'output/evaluated/sghf_varying_snr_evals.npy',
+            'output/evaluated/wnblf_varying_snr_evals.npy',
+            'output/evaluated/wnbhf_varying_snr_evals.npy',
+            'output/evaluated/supernova_varying_snr_evals.npy'],
+        fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
         evaluation_dir = 'output/',
     output:
         save_path = directory('output/paper/')
     shell:
         'mkdir -p {output.save_path}; '
-        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'
+        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path} \
+            {input.fm_model_path}'
 
 rule make_pipeline_plot:
     shell:

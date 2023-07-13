@@ -111,7 +111,7 @@ def main(args):
             if RETURN_INDIV_LOSSES:
                 model = LinearModel(17).to(DEVICE)
                 model.load_state_dict(torch.load(
-                    './fm_model.pt', map_location=GPU_NAME))
+                    args.fm_model_path, map_location=GPU_NAME))
                 final_values = model(final_values).detach()
             else:
 
@@ -150,6 +150,9 @@ if __name__ == '__main__':
                         help='Path to the folder containing the models')
 
     # Additional arguments
+    parser.add_argument('--fm-model-path', type=str,
+                        help='Final metric model')
+
     parser.add_argument('--metric-coefs-path', type=str, default=None,
                         help='Pass in path to metric coefficients to compute dot product'
                         )

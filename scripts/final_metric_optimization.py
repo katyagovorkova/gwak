@@ -62,7 +62,7 @@ def optimize_hyperplane(signals, backgrounds):
         loss.backward()
         optimizer.step()
 
-    torch.save(network.state_dict(), './fm_model.pt')
+    torch.save(network.state_dict(), args.fm_model_path)
     return np.zeros(5)
     return network.layer.weight.data.cpu().numpy()[0]
 
@@ -137,6 +137,8 @@ if __name__ == '__main__':
     # Required arguments
     parser.add_argument('save_file', type=str,
                         help='Where to save the best final metric parameters')
+    parser.add_argument('fm_model_path', type=str,
+                        help='Where to save the best final metric model')
     parser.add_argument('norm_factor_save_file', type=str,
                         help='Where to save the normalization factors')
     parser.add_argument('--timeslide-path', type=str, nargs='+',
