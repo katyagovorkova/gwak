@@ -14,7 +14,7 @@ from models import (
     LSTM_AE,
     LSTM_AE_SPLIT,
     FAT)
-from helper_functions import mae_torch_coherent, mae_torch_noncoherent
+
 import sys
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))

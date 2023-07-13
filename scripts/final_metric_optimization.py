@@ -91,7 +91,8 @@ def main(args):
     signal_evals = []
     midp_map = {
         'bbh_varying_snr_evals.npy': 1440,
-        'sg_varying_snr_evals.npy': 1440,
+        'sglf_varying_snr_evals.npy': 1440,
+        'sghf_varying_snr_evals.npy': 1440,
         'wnbhf_varying_snr_evals.npy': 1850,
         'wnblf_varying_snr_evals.npy': 1850,
         'supernova_varying_snr_evals.npy': 2150}

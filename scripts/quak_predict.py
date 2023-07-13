@@ -32,7 +32,7 @@ def quak_eval(data, model_path, reduce_loss=True):
 
     for dpath in model_path:
         coherent_loss = False
-        if dpath.split("/")[-1] in ['bbh.pt', 'sg.pt']:
+        if dpath.split("/")[-1] in ['bbh.pt', 'sglf.pt', 'sghf.pt']:
             coherent_loss = True
 
         model_name = dpath.split("/")[-1].split(".")[0]

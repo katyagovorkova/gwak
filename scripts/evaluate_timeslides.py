@@ -109,7 +109,7 @@ def main(args):
             final_values = (final_values - means) / stds
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(17).to(DEVICE)
+                model = LinearModel(21).to(DEVICE)
                 model.load_state_dict(torch.load(
                     args.fm_model_path, map_location=GPU_NAME))
                 final_values = model(final_values).detach()

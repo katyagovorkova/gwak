@@ -14,6 +14,7 @@ conda activate quak
 Install additional package inside the create virtual environment
 ```
 pip install snakemake
+pip install matplotlib-label-lines
 ```
 
 To make pytorch available, do 

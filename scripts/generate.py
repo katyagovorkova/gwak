@@ -658,7 +658,7 @@ def main(args):
     elif args.stype == 'sglf_varying_snr' or args.stype == 'sghf_varying_snr'or args.stype == 'sglf_fm_optimization' or args.stype == 'sghf_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
         SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS,
-		prior_file=f'data/{args.stype}[:4].prior')
+        prior_file=f'data/{args.stype[:4]}.prior')
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
@@ -743,7 +743,7 @@ if __name__ == '__main__':
                         type=str, choices=['bbh', 'sglf', 'sghf', 'background',
                                            'glitch', 'glitches', 'timeslides',
                                            'bbh_fm_optimization', 
-				           'sghf_fm_optimization','sglf_fm_optimization',
+                           'sghf_fm_optimization','sglf_fm_optimization',
                                            'bbh_varying_snr', 
                                            'sghf_varying_snr','sglf_varying_snr',
                                            'wnbhf_varying_snr', 'wnblf_varying_snr',
