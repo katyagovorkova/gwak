@@ -73,15 +73,15 @@ rule upload_data:
     input:
         expand(rules.generate_data.output.file,
                dataclass='{dataclass}'),
-    output:
+    params:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/data/; '
-        'cp {input} {output}; '
+        'cp {input} {params}; '
 
 rule validate_data:
     input:
-        expand(rules.upload_data.output,
+        expand(rules.upload_data.params,
                dataclass=modelclasses + dataclasses,
                version=VERSION)
     shell:
