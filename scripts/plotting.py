@@ -15,7 +15,7 @@ from helper_functions import (
     stack_dict_into_numpy_segments,
     compute_fars,
     far_to_metric
-    )
+)
 from models import LinearModel
 
 sys.path.append(
@@ -54,12 +54,12 @@ def calculate_means(metric_vals, snrs, bar):
 
         points = []
         for shift in range(bar):
-            for elem in np.where(((snrs-shift).astype(int))==i)[0]:
+            for elem in np.where(((snrs - shift).astype(int)) == i)[0]:
                 points.append(elem)
         if len(points) == 0:
             continue
 
-        snr_plot.append(i+bar/2)
+        snr_plot.append(i + bar / 2)
         MV = []
         for point in points:
             MV.append(metric_vals[point])
@@ -69,13 +69,14 @@ def calculate_means(metric_vals, snrs, bar):
 
     return snr_plot, means, stds
 
+
 def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, special, bias):
     fig, axs = plt.subplots(1, figsize=(12, 8))
     colors = {
-        'bbh':'blue',
-        'sg':'red',
-        'sglf':'red',
-        'sghf':'orange',
+        'bbh': 'blue',
+        'sg': 'red',
+        'sglf': 'red',
+        'sghf': 'orange',
         'wnbhf': 'darkviolet',
         'wnblf': 'deeppink',
         'supernova': 'goldenrod'
@@ -90,47 +91,53 @@ def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, spe
         tag = tags[k]
 
         if RETURN_INDIV_LOSSES:
-            fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
+            fm_vals = metric_coefs(torch.from_numpy(
+                data).float().to(DEVICE)).detach().cpu().numpy()
         else:
             fm_vals = np.dot(data, metric_coefs)
 
         fm_vals = np.min(fm_vals, axis=1)
 
-        snr_plot, means_plot, stds_plot = calculate_means(fm_vals, snrs, bar=SNR_VS_FAR_BAR)
+        snr_plot, means_plot, stds_plot = calculate_means(
+            fm_vals, snrs, bar=SNR_VS_FAR_BAR)
         means_plot, stds_plot = np.array(means_plot), np.array(stds_plot)
         rename_map = {
-        'background':'Background',
-        'bbh':'BBH',
-        'glitches':'Glitch',
-        'sglf':'SG 64-512 Hz',
-        'sghf':'SG 512-1024 Hz',
-        'wnblf': 'WNB 40-400 Hz',
-        'wnbhf': 'WNB 400-1000 Hz',
-        'supernova': 'Supernova'
+            'background': 'Background',
+            'bbh': 'BBH',
+            'glitches': 'Glitch',
+            'sglf': 'SG 64-512 Hz',
+            'sghf': 'SG 512-1024 Hz',
+            'wnblf': 'WNB 40-400 Hz',
+            'wnbhf': 'WNB 400-1000 Hz',
+            'supernova': 'Supernova'
         }
         tag_ = rename_map[tag]
 
-        axs.plot(snr_plot, means_plot-bias, color=colors[tag], label = f'{tag_}', linewidth=2)
+        axs.plot(snr_plot, means_plot - bias, color=colors[tag], label=f'{tag_}', linewidth=2)
         axs.fill_between(snr_plot,
-            means_plot-bias - stds_plot/2,
-            means_plot-bias + stds_plot/2,
-            alpha=0.15,
-            color=colors[tag])
+                         means_plot - bias - stds_plot / 2,
+                         means_plot - bias + stds_plot / 2,
+                         alpha=0.15,
+                         color=colors[tag])
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
-        metric_val_label = far_to_metric(SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
+        metric_val_label = far_to_metric(
+            SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
         if metric_val_label is not None:
-            axs.axhline(y=metric_val_label-bias, alpha=0.8**i, label = f'1/{label}', c='black')
+            axs.axhline(y=metric_val_label - bias, alpha=0.8**i, label=f'1/{label}', c='black')
 
-    labelLines(axs.get_lines(), zorder=2.5, xvals=(30, 30, 30, 50, 60, 50, 50, 57, 64, 71, 78))
+    labelLines(axs.get_lines(), zorder=2.5, xvals=(
+        30, 30, 30, 50, 60, 50, 50, 57, 64, 71, 78))
     axs.set_title(special, fontsize=20)
-    axs.set_xlim(VARYING_SNR_LOW+SNR_VS_FAR_BAR/2, VARYING_SNR_HIGH-SNR_VS_FAR_BAR/2)
+    axs.set_xlim(VARYING_SNR_LOW + SNR_VS_FAR_BAR / 2,
+                 VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
 
     plt.grid(False)
     fig.tight_layout()
     plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
     plt.show()
     plt.close()
+
 
 def fake_roc_plotting(far_hist, savedir):
     datapoint_to_seconds = SEGMENT_OVERLAP / SAMPLE_RATE
@@ -140,8 +147,8 @@ def fake_roc_plotting(far_hist, savedir):
     y_plot = []
     for i in range(len(far_hist)):
         total_below = np.sum(far_hist[:i])
-        x_plot.append(i*HISTOGRAM_BIN_DIVISION-HISTOGRAM_BIN_MIN)
-        y_plot.append(total_below/total_seconds)
+        x_plot.append(i * HISTOGRAM_BIN_DIVISION - HISTOGRAM_BIN_MIN)
+        y_plot.append(total_below / total_seconds)
 
     plt.figure()
     plt.plot(x_plot, y_plot)
@@ -151,6 +158,7 @@ def fake_roc_plotting(far_hist, savedir):
     plt.xlim(-50, 50)
 
     plt.savefig(f'{savedir}/fake_roc.pdf', dpi=300)
+
 
 def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_savedir, bias, weights):
     # doing only one sample, for now
@@ -177,38 +185,41 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     ]
 
     ifo_colors = {
-        0:'goldenrod',
-        1:'darkgreen'}
+        0: 'goldenrod',
+        1: 'darkgreen'}
 
     if RETURN_INDIV_LOSSES:
-        fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
+        fm_vals = metric_coefs(torch.from_numpy(
+            data).float().to(DEVICE)).detach().cpu().numpy()
     else:
         fm_vals = np.dot(data, metric_coefs)
     far_vals = compute_fars(fm_vals, far_hist=far_hist)
 
-    ts_farvals = np.linspace(0, 5/4096*len(far_vals), len(far_vals))
+    ts_farvals = np.linspace(0, 5 / 4096 * len(far_vals), len(far_vals))
     axs[2].set_title('Final metric')
     axs[2].set_xlabel('Time (ms)')
     color = 'black'
     axs[2].set_ylabel('Value, a.u.')
-    axs[2].plot(ts_farvals*1000, fm_vals-bias, label = 'metric value')
+    axs[2].plot(ts_farvals * 1000, fm_vals - bias, label='metric value')
     axs[2].tick_params(axis='y', labelcolor=color)
     axs[2].legend()
     axs[2].set_ylim(-50, 10)
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
-        if i%2 == 0:
-            metric_val_label = far_to_metric(SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
+        if i % 2 == 0:
+            metric_val_label = far_to_metric(
+                SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
             if metric_val_label is not None:
-                axs[2].axhline(y=metric_val_label-bias, alpha=0.8**i, label = f'1/{label}', c='black')
+                axs[2].axhline(y=metric_val_label - bias, alpha=0.8**i, label=f'1/{label}', c='black')
 
+    strain = strain[:, 100 + 3 * 5:-(100 + 4 * 5)]
 
-    strain = strain[:, 100+3*5:-(100+4*5)]
-
-    ts_strain = np.linspace(0, len(strain[0, :])/4096, len(strain[0, :]))
+    ts_strain = np.linspace(0, len(strain[0, :]) / 4096, len(strain[0, :]))
     axs[0].set_title(f'{tag} strain, SNR = {snr:.1f}')
-    axs[0].plot(ts_strain*1000, strain[0, :], label = 'Hanford', color=ifo_colors[0])
-    axs[0].plot(ts_strain*1000, strain[1, :], label = 'Livingston', color=ifo_colors[1])
+    axs[0].plot(ts_strain * 1000, strain[0, :],
+                label='Hanford', color=ifo_colors[0])
+    axs[0].plot(ts_strain * 1000, strain[1, :],
+                label='Livingston', color=ifo_colors[1])
     axs[0].set_xlabel('Time (ms)')
     axs[0].set_ylabel('Whitened strain')
     axs[0].legend()
@@ -217,42 +228,46 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     for k in range(len(weights)):
         extracted = np.dot(data, weights[k])
 
-        axs[1].plot(ts_farvals*1000, extracted, color=colors[k], label = labels[k])
+        axs[1].plot(ts_farvals * 1000, extracted,
+                    color=colors[k], label=labels[k])
     axs[1].set_xlabel('Time (ms)')
     axs[1].set_ylabel('Contribution')
     axs[1].grid()
-    axs[1].set_title('Per autoencoder final metric contribution + coherence features')
+    axs[1].set_title(
+        'Per autoencoder final metric contribution + coherence features')
     axs[1].legend()
 
     xlims = {
-        'bbh':(1550, 1550+300),
-        'sglf':(1550, 1550+300),
-        'sghf':(1550, 1550+300),
-        'wnbhf':(2100, 2100+300),
-        'wnblf':(2100, 2100+300),
-        'supernova':(2000, 2900)}
+        'bbh': (1550, 1550 + 300),
+        'sglf': (1550, 1550 + 300),
+        'sghf': (1550, 1550 + 300),
+        'wnbhf': (2100, 2100 + 300),
+        'wnblf': (2100, 2100 + 300),
+        'supernova': (2000, 2900)}
 
     for i in range(3):
         axs[i].set_xlim(xlims[tag])
     a, b = xlims[tag]
-    c = b-a
-    step = c/10
+    c = b - a
+    step = c / 10
 
-    labelLines(axs[2].get_lines(), zorder=2.5, xvals=(300, a+step*(1), a+step*(2), a+step*(3),))
+    labelLines(axs[2].get_lines(), zorder=2.5, xvals=(
+        300, a + step * (1), a + step * (2), a + step * (3),))
 
     fig.tight_layout()
     axs[0].grid()
     axs[1].grid()
     for i in range(3):
         axs[i].set_xlim(xlims[tag])
-    #axs[2].grid()
+    # axs[2].grid()
     plt.savefig(f'{plot_savedir}/{tag}_3_panel_plot.pdf', dpi=300)
+
 
 def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_snr=False):
     centers = CURRICULUM_SNRS
     fig, ax = plt.subplots(1, figsize=(8, 5))
     cols = {
-        'BBH':'blue',
+        'BBH': 'blue',
         'SG 64-512 Hz': 'red',
         'SG 512-1024 Hz': 'orange',
         'Background': 'purple',
@@ -267,8 +282,8 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
 
         epochs = np.linspace(1, epoch_count, epoch_count)
 
-        lnt = ax.plot(epochs, np.array(train_loss), linestyle = '-', label = f'Training loss, {tag}', c=cols[tag])
-        lnv = ax.plot(epochs, np.array(val_loss), linestyle='--', label = f'Validation loss, {tag}', c=cols[tag])
+        lnt = ax.plot(epochs, np.array(train_loss), linestyle='-', label=f'Training loss, {tag}', c=cols[tag])
+        lnv = ax.plot(epochs, np.array(val_loss), linestyle='--', label=f'Validation loss, {tag}', c=cols[tag])
         lines.append(lnt[0])
         lines.append(lnv[0])
 
@@ -280,8 +295,10 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
         n_currics = len(CURRICULUM_SNRS)
         ax_1 = ax.twinx()
         for i in range(n_currics):
-            low, high = centers[i]-centers[i]//4, centers[i] + centers[i]//2
-            snr_ln = ax_1.fill_between(epochs[i*epoch_count//n_currics:(i+1)*epoch_count//n_currics+1], low, high, label = 'SNR range',color='green', alpha=0.2)
+            low, high = centers[i] - \
+                centers[i] // 4, centers[i] + centers[i] // 2
+            snr_ln = ax_1.fill_between(epochs[i * epoch_count // n_currics:(
+                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='green', alpha=0.2)
 
             if i == 0:
                 lines.append(snr_ln)
@@ -295,16 +312,18 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
     fig.tight_layout()
     plt.savefig(savedir, dpi=300)
 
+
 def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_train_sample=True):
     n = len(strain_samples)
-    fig, axs = plt.subplots(n, figsize=(8, 5*n))
-    ifos = {0:'Hanford', 1:'Livingston'}
-    cols = {0:'goldenrod', 1:'darkgreen'}
+    fig, axs = plt.subplots(n, figsize=(8, 5 * n))
+    ifos = {0: 'Hanford', 1: 'Livingston'}
+    cols = {0: 'goldenrod', 1: 'darkgreen'}
     for i in range(n):
         ts = strain_samples[i].shape[1]
-        ts = np.linspace(0, ts*1/4096, ts)
+        ts = np.linspace(0, ts * 1 / 4096, ts)
         for j in range(2):
-            axs[i].plot(ts*1000, strain_samples[i][j, :], c=cols[j], label = ifos[j])
+            axs[i].plot(ts * 1000, strain_samples[i]
+                        [j, :], c=cols[j], label=ifos[j])
 
         axs[i].set_xlabel('Time, (ms)')
         axs[i].set_ylabel('Whitened Strain')
@@ -313,14 +332,14 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_trai
             # show the region for a training sample
             low, high = axs[i].get_ylim()
             start = np.random.uniform(20, 40)
-            axs[i].fill_between([start, start+200/4096*1000],
+            axs[i].fill_between([start, start + 200 / 4096 * 1000],
                                 [low, low], [high, high],
-                                color='lightsteelblue', alpha=0.40, label = 'Example training data')
+                                color='lightsteelblue', alpha=0.40, label='Example training data')
             axs[i].set_ylim(low, high)
         snr = ''
         if snrs is not None:
             snr = f', SNR: {snrs[i]:.1f}'
-        axs[i].set_title(tags[i]+snr)
+        axs[i].set_title(tags[i] + snr)
         if i == 0:
             axs[i].legend()
     fig.tight_layout()
@@ -330,25 +349,26 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_trai
 def main(args):
 
     model = LinearModel(21).to(DEVICE)
-    model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
+    model.load_state_dict(torch.load(
+        args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
     bias = model.layer.bias.data.cpu().numpy()[0]
     print('bias!:', bias)
     weights = []
     for i in range(5):
         arr = np.zeros(weight.shape)
-        arr[4*i] = weight[4*i]
-        arr[4*i+1] = weight[4*i+1]
-        arr[4*i+3] = weight[4*i+3]
+        arr[4 * i] = weight[4 * i]
+        arr[4 * i + 1] = weight[4 * i + 1]
+        arr[4 * i + 3] = weight[4 * i + 3]
         weights.append(arr)
 
-    #shared, original -> original coefficient
+    # shared, original -> original coefficient
     arr = np.zeros(weight.shape)
     for i in range(5):
-        arr[4*i+2] = weight[4*i+2]
+        arr[4 * i + 2] = weight[4 * i + 2]
     weights.append(arr)
 
-    #pearson coefficient
+    # pearson coefficient
     arr = np.zeros(weight.shape)
     arr[-1] = weight[-1]
     weights.append(arr)
@@ -366,8 +386,9 @@ def main(args):
         means, stds = np.load(f'{args.data_predicted_path}/trained/norm_factor_params.npy')
         tags = ['bbh', 'wnbhf', 'supernova', 'wnblf', 'sglf', 'sghf']
         if RETURN_INDIV_LOSSES:
-            model = LinearModel(21).to(DEVICE)#
-            model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
+            model = LinearModel(21).to(DEVICE)
+            model.load_state_dict(torch.load(
+                args.fm_model_path, map_location=GPU_NAME))
 
         data_dict = {}
         snrs_dict = {}
@@ -379,7 +400,7 @@ def main(args):
 
             print(f'{tag} loaded in {time.time()-ts:.3f} seconds')
 
-            data = (data-means)/stds
+            data = (data - means) / stds
             data = data[1000:]
             snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[1000:]
 
@@ -389,34 +410,34 @@ def main(args):
         # do one for the GWAK signal classes
         X1 = ['bbh', 'sglf', 'sghf']
         snr_vs_far_plotting([data_dict[elem] for elem in X1],
-            [snrs_dict[elem] for elem in X1],
-            model,
-            far_hist,
-            X1,
-            args.plot_savedir,
-            'Known Signals Detection Efficiency',
-            bias)
+                            [snrs_dict[elem] for elem in X1],
+                            model,
+                            far_hist,
+                            X1,
+                            args.plot_savedir,
+                            'Known Signals Detection Efficiency',
+                            bias)
 
         # and for the anomalous classes
         X2 = ['wnbhf', 'supernova', 'wnblf']
         snr_vs_far_plotting([data_dict[elem] for elem in X2],
-            [snrs_dict[elem] for elem in X2],
-            model,
-            far_hist,
-            X2,
-            args.plot_savedir,
-            'Anomaly Detection Efficiency',
-            bias)
+                            [snrs_dict[elem] for elem in X2],
+                            model,
+                            far_hist,
+                            X2,
+                            args.plot_savedir,
+                            'Anomaly Detection Efficiency',
+                            bias)
 
         X3 = ['bbh', 'sglf', 'sghf', 'wnbhf', 'supernova', 'wnblf']
         snr_vs_far_plotting([data_dict[elem] for elem in X3],
-            [snrs_dict[elem] for elem in X3],
-            model,
-            far_hist,
-            X3,
-            args.plot_savedir,
-            'Detection Efficiency',
-            bias)
+                            [snrs_dict[elem] for elem in X3],
+                            model,
+                            far_hist,
+                            X3,
+                            args.plot_savedir,
+                            'Detection Efficiency',
+                            bias)
 
     if do_fake_roc:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
@@ -434,22 +455,25 @@ def main(args):
             'bbh': 0,
             'sghf': 0,
             'sglf': 0,
-            'wnb': 1256,
+            'wnbhf': 1256,
             'wnblf': 1958,
             'supernova': 1228
         }
         for tag in tags:
             strains = np.load(f'output/data/{tag}_varying_snr.npz')['data'][:, inds[tag]]
             data = np.load(f'{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy')[inds[tag]]
-            data = (data-means)/stds
+            data = (data - means) / stds
             snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[inds[tag]]
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(21).to(DEVICE)#
-                model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
-                three_panel_plotting(strains, data, snrs, model, far_hist, tag, args.plot_savedir, bias, weights)
+                model = LinearModel(21).to(DEVICE)
+                model.load_state_dict(torch.load(
+                    args.fm_model_path, map_location=GPU_NAME))
+                three_panel_plotting(
+                    strains, data, snrs, model, far_hist, tag, args.plot_savedir, bias, weights)
             else:
-                three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir, bias, weights)
+                three_panel_plotting(
+                    strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir, bias, weights)
 
     if do_combined_loss_curves:
         load_path = 'output/trained/'
@@ -463,9 +487,9 @@ def main(args):
             val_losses.append(np.load(f'{load_path}/{sc}/val_loss_hist.npy'))
 
         combined_loss_curves(train_losses, val_losses, tags,
-            'Signals loss curves',
-            f'{args.plot_savedir}/signal_loss_curve.pdf',
-            show_snr=True)
+                             'Signals loss curves',
+                             f'{args.plot_savedir}/signal_loss_curve.pdf',
+                             show_snr=True)
 
         bkg_classes = ['background', 'glitches']
         tags = ['Background', 'Glitch']
@@ -476,8 +500,8 @@ def main(args):
             val_losses.append(np.load(f'{load_path}/{bc}/val_loss_hist.npy'))
 
         combined_loss_curves(train_losses, val_losses, tags,
-            'Non-signals loss curves',
-            f'{args.plot_savedir}/backgrounds_loss_curve.pdf')
+                             'Non-signals loss curves',
+                             f'{args.plot_savedir}/backgrounds_loss_curve.pdf')
 
     if do_train_signal_example_plots:
         inds = {
@@ -490,45 +514,46 @@ def main(args):
         snrs = []
         ind = 1
         for tag in tags:
-            strain = np.load(f'output/data/{tag}_varying_snr.npy', mmap_mode='r')[inds[tag]][:, int((1680+50)*4.096):int(4.096*(1880-50))]
+            strain = np.load(f'output/data/{tag}_varying_snr.npy', mmap_mode='r')[inds[tag]][:, int((1680 + 50) * 4.096):int(4.096 * (1880 - 50))]
             snr = np.load(f'output/data/{tag}_varying_snr_SNR.npy', mmap_mode='r')[inds[tag]]
             strains.append(strain)
             snrs.append(snr)
 
         train_signal_example_plots(strains,
-            ['BBH', 'SG 64-512Hz', 'SG 512-1024Hz'],
-            f'{args.plot_savedir}/signal_train_exs.pdf',
-            snrs)
+                                   ['BBH', 'SG 64-512Hz', 'SG 512-1024Hz'],
+                                   f'{args.plot_savedir}/signal_train_exs.pdf',
+                                   snrs)
 
         strains = []
         timeslides = np.load('output/data/timeslides.npz', mmap_mode='r')
 
-        a = int(340740*4.096)
-        b = int(a+100*4.096)
+        a = int(340740 * 4.096)
+        b = int(a + 100 * 4.096)
         glitch = timeslides[:, a:b]
         strains.append(glitch)
 
-        a = int(287489*4.096) #(i put a random number)
-        b = int(a+100*4.096)
+        a = int(287489 * 4.096)  # (i put a random number)
+        b = int(a + 100 * 4.096)
         bkg = timeslides[:, a:b]
         strains.append(bkg)
 
         train_signal_example_plots(strains,
-            ['Glitch', 'Background'],
-            f'{args.plot_savedir}/background_train_exs.pdf')
+                                   ['Glitch', 'Background'],
+                                   f'{args.plot_savedir}/background_train_exs.pdf')
 
     if do_anomaly_signal_show:
-        tags = ['wnb', 'wnblf', 'supernova']
+        tags = ['wnbhf', 'wnblf', 'supernova']
         strain_data = []
         for tag in tags:
             data = np.load(f'output/data/{tag}.npz')['data']
-            sample = data[0, :, 0, int( (1000-50)*4.096):int((1000+50)*4.096)]
+            sample = data[0, :, 0, int(
+                (1000 - 50) * 4.096):int((1000 + 50) * 4.096)]
             strain_data.append(sample)
 
         train_signal_example_plots(strain_data,
-            ['WNB 400-1000Hz', 'WNB 40-400Hz', 'Supernova'],
-            f'{args.plot_savedir}/anomaly_exs.pdf',
-            do_train_sample=False)
+                                   ['WNB 400-1000Hz', 'WNB 40-400Hz', 'Supernova'],
+                                   f'{args.plot_savedir}/anomaly_exs.pdf',
+                                   do_train_sample=False)
 
 
 if __name__ == '__main__':
@@ -537,12 +562,12 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('data_predicted_path', help='Path to model directory',
-        type=str)
+                        type=str)
 
     parser.add_argument('plot_savedir', help='Required output directory for saving plots',
-        type=str)
+                        type=str)
 
     parser.add_argument('fm_model_path', help='Path to the final model',
-        type=str)
+                        type=str)
     args = parser.parse_args()
     main(args)

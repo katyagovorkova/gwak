@@ -558,12 +558,12 @@ def main(args):
     elif args.stype == 'sglf' or args.stype == 'sghf':
         # 1: generate the polarization files for the signal classes of interest
         sg_cross, sg_plus = sg_polarization_generator(N_TRAIN_INJECTIONS,
-            prior_file=f'data/{args.stype}.prior')
+                                                      prior_file=f'data/{args.stype}.prior')
 
         # 2: create injections with those signal classes
         noisy, clean = inject_signal_curriculum(folder_path=args.folder_path,
-                                      data=[sg_cross, sg_plus]
-                                      )
+                                                data=[sg_cross, sg_plus]
+                                                )
         # 3: Turn the injections into segments, ready for training
         noisy_samples, clean_samples = curriculum_sampler(noisy, clean, 'sg')
 
@@ -592,12 +592,12 @@ def main(args):
             glitches = generate_glitches(folder_path=args.folder_path,
                                          n_glitches=N_TRAIN_INJECTIONS)
 
-        if glitches=='empty':
+        if glitches == 'empty':
             return 'empty'
 
         training_data = sample_injections_main(source=None,
-                               target_class=args.stype,
-                               data=glitches)
+                                               target_class=args.stype,
+                                               data=glitches)
 
         return training_data
 
@@ -655,10 +655,10 @@ def main(args):
         training_data = BBH_injections.swapaxes(0, 1)
         training_data = dict(data=training_data)
 
-    elif args.stype == 'sglf_varying_snr' or args.stype == 'sghf_varying_snr'or args.stype == 'sglf_fm_optimization' or args.stype == 'sghf_fm_optimization':
+    elif args.stype == 'sglf_varying_snr' or args.stype == 'sghf_varying_snr' or args.stype == 'sglf_fm_optimization' or args.stype == 'sghf_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
         sg_cross, sg_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS,
-        prior_file=f'data/{args.stype[:4]}.prior')
+                                                      prior_file=f'data/{args.stype[:4]}.prior')
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
@@ -672,14 +672,14 @@ def main(args):
         training_data = sg_injections.swapaxes(0, 1)
         training_data = dict(data=training_data)
 
-    elif args.stype=='wnblf_varying_snr' or args.stype=='wnbhf_varying_snr':
+    elif args.stype == 'wnblf_varying_snr' or args.stype == 'wnbhf_varying_snr' or args.stype == 'wnblf_fm_optimization' or args.stype == 'wnbhf_fm_optimization':
 
         if 'wnblf' in args.stype:
-            fmin=40
-            fmax=400
+            fmin = 40
+            fmax = 400
         else:
-            fmin=400
-            fmax=1000
+            fmin = 400
+            fmax = 1000
 
         # 1: generate the polarization files for the signal classes of interest
         wnb_cross, wnb_plus = wnb_polarization_generator(
@@ -699,7 +699,7 @@ def main(args):
                                                    return_injection_snr=True)
         training_data = dict(data=training_data)
 
-    elif args.stype == 'supernova_varying_snr':
+    elif args.stype == 'supernova_varying_snr' or args.stype == 'supernova_fm_optimization':
         # 1 : Fetch the polarization files
         sn_cross, sn_plus = fetch_sn_polarization(args.sn_polarization_path)
 
@@ -724,15 +724,15 @@ def main(args):
     elif args.stype == 'wnbhf' or args.stype == 'wnblf':
 
         if 'wnblf' in args.stype:
-            fmin=40
-            fmax=400
+            fmin = 40
+            fmax = 400
         else:
-            fmin=400
-            fmax=1000
+            fmin = 400
+            fmax = 1000
 
         wnb_cross, wnb_plus = wnb_polarization_generator(10,
-            fmin=fmin,
-            fmax=fmax)
+                                                         fmin=fmin,
+                                                         fmax=fmax)
         # 2: create injections with those signal classes
         noisy, clean = inject_signal_curriculum(
             folder_path=args.folder_path,
@@ -749,7 +749,6 @@ def main(args):
             data=[sn_cross, sn_plus])
 
         training_data = dict(data=clean)
-
 
     np.savez(args.save_file, **training_data)
 
@@ -773,13 +772,14 @@ if __name__ == '__main__':
                         type=str, choices=['bbh', 'sglf', 'sghf', 'background',
                                            'glitch', 'glitches', 'timeslides',
                                            'bbh_fm_optimization',
-                                           'sghf_fm_optimization','sglf_fm_optimization',
+                                           'sghf_fm_optimization', 'sglf_fm_optimization',
                                            'bbh_varying_snr',
-                                           'sghf_varying_snr','sglf_varying_snr',
+                                           'sghf_varying_snr', 'sglf_varying_snr',
                                            'wnblf', 'wnbhf',
                                            'wnbhf_varying_snr', 'wnblf_varying_snr',
+                                           'wnblf_fm_optimization', 'wnbhf_fm_optimization',
                                            'supernova',
-                                           'supernova_varying_snr'])
+                                           'supernova_varying_snr', 'supernova_fm_optimization'])
 
     parser.add_argument('--start', type=str, default=None)
     parser.add_argument('--stop', type=str, default=None)

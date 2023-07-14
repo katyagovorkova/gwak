@@ -81,26 +81,31 @@ def main(args):
     '''
     signal_evals = []
     midp_map = {
-        'bbh_varying_snr_evals.npy': 1440,
-        'sglf_varying_snr_evals.npy': 1440,
-        'sghf_varying_snr_evals.npy': 1440,
-        'wnbhf_varying_snr_evals.npy': 1850,
-        'wnblf_varying_snr_evals.npy': 1850,
-        'supernova_varying_snr_evals.npy': 2150}
+        'bbh_fm_optimization_evals.npy': 1440,
+        'sglf_fm_optimization_evals.npy': 1440,
+        'sghf_fm_optimization_evals.npy': 1440,
+        'wnbhf_fm_optimization_evals.npy': 1850,
+        'wnblf_fm_optimization_evals.npy': 1850,
+        'supernova_fm_optimization_evals.npy': 2150}
 
     for file_name in args.signal_path:
         mid = midp_map[file_name.split("/")[-1]]
-        signal_evals.append(np.load(f'{file_name}')[:, mid-150:mid+150, :])#[:1000]
+        # [:1000]
+        signal_evals.append(np.load(f'{file_name}')[:, mid - 150:mid + 150, :])
 
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []
     for file_name in os.listdir(args.timeslide_path):
-        timeslide_evals.append(np.load(file_name))
+        if '.npy' in file_name:
+            timeslide_evals.append(
+                np.load(os.path.join(args.timeslide_path, file_name)))
 
     norm_factors = []
-    for file_name in os.listdir(norm_factors_path):
-        norm_factors.append(np.load(file_name))
+    for file_name in os.listdir(args.norm_factor_path):
+        if '.npy' in file_name:
+            norm_factors.append(
+                np.load(os.path.join(args.norm_factor_path, file_name)))
 
     norm_factors = np.array(norm_factors)
     means = np.mean(norm_factors[:, 0, 0, :], axis=0)
@@ -127,11 +132,11 @@ if __name__ == '__main__':
                         help='Where to save the best final metric model')
     parser.add_argument('norm_factor_save_file', type=str,
                         help='Where to save the normalization factors')
-    parser.add_argument('--timeslide-path', type=str, nargs='+',
+    parser.add_argument('--timeslide-path', type=str,
                         help='list[str] pointing to timeslide files ')
     parser.add_argument('--signal-path', type=str, nargs='+',
                         help='list[str] pointing to signal files')
-    parser.add_argument('--norm-factor-path', type=str, nargs='+',
+    parser.add_argument('--norm-factor-path', type=str,
                         help='list[str] pointing to norm factors')
 
     args = parser.parse_args()

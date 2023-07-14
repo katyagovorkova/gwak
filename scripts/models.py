@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
@@ -8,6 +9,7 @@ from config import(
     SEG_NUM_TIMESTEPS
 )
 
+
 class LinearModel(nn.Module):
 
     def __init__(self, n_dims):
@@ -17,6 +19,7 @@ class LinearModel(nn.Module):
     def forward(self, x):
 
         return self.layer(x)
+
 
 class FAT(nn.Module):
 
@@ -36,7 +39,7 @@ class FAT(nn.Module):
 
         batch_size = x.shape[0]
 
-        x = x.reshape(-1, self.num_timesteps*self.num_ifos)
+        x = x.reshape(-1, self.num_timesteps * self.num_ifos)
         x = F.relu(self.Linear1(x))
         x = F.relu(self.Linear2(x))
         x = F.relu(self.Linear3(x))
@@ -73,6 +76,7 @@ class DUMMY_CNN_AE(nn.Module):
         x = x.view(batch_size, 5, self.num_timesteps)
         x = self.Conv2(x)
         return x
+
 
 class Encoder(nn.Module):
 

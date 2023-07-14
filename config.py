@@ -90,11 +90,11 @@ SHIFT_STEP = 2
 # timeslides
 GW_EVENT_CLEANING_WINDOW = 5
 TIMESLIDE_STEP = 0.5
-TIMESLIDE_TOTAL_DURATION = 100 * 24 * 3600
+TIMESLIDE_TOTAL_DURATION = 100 * 24 * 3600 # run on 4 different GPUs, so in total 400 * 24 * 3600
 FM_TIMESLIDE_TOTAL_DURATION = 0.01 * 30 * 24 * 3600
 
 # GPU
-GPU_NAME = 'cuda:0'
+GPU_NAME = 'cuda:1'
 
 # evolutionary search
 INIT_SIGMA = 0.5
@@ -114,8 +114,9 @@ RECREATION_WIDTH = 17
 RECREATION_HEIGHT_PER_SAMPLE = 7
 IFO_LABELS = ['Hanford', 'Livingston']
 SNR_VS_FAR_BAR = 5
-SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24*3600, 7*24*3600, 30*24*3600, 365*24*3600]
-SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month','year']
+SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24 * 3600,
+                               7 * 24 * 3600, 30 * 24 * 3600, 365 * 24 * 3600]
+SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', 'year']
 
 # varying SNR injection
 N_VARYING_SNR_INJECTIONS = 2000

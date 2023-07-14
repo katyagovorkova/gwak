@@ -80,7 +80,8 @@ def main(args):
     # load the data
     data = np.load(args.test_data)['data']
     data = torch.from_numpy(data).float().to(DEVICE)
-    loss = quak_eval(data, args.model_path, args.reduce_loss, device=DEVICE)
+    loss = quak_eval(data, args.model_path, DEVICE,
+                     reduce_loss=args.reduce_loss)
 
     if args.reduce_loss:
         # move to CPU

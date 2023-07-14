@@ -73,13 +73,13 @@ def main(args):
 
     if MODEL[data_name] == 'lstm':
         AE = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
-                num_timesteps=SEG_NUM_TIMESTEPS,
-                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
+                           num_timesteps=SEG_NUM_TIMESTEPS,
+                           BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
 
     elif MODEL[data_name] == 'dense':
         AE = FAT(num_ifos=NUM_IFOS,
-                num_timesteps=SEG_NUM_TIMESTEPS,
-                BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
+                 num_timesteps=SEG_NUM_TIMESTEPS,
+                 BOTTLENECK=BOTTLENECK[data_name]).to(DEVICE)
 
     optimizer = optim.Adam(AE.parameters())
     loss_fn = nn.L1Loss()

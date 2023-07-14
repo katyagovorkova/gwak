@@ -51,8 +51,10 @@ def full_evaluation(data, model_folder_path, device, return_midpoints=False):
         0], segments_normalized.shape[1]
     segments_normalized = torch.reshape(
         segments_normalized, (N_batches * N_samples, 2, SEG_NUM_TIMESTEPS))
-    quak_predictions_dict = quak_eval(segments_normalized, model_folder_path, device)
-    quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
+    quak_predictions_dict = quak_eval(
+        segments_normalized, model_folder_path, device)
+    quak_predictions = stack_dict_into_tensor(
+        quak_predictions_dict, device=device)
 
     if RETURN_INDIV_LOSSES:
         quak_predictions = torch.reshape(
@@ -61,7 +63,7 @@ def full_evaluation(data, model_folder_path, device, return_midpoints=False):
         quak_predictions = torch.reshape(
             quak_predictions, (N_batches, N_samples, len(CLASS_ORDER)))
 
-    pearson_values, (edge_start, edge_end) = pearson_computation(data)
+    pearson_values, (edge_start, edge_end) = pearson_computation(data, device)
 
     pearson_values = pearson_values[:, :, None]
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]

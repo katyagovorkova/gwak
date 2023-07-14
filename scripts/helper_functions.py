@@ -122,15 +122,17 @@ def std_normalizer_torch(data):
     return data / std_vals
 
 
-def stack_dict_into_tensor(data_dict):
+def stack_dict_into_tensor(data_dict, device=None):
     '''
     Input is a dictionary of keys, stack it into *torch* tensor
     '''
     fill_len = len(data_dict['bbh'])
     if RETURN_INDIV_LOSSES:
-        stacked_tensor = torch.empty((fill_len, len(CLASS_ORDER) * SCALE), device=DEVICE)
+        stacked_tensor = torch.empty(
+            (fill_len, len(CLASS_ORDER) * SCALE), device=device)
     else:
-        stacked_tensor = torch.empty((fill_len, len(CLASS_ORDER)), device=DEVICE)
+        stacked_tensor = torch.empty(
+            (fill_len, len(CLASS_ORDER)), device=device)
     for class_name in data_dict.keys():
         stack_index = CLASS_ORDER.index(class_name)
 
@@ -227,7 +229,8 @@ def load_folder(
         triggers_path = f'{path}/omicron/training/{ifo}/triggers/{ifo}:{CHANNEL}/'
         triggers = []
         # check if Omicron actually finished, if not, go further
-        if not os.path.exists(triggers_path): continue
+        if not os.path.exists(triggers_path):
+            continue
 
         for file in os.listdir(triggers_path):
             if file[-3:] == '.h5':
@@ -236,7 +239,8 @@ def load_folder(
                     with h5py.File(f'{triggers_path}/{file}', 'r') as f:
                         segment_triggers = f['triggers'][:]
                         triggers.append(segment_triggers)
-        if triggers == []: continue
+        if triggers == []:
+            continue
         else:
             triggers = np.concatenate(triggers, axis=0)
 
@@ -246,7 +250,7 @@ def load_folder(
             continue
 
         with h5py.File(f'{path}/data_{ifo}.h5', 'r') as f:
-            if load_start==None or load_stop==None or glitches==True:
+            if load_start == None or load_stop == None or glitches == True:
                 X = f[f'{ifo}:{CHANNEL}'][:]
             else:
                 datapoints_start = int(load_start * LOADED_DATA_SAMPLE_RATE)
@@ -257,8 +261,8 @@ def load_folder(
         resample_rate = SAMPLE_RATE  # don't need so many samples
 
         data = TimeSeries(X,
-            sample_rate=sample_rate,
-            t0=start if glitches else start+load_start)
+                          sample_rate=sample_rate,
+                          t0=start if glitches else start + load_start)
 
         if sample_rate != resample_rate:
             data = data.resample(resample_rate)
@@ -1030,6 +1034,7 @@ def split_into_segments_torch(data,
 
 
 def pearson_computation(data,
+                        device,
                         max_shift=MAX_SHIFT,
                         seg_len=SEG_NUM_TIMESTEPS,
                         seg_step=SEGMENT_OVERLAP,
@@ -1052,7 +1057,7 @@ def pearson_computation(data,
         final_length += (feature_length - seg_len) // seg_len
     family_fill_max = final_length
     final_length += n_manual
-    all_corrs = torch.zeros((n_batches, final_length), device=DEVICE)
+    all_corrs = torch.zeros((n_batches, final_length), device=device)
     for family_index in range(family_count):
         end = feature_length - seg_len + offset_families[family_index]
         if end > feature_length - max_shift:
@@ -1060,7 +1065,7 @@ def pearson_computation(data,
         hanford = data[:, 0, offset_families[family_index]:end].reshape(n_batches, -1, SEG_NUM_TIMESTEPS)
         hanford = hanford - hanford.mean(dim=2)[:, :, None]
         best_corrs = -1 * \
-            torch.ones((hanford.shape[0], hanford.shape[1]), device=DEVICE)
+            torch.ones((hanford.shape[0], hanford.shape[1]), device=device)
         for shift_amount in np.arange(-max_shift, max_shift + shift_step, shift_step):
 
             livingston = data[:, 1, offset_families[
@@ -1079,7 +1084,7 @@ def pearson_computation(data,
                                          seg_step)):
         hanford = data[:, 0, center - seg_len // 2:center + seg_len // 2]
         hanford = hanford - hanford.mean(dim=1)[:, None]
-        best_corr = -1 * torch.ones((n_batches), device=DEVICE)
+        best_corr = -1 * torch.ones((n_batches), device=device)
         for shift_amount in np.arange(-max_shift, max_shift + shift_step, shift_step):
             livingston = data[:, 1, center - seg_len // 2 +
                               shift_amount:center + seg_len // 2 + shift_amount]
