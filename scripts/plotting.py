@@ -39,37 +39,11 @@ from config import (
     VARYING_SNR_LOW,
     VARYING_SNR_HIGH,
     GPU_NAME,
-    RETURN_INDIV_LOSSES
-)
+    RETURN_INDIV_LOSSES,
+    CURRICULUM_SNRS)
 
 DEVICE = torch.device(GPU_NAME)
 
-
-def engineered_features(data):
-
-    newdata = np.zeros(data.shape)
-
-    for i in range(4):
-        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
-        newdata[:, :, 2*i] = (a+b)/2
-        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
-
-    newdata[:, :, -1] = data[:, :, -1]
-
-    return newdata
-
-def engineered_features_torch(data):
-
-    newdata = torch.zeros(data.shape).to(DEVICE)
-
-    for i in range(4):
-        a, b = data[:, :, 2*i], data[:, :, 2*i+1]
-        newdata[:, :, 2*i] = (a+b)/2
-        newdata[:, :, 2*i+1] = abs(a-b)# / (a+b + 0.01)
-
-    newdata[:, :, -1] = data[:, :, -1]
-
-    return newdata
 
 def calculate_means(metric_vals, snrs, bar):
     # helper function for SNR vs FAR plot
@@ -127,7 +101,7 @@ def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, spe
         rename_map = {
         'background':'Background',
         'bbh':'BBH',
-        'glitch':'Glitch',
+        'glitches':'Glitch',
         'sglf':'SG 64-512 Hz',
         'sghf':'SG 512-1024 Hz',
         'wnblf': 'WNB 40-400 Hz',
@@ -146,8 +120,9 @@ def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, spe
 
     labelLines(axs.get_lines(), zorder=2.5, xvals=(30, 30, 30, 50, 60, 50, 50, 57, 64, 71, 78))
     axs.set_title(special, fontsize=20)
-
     axs.set_xlim(VARYING_SNR_LOW+SNR_VS_FAR_BAR/2, VARYING_SNR_HIGH-SNR_VS_FAR_BAR/2)
+
+    plt.grid(False)
     fig.tight_layout()
     plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
     plt.show()
@@ -197,9 +172,10 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
         'Pearson'
     ]
 
+    ifo_colors = {
+        0:'goldenrod',
+        1:'darkgreen'}
 
-
-    #fm_vals = np.dot(data, metric_coefs)
     if RETURN_INDIV_LOSSES:
         fm_vals = metric_coefs(torch.from_numpy(data).float().to(DEVICE)).detach().cpu().numpy()
     else:
@@ -214,32 +190,20 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[2].plot(ts_farvals*1000, fm_vals-bias, label = 'metric value')
     axs[2].tick_params(axis='y', labelcolor=color)
     axs[2].legend()
-    axs[2].set_ylim(-50, 10)
-    if 0:
-        #this is broken, just going to draw lines as with detection efficiency
-        axs2_2 = axs[2].twinx()
 
-        color2 = 'orange'
-        axs2_2.set_ylabel('False Alarm Rate')
-        axs2_2.plot(ts_farvals*1000, far_vals, label = 'FAR', color=color2)
-        axs2_2.legend()
-        axs2_2.tick_params(axis='y', labelcolor=color2)
-        axs2_2.set_yscale('log')
-
-    else:
-        for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
-            if i%2 == 0:
-                metric_val_label = far_to_metric(SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
-                if metric_val_label is not None:
-                    axs[2].axhline(y=metric_val_label-bias, alpha=0.8**i, label = f'1/{label}', c='black')
+    for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
+        if i%2 == 0:
+            metric_val_label = far_to_metric(SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
+            if metric_val_label is not None:
+                axs[2].axhline(y=metric_val_label-bias, alpha=0.8**i, label = f'1/{label}', c='black')
 
 
     strain = strain[:, 100+3*5:-(100+4*5)]
 
     ts_strain = np.linspace(0, len(strain[0, :])/4096, len(strain[0, :]))
     axs[0].set_title(f'{tag} strain, SNR = {snr:.1f}')
-    axs[0].plot(ts_strain*1000, strain[0, :], label = 'Hanford')
-    axs[0].plot(ts_strain*1000, strain[1, :], label = 'Livingston')
+    axs[0].plot(ts_strain*1000, strain[0, :], label = 'Hanford', color=ifo_colors[0])
+    axs[0].plot(ts_strain*1000, strain[1, :], label = 'Livingston', color=ifo_colors[1])
     axs[0].set_xlabel('Time (ms)')
     axs[0].set_ylabel('Whitened strain')
     axs[0].legend()
@@ -282,8 +246,86 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     #axs[2].grid()
     plt.savefig(f'{plot_savedir}/{tag}_3_panel_plot.pdf', dpi=300)
 
-def main(args):
+def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_snr=False):
+    centers = CURRICULUM_SNRS
+    fig, ax = plt.subplots(1, figsize=(8, 5))
+    cols = {
+        'BBH':'blue',
+        'SG 64-512 Hz': 'red',
+        'SG 512-1024 Hz': 'orange',
+        'Background': 'purple',
+        'Glitch': 'green'
+    }
+    lines = []
+    for k in range(len(train_losses)):
+        train_loss, val_loss = train_losses[k], val_losses[k]
+        tag = tags[k]
+        epoch_count = len(train_loss)
+        #EPOCHS = epoch_count
 
+        epochs = np.linspace(1, epoch_count, epoch_count)
+
+        lnt = ax.plot(epochs, np.array(train_loss), linestyle = '-', label = f'Training loss, {tag}', c=cols[tag])
+        lnv = ax.plot(epochs, np.array(val_loss), linestyle='--', label = f'Validation loss, {tag}', c=cols[tag])
+        lines.append(lnt[0])
+        lines.append(lnv[0])
+
+    ax.set_xlabel('Epochs', fontsize=15)
+    ax.set_ylabel('Loss', fontsize=15)
+    plt.grid(True)
+
+    if show_snr:
+        n_currics = len(CURRICULUM_SNRS)
+        ax_1 = ax.twinx()
+        for i in range(n_currics):
+            low, high = centers[i]-centers[i]//4, centers[i] + centers[i]//2
+            snr_ln = ax_1.fill_between(epochs[i*epoch_count//n_currics:(i+1)*epoch_count//n_currics+1], low, high, label = 'SNR range',color='green', alpha=0.2)
+
+            if i == 0:
+                lines.append(snr_ln)
+
+        ax_1.set_ylabel('SNR range', fontsize=15)
+        ax_1.grid()
+
+    labs = [l.get_label() for l in lines]
+    ax.legend(lines, labs)
+    ax.set_title(title)
+    fig.tight_layout()
+    plt.savefig(savedir, dpi=300)
+
+def train_signal_example_plots(strain_samples, tags, savedir, snrs=None):
+    n = len(strain_samples)
+    fig, axs = plt.subplots(n, figsize=(8, 5*n))
+    ifos = {0:'Hanford', 1:'Livingston'}
+    cols = {0:'gold', 1:'darkgreen'}
+    for i in range(n):
+        ts = strain_samples[i].shape[1]
+        ts = np.linspace(0, ts*1/4096, ts)
+        for j in range(2):
+            axs[i].plot(ts*1000, strain_samples[i][j, :], c=cols[j], label = ifos[j])
+
+        axs[i].set_xlabel('Time, (ms)')
+        axs[i].set_ylabel('Whitened Strain')
+
+        # show the region for a training sample
+        low, high = axs[i].get_ylim()
+        start = np.random.uniform(20, 40)
+        axs[i].fill_between([start, start+200/4096*1000],
+                            [low, low], [high, high],
+                            color='lightsteelblue', alpha=0.40, label = 'Example training data')
+        axs[i].set_ylim(low, high)
+        snr = ''
+        if snrs is not None:
+            snr = f', SNR: {snrs[i]:.1f}'
+        axs[i].set_title(tags[i]+snr)
+        if i == 0:
+            axs[i].legend()
+
+
+    fig.tight_layout()
+    plt.savefig(savedir, dpi=300)
+
+def main(args):
 
     model = LinearModel(21).to(DEVICE)
     model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
@@ -309,10 +351,11 @@ def main(args):
     arr[-1] = weight[-1]
     weights.append(arr)
 
-    # temporary
-    do_snr_vs_far = True
-    do_fake_roc = True
-    do_3_panel_plot = True
+    do_snr_vs_far = 1
+    do_fake_roc = 1
+    do_3_panel_plot = 1
+    do_combined_loss_curves = 1
+    do_train_signal_example_plots = True
 
     if do_snr_vs_far:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
@@ -384,12 +427,19 @@ def main(args):
         means, stds = norm_factors[0], norm_factors[1]
 
         tags = ['bbh', 'sghf', 'sglf', 'wnbhf', 'supernova', 'wnblf']
-        ind = 1
+        inds = {
+            'bbh': 0,
+            'sghf': 0,
+            'sglf': 0,
+            'wnb': 1256,
+            'wnblf': 1958,
+            'supernova': 1228
+        }
         for tag in tags:
-            strains = np.load(f'output/data/{tag}_varying_snr.npz')['data'][ind]
-            data = np.load(f'{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy')[ind]
+            strains = np.load(f'output/data/{tag}_varying_snr.npz')['data'][:, inds[tag]]
+            data = np.load(f'{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy')[inds[tag]]
             data = (data-means)/stds
-            snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[ind]
+            snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[inds[tag]]
 
             if RETURN_INDIV_LOSSES:
                 model = LinearModel(21).to(DEVICE)#
@@ -397,6 +447,72 @@ def main(args):
                 three_panel_plotting(strains, data, snrs, model, far_hist, tag, args.plot_savedir, bias, weights)
             else:
                 three_panel_plotting(strains, data, snrs, metric_coefs, far_hist, tag, args.plot_savedir, bias, weights)
+
+    if do_combined_loss_curves:
+        load_path = 'output/trained/'
+
+        signal_classes = ['bbh', 'sglf', 'sghf']
+        tags = ['BBH', 'SG 64-512 Hz', 'SG 512-1024 Hz']
+        train_losses = []
+        val_losses = []
+        for sc in signal_classes:
+            train_losses.append(np.load(f'{load_path}/{sc}/loss_hist.npy'))
+            val_losses.append(np.load(f'{load_path}/{sc}/val_loss_hist.npy'))
+
+        combined_loss_curves(train_losses, val_losses, tags,
+            'Signals loss curves',
+            f'{args.plot_savedir}/signal_loss_curve.pdf',
+            show_snr=True)
+
+        bkg_classes = ['background', 'glitches']
+        tags = ['Background', 'Glitch']
+        train_losses = []
+        val_losses = []
+        for bc in bkg_classes:
+            train_losses.append(np.load(f'{load_path}/{bc}/loss_hist.npy'))
+            val_losses.append(np.load(f'{load_path}/{bc}/val_loss_hist.npy'))
+
+        combined_loss_curves(train_losses, val_losses, tags,
+            'Non-signals loss curves',
+            f'{args.plot_savedir}/backgrounds_loss_curve.pdf')
+
+    if do_train_signal_example_plots:
+        inds = {
+            'bbh': 0,
+            'sglf': 3,
+            'sghf': 113
+        }
+        tags = list(inds.keys())
+        strains = []
+        snrs = []
+        ind = 1
+        for tag in tags:
+            strain = np.load(f'output/data/{tag}_varying_snr.npy', mmap_mode='r')[inds[tag]][:, int((1680+50)*4.096):int(4.096*(1880-50))]
+            snr = np.load(f'output/data/{tag}_varying_snr_SNR.npy', mmap_mode='r')[inds[tag]]
+            strains.append(strain)
+            snrs.append(snr)
+
+        train_signal_example_plots(strains,
+            ['BBH', 'SG 64-512Hz', 'SG 512-1024Hz'],
+            f'{args.plot_savedir}/signal_train_exs.pdf',
+            snrs)
+
+        strains = []
+        timeslides = np.load('output/data/timeslides.npz', mmap_mode='r')
+
+        a = int(340740*4.096)
+        b = int(a+100*4.096)
+        glitch = timeslides[:, a:b]
+        strains.append(glitch)
+
+        a = int(287489*4.096) #(i put a random number)
+        b = int(a+100*4.096)
+        bkg = timeslides[:, a:b]
+        strains.append(bkg)
+
+        train_signal_example_plots(strains,
+            ['Glitch', 'Background'],
+            f'{args.plot_savedir}/background_train_exs.pdf')
 
 
 if __name__ == '__main__':
@@ -412,9 +528,5 @@ if __name__ == '__main__':
 
     parser.add_argument('fm_model_path', help='Path to the final model',
         type=str)
-
-    # Additional arguments
-    parser.add_argument('--class-labels', help='Labels for the QUAK axes',
-        type=list[str], default=['bbh', 'sg', 'background', 'glitch'])
     args = parser.parse_args()
     main(args)
