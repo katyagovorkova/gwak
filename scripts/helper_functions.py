@@ -36,7 +36,6 @@ from config import (
     NUM_IFOS,
     RETURN_INDIV_LOSSES,
     SCALE)
-DEVICE = torch.device(GPU_NAME)
 
 
 def mae(a, b):
@@ -982,7 +981,8 @@ def split_into_segments(data,
 
 def split_into_segments_torch(data,
                               overlap=SEGMENT_OVERLAP,
-                              seg_len=SEG_NUM_TIMESTEPS):
+                              seg_len=SEG_NUM_TIMESTEPS,
+                              device=None):
     '''
     Function to slice up data into overlapping segments
     seg_len: length of resulting segments
@@ -1000,7 +1000,7 @@ def split_into_segments_torch(data,
 
     # resulting shape: (batches, N_slices, 2, SEG_NUM_TIMESTEPS)
     result = torch.empty((n_batches, N_slices, n_detectors, seg_len),
-                         device=DEVICE)
+                         device=device)
 
     offset_families = np.arange(0, seg_len, overlap)
     family_count = len(offset_families)

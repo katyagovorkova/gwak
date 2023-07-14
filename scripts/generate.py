@@ -657,22 +657,22 @@ def main(args):
 
     elif args.stype == 'sglf_varying_snr' or args.stype == 'sghf_varying_snr'or args.stype == 'sglf_fm_optimization' or args.stype == 'sghf_fm_optimization':
         # 1: generate the polarization files for the signal classes of interest
-        SG_cross, SG_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS,
+        sg_cross, sg_plus = sg_polarization_generator(N_VARYING_SNR_INJECTIONS,
         prior_file=f'data/{args.stype[:4]}.prior')
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, VARYING_SNR_LOW, VARYING_SNR_HIGH)
         # 2: create the injections with those signal classes
-        SG_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                                   data=[SG_cross, SG_plus],
+        sg_injections, sampled_snr = inject_signal(folder_path=args.folder_path,
+                                                   data=[sg_cross, sg_plus],
                                                    segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
                                                    inject_at_end=True,
                                                    SNR=sampler,
                                                    return_injection_snr=True)
-        training_data = SG_injections.swapaxes(0, 1)
+        training_data = sg_injections.swapaxes(0, 1)
         training_data = dict(data=training_data)
 
-    elif 'wnb' in args.stype:
+    elif args.stype=='wnblf_varying_snr' or args.stype=='wnbhf_varying_snr':
 
         if 'wnblf' in args.stype:
             fmin=40
@@ -701,25 +701,55 @@ def main(args):
 
     elif args.stype == 'supernova_varying_snr':
         # 1 : Fetch the polarization files
-        SN_cross, SN_plus = fetch_sn_polarization(args.sn_polarization_path)
+        sn_cross, sn_plus = fetch_sn_polarization(args.sn_polarization_path)
 
         # copy the array to get more samples, approximately equal to N_VARYING_SNR_INJECTIONS
         #'uniform' prior over the cross and plus, so just copy each one some number of times
-        n_repeat = int(N_VARYING_SNR_INJECTIONS / len(SN_cross))
-        SN_cross, SN_plus = repeat_arr(
-            SN_cross, n_repeat), repeat_arr(SN_plus, n_repeat)
+        n_repeat = int(N_VARYING_SNR_INJECTIONS / len(sn_cross))
+        sn_cross, sn_plus = repeat_arr(
+            sn_cross, n_repeat), repeat_arr(sn_plus, n_repeat)
 
         sampler = make_snr_sampler(
             VARYING_SNR_DISTRIBUTION, SNR_SN_LOW, SNR_SN_HIGH)
 
         # 2: create injections with those polarizations
         training_data, sampled_snr = inject_signal(folder_path=args.folder_path,
-                                                   data=[SN_cross, SN_plus],
+                                                   data=[sn_cross, sn_plus],
                                                    segment_length=VARYING_SNR_SEGMENT_INJECTION_LENGTH,
                                                    inject_at_end=True,
                                                    SNR=sampler,
                                                    return_injection_snr=True)
         training_data = dict(data=training_data)
+
+    elif args.stype == 'wnbhf' or args.stype == 'wnblf':
+
+        if 'wnblf' in args.stype:
+            fmin=40
+            fmax=400
+        else:
+            fmin=400
+            fmax=1000
+
+        wnb_cross, wnb_plus = wnb_polarization_generator(10,
+            fmin=fmin,
+            fmax=fmax)
+        # 2: create injections with those signal classes
+        noisy, clean = inject_signal_curriculum(
+            folder_path=args.folder_path,
+            data=[wnb_cross, wnb_plus])
+
+        training_data = dict(data=clean)
+
+    elif args.stype == 'supernova':
+         # 1 : Fetch the polarization files
+        sn_cross, sn_plus = fetch_sn_polarization(args.sn_polarization_path)
+
+        noisy, clean = inject_signal_curriculum(
+            folder_path=args.folder_path,
+            data=[sn_cross, sn_plus])
+
+        training_data = dict(data=clean)
+
 
     np.savez(args.save_file, **training_data)
 
@@ -742,11 +772,13 @@ if __name__ == '__main__':
     parser.add_argument('--stype', help='Which type of the injection to generate',
                         type=str, choices=['bbh', 'sglf', 'sghf', 'background',
                                            'glitch', 'glitches', 'timeslides',
-                                           'bbh_fm_optimization', 
-                           'sghf_fm_optimization','sglf_fm_optimization',
-                                           'bbh_varying_snr', 
+                                           'bbh_fm_optimization',
+                                           'sghf_fm_optimization','sglf_fm_optimization',
+                                           'bbh_varying_snr',
                                            'sghf_varying_snr','sglf_varying_snr',
+                                           'wnblf', 'wnbhf',
                                            'wnbhf_varying_snr', 'wnblf_varying_snr',
+                                           'supernova',
                                            'supernova_varying_snr'])
 
     parser.add_argument('--start', type=str, default=None)

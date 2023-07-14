@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from final_metric_optimization import LinearModel
+from models import LinearModel
 from evaluate_data import full_evaluation
 import sys
 sys.path.append(
@@ -14,43 +14,16 @@ from config import (
     FM_TIMESLIDE_TOTAL_DURATION,
     TIMESLIDE_TOTAL_DURATION,
     SAMPLE_RATE,
-    GPU_NAME,
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
     RETURN_INDIV_LOSSES
 )
-DEVICE = torch.device(GPU_NAME)
-
-
-def engineered_features(data):
-
-    newdata = np.zeros(data.shape)
-
-    for i in range(4):
-        a, b = data[:, :, 2 * i], data[:, :, 2 * i + 1]
-        newdata[:, :, 2 * i] = (a + b) / 2
-        newdata[:, :, 2 * i + 1] = abs(a - b)  # / (a+b + 0.01)
-
-    newdata[:, :, -1] = data[:, :, -1]
-
-    return newdata
-
-
-def engineered_features_torch(data):
-
-    newdata = torch.zeros(data.shape).to(DEVICE)
-
-    for i in range(4):
-        a, b = data[:, :, 2 * i], data[:, :, 2 * i + 1]
-        newdata[:, :, 2 * i] = (a + b) / 2
-        newdata[:, :, 2 * i + 1] = abs(a - b)  # / (a+b + 0.01)
-
-    newdata[:, :, -1] = data[:, :, -1]
-
-    return newdata
 
 
 def main(args):
+
+    DEVICE = torch.device(f'cuda:{args.gpu}')
+
     if args.metric_coefs_path is not None:
         # initialize histogram
         n_bins = 2 * int(HISTOGRAM_BIN_MIN / HISTOGRAM_BIN_DIVISION)
@@ -60,7 +33,7 @@ def main(args):
     data = np.load(args.data_path)['data']
     data = torch.from_numpy(data).to(DEVICE)
 
-    reduction = 20  # for things to fit into memory nicely
+    reduction = 40  # for things to fit into memory nicely
 
     timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
     if args.fm_shortened_timeslides:
@@ -92,7 +65,7 @@ def main(args):
 
         timeslide = timeslide[:, :(timeslide.shape[1] // 1000) * 1000]
         final_values = full_evaluation(
-            timeslide[None, :, :], args.model_folder_path)
+            timeslide[None, :, :], args.model_folder_path, DEVICE)
 
         if args.metric_coefs_path is not None:
 
@@ -128,11 +101,11 @@ def main(args):
             means, stds = torch.mean(
                 final_values, axis=-2), torch.std(final_values, axis=-2)
             means, stds = means.detach().cpu().numpy(), stds.detach().cpu().numpy()
-            np.save(f'{args.save_path}/normalization_params_{timeslide_num}.npy', np.stack([means, stds], axis=0))
+            np.save(f'{args.save_normalizations_path}/normalization_params_{timeslide_num}.npy', np.stack([means, stds], axis=0))
             final_values = final_values.detach().cpu().numpy()
 
             # save as a numpy file, with the index of timeslide_num
-            np.save(f'{args.save_path}/timeslide_evals_{timeslide_num}.npy', final_values)
+            np.save(f'{args.save_evals_path}/timeslide_evals_{timeslide_num}.npy', final_values)
 
 
 if __name__ == '__main__':
@@ -154,14 +127,24 @@ if __name__ == '__main__':
                         help='Final metric model')
 
     parser.add_argument('--metric-coefs-path', type=str, default=None,
-                        help='Pass in path to metric coefficients to compute dot product'
-                        )
+                        help='Pass in path to metric coefficients to compute dot product')
+
     parser.add_argument('--norm-factor-path', type=str, default=None,
                         help='Pass in path to significance normalization factors')
 
     parser.add_argument('--fm-shortened-timeslides', type=str, default='False',
                         help='Generate reduced timeslide samples to train final metric')
 
+    parser.add_argument('--gpu', type=str, default='0',
+                        help='On which GPU to run')
+
+    parser.add_argument('--save-evals-path', type=str, default=None,
+                        help='Where to save evals')
+
+    parser.add_argument('--save-normalizations-path', type=str, default=None,
+                        help='Where to save normalizations')
+
     args = parser.parse_args()
     args.fm_shortened_timeslides = args.fm_shortened_timeslides == 'True'
+
     main(args)

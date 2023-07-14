@@ -7,6 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from models import LinearModel
+
 import sys
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
@@ -16,17 +18,6 @@ from config import (
     N_SVM_EPOCHS,
 )
 DEVICE = torch.device(GPU_NAME)
-
-
-class LinearModel(nn.Module):
-
-    def __init__(self, n_dims):
-        super(LinearModel, self).__init__()
-        self.layer = nn.Linear(21, 1)
-
-    def forward(self, x):
-
-        return self.layer(x)
 
 
 def optimize_hyperplane(signals, backgrounds):
@@ -104,18 +95,12 @@ def main(args):
     signal_evals = np.concatenate(signal_evals, axis=0)
 
     timeslide_evals = []
-    timeslide_path = args.timeslide_path
-    if type(args.timeslide_path) == str:
-        timeslide_path = [args.timeslide_path]
-    for file_name in timeslide_path:
-        timeslide_evals.append(np.load(f'{file_name}'))
+    for file_name in os.listdir(args.timeslide_path):
+        timeslide_evals.append(np.load(file_name))
 
     norm_factors = []
-    norm_factors_path = args.norm_factor_path
-    if type(args.norm_factor_path) == str:
-        norm_factors_path = [args.norm_factor_path]
-    for file_name in norm_factors_path:
-        norm_factors.append(np.load(f'{file_name}'))
+    for file_name in os.listdir(norm_factors_path):
+        norm_factors.append(np.load(file_name))
 
     norm_factors = np.array(norm_factors)
     means = np.mean(norm_factors[:, 0, 0, :], axis=0)

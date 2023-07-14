@@ -7,14 +7,20 @@ fm_training_classes = [
     'bbh_fm_optimization',
     'sghf_fm_optimization',
     'sglf_fm_optimization',
-    'wnbhf_varying_snr',
-    'wnblf_varying_snr',
-    'supernova_varying_snr']
+    'wnbhf_fm_optimization',
+    'wnblf_fm_optimization',
+    'supernova_fm_optimization']
 dataclasses = fm_training_classes +[
+    'wnblf',
+    'wnbhf',
+    'supernova',
     'timeslides',
     'bbh_varying_snr',
     'sghf_varying_snr',
-    'sglf_varying_snr']
+    'sglf_varying_snr',
+    'wnbhf_varying_snr',
+    'wnblf_varying_snr',
+    'supernova_varying_snr']
 
 wildcard_constraints:
     modelclass = '|'.join([x for x in modelclasses]),
@@ -97,21 +103,51 @@ rule train_quak:
         'mkdir -p {output.savedir}; '
         'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir} '
 
-rule generate_timeslides_for_final_metric_train:
+rule generate_timeslides_for_fm:
     input:
         data_path = expand(rules.upload_data.params,
-                           dataclass='timeslides',
-                           version=VERSION),
+            dataclass='timeslides',
+            version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-                            dataclass=modelclasses),
+            dataclass=modelclasses)
     params:
-        shorten_timeslides = True
+        shorten_timeslides = True,
+        save_path = directory('output/timeslides/')
     output:
-        save_folder_path = directory('output/timeslides/')
+        save_evals_path = directory('output/timeslides/evals/'),
+        save_normalizations_path = directory('output/timeslides/normalization/')
     shell:
-        'mkdir -p {output.save_folder_path}; '
-        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
-            --fm-shortened-timeslides {params.shorten_timeslides}'
+        'mkdir -p {params.save_path}; '
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {params.save_path} {input.model_path} \
+            --save-evals-path {output.save_evals_path} \
+            --save-normalizations-path {output.save_normalizations_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides} '
+
+rule generate_timeslides_for_far:
+    input:
+        data_path = expand(rules.upload_data.params,
+            dataclass='timeslides',
+            version=VERSION),
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses)
+    params:
+        shorten_timeslides = False,
+        save_path = directory('output/timeslides_{id}/')
+    output:
+        save_evals_path = directory('output/timeslides_{id}/evals/'),
+        save_normalizations_path = directory('output/timeslides_{id}/normalization/')
+    shell:
+        'mkdir -p {params.save_path}; '
+        'python3 scripts/evaluate_timeslides.py {input.data_path} {params.save_path} {input.model_path} \
+            --save-evals-path {output.save_evals_path} \
+            --save-normalizations-path {output.save_normalizations_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides} \
+            --gpu {wildcards.id}'
+
+rule generate_timeslides_for_far_all:
+    input:
+        expand(rules.generate_timeslides_for_far.output.save_evals_path,
+            id=[0,1,2,3])
 
 rule evaluate_signals:
     input:
@@ -128,13 +164,10 @@ rule evaluate_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-                         signal_dataclass=['bbh_varying_snr', 'sglf_varying_snr', 'sghf_varying_snr']),
-        dependencies = rules.generate_timeslides_for_final_metric_train.output
-    params:
-        timeslides = expand('output/timeslides/timeslide_evals_{i}.npy',
-                            i=range(1, 140)),
-        normfactors = expand('output/timeslides/normalization_params_{i}.npy',
-                             i=range(1, 140))
+                         signal_dataclass=fm_training_classes),
+        dependencies = rules.generate_timeslides_for_fm.output,
+        timeslides = 'output/timeslides/evals/',
+        normfactors = 'output/timeslides/normalization/'
     output:
         params_file = 'output/trained/final_metric_params.npy',
         norm_factor_file = 'output/trained/norm_factor_params.npy',

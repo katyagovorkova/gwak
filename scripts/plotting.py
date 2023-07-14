@@ -5,18 +5,18 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
-from labellines import labelLines
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from labellines import labelLines
 from helper_functions import (
     stack_dict_into_numpy,
     stack_dict_into_numpy_segments,
     compute_fars,
     far_to_metric
     )
-from final_metric_optimization import LinearModel
+from models import LinearModel
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
@@ -109,9 +109,13 @@ def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, spe
         'supernova': 'Supernova'
         }
         tag_ = rename_map[tag]
-        print('tag', tag_)
+
         axs.plot(snr_plot, means_plot-bias, color=colors[tag], label = f'{tag_}', linewidth=2)
-        axs.fill_between(snr_plot, means_plot-bias - stds_plot/2, means_plot-bias + stds_plot/2, alpha=0.15, color=colors[tag])
+        axs.fill_between(snr_plot,
+            means_plot-bias - stds_plot/2,
+            means_plot-bias + stds_plot/2,
+            alpha=0.15,
+            color=colors[tag])
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
         metric_val_label = far_to_metric(SNR_VS_FAR_HORIZONTAL_LINES[i], far_hist)
@@ -190,6 +194,7 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[2].plot(ts_farvals*1000, fm_vals-bias, label = 'metric value')
     axs[2].tick_params(axis='y', labelcolor=color)
     axs[2].legend()
+    axs[2].set_ylim(-50, 10)
 
     for i, label in enumerate(SNR_VS_FAR_HL_LABELS):
         if i%2 == 0:
@@ -208,9 +213,6 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[0].set_ylabel('Whitened strain')
     axs[0].legend()
     axs[0].grid()
-
-    print('245', strain.shape)
-    print('246', len(far_vals))
 
     for k in range(len(weights)):
         extracted = np.dot(data, weights[k])
@@ -293,11 +295,11 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
     fig.tight_layout()
     plt.savefig(savedir, dpi=300)
 
-def train_signal_example_plots(strain_samples, tags, savedir, snrs=None):
+def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_train_sample=True):
     n = len(strain_samples)
     fig, axs = plt.subplots(n, figsize=(8, 5*n))
     ifos = {0:'Hanford', 1:'Livingston'}
-    cols = {0:'gold', 1:'darkgreen'}
+    cols = {0:'goldenrod', 1:'darkgreen'}
     for i in range(n):
         ts = strain_samples[i].shape[1]
         ts = np.linspace(0, ts*1/4096, ts)
@@ -307,23 +309,23 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None):
         axs[i].set_xlabel('Time, (ms)')
         axs[i].set_ylabel('Whitened Strain')
 
-        # show the region for a training sample
-        low, high = axs[i].get_ylim()
-        start = np.random.uniform(20, 40)
-        axs[i].fill_between([start, start+200/4096*1000],
-                            [low, low], [high, high],
-                            color='lightsteelblue', alpha=0.40, label = 'Example training data')
-        axs[i].set_ylim(low, high)
+        if do_train_sample:
+            # show the region for a training sample
+            low, high = axs[i].get_ylim()
+            start = np.random.uniform(20, 40)
+            axs[i].fill_between([start, start+200/4096*1000],
+                                [low, low], [high, high],
+                                color='lightsteelblue', alpha=0.40, label = 'Example training data')
+            axs[i].set_ylim(low, high)
         snr = ''
         if snrs is not None:
             snr = f', SNR: {snrs[i]:.1f}'
         axs[i].set_title(tags[i]+snr)
         if i == 0:
             axs[i].legend()
-
-
     fig.tight_layout()
     plt.savefig(savedir, dpi=300)
+
 
 def main(args):
 
@@ -355,7 +357,8 @@ def main(args):
     do_fake_roc = 1
     do_3_panel_plot = 1
     do_combined_loss_curves = 1
-    do_train_signal_example_plots = True
+    do_train_signal_example_plots = 1
+    do_anomaly_signal_show = True
 
     if do_snr_vs_far:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
@@ -513,6 +516,19 @@ def main(args):
         train_signal_example_plots(strains,
             ['Glitch', 'Background'],
             f'{args.plot_savedir}/background_train_exs.pdf')
+
+    if do_anomaly_signal_show:
+        tags = ['wnb', 'wnblf', 'supernova']
+        strain_data = []
+        for tag in tags:
+            data = np.load(f'output/data/{tag}.npz')['data']
+            sample = data[0, :, 0, int( (1000-50)*4.096):int((1000+50)*4.096)]
+            strain_data.append(sample)
+
+        train_signal_example_plots(strain_data,
+            ['WNB 400-1000Hz', 'WNB 40-400Hz', 'Supernova'],
+            f'{args.plot_savedir}/anomaly_exs.pdf',
+            do_train_sample=False)
 
 
 if __name__ == '__main__':

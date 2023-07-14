@@ -1,9 +1,17 @@
 import os
+import sys
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from quak_predict import quak_eval
+from helper_functions import mae_torch, freq_loss_torch
+from models import LinearModel
 from helper_functions import (
     stack_dict_into_numpy,
     stack_dict_into_numpy_segments,
@@ -11,8 +19,6 @@ from helper_functions import (
     far_to_metric,
     stack_dict_into_tensor
     )
-import sys
-import os.path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import (
@@ -34,27 +40,6 @@ from config import (
     GPU_NAME
 )
 DEVICE = torch.device(GPU_NAME)
-
-from quak_predict import quak_eval
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-from helper_functions import mae_torch, freq_loss_torch
-from final_metric_optimization import LinearModel
-
-model = LinearModel(21).to(DEVICE)
-model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
-weight = (model.layer_normal.weight.data.cpu().numpy()[0])
-weights = []
-for i in range(5):
-    arr = np.zeros(weight.shape)
-    arr[4*i] = weight[4*i]
-    arr[4*i+1] = weight[4*i+1]
-    arr[4*i+3] = weight[4*i+3]
-    weights.append(arr[:-1]) #cut out pearson
 
 
 def density_plot(x, y):
@@ -319,6 +304,17 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
 
 def main(args):
 
+    model = LinearModel(21).to(DEVICE)
+    model.load_state_dict(torch.load(args.fm_model_path, map_location=GPU_NAME))
+    weight = (model.layer_normal.weight.data.cpu().numpy()[0])
+    weights = []
+    for i in range(5):
+        arr = np.zeros(weight.shape)
+        arr[4*i] = weight[4*i]
+        arr[4*i+1] = weight[4*i+1]
+        arr[4*i+3] = weight[4*i+3]
+        weights.append(arr[:-1]) #cut out pearson
+
     model_paths = args.model_path
 
     loss_values_SNR = dict()
@@ -379,27 +375,6 @@ def main(args):
                                     None,
                                     f"{args.savedir}/{class_label}/",
                                     class_label)
-
-    if 0: #MAE
-        #QUAK plots
-        #print(loss_values['background'])
-        for SNR_ind in range(5):
-            corner_plot_data = [0] * len(CLASS_ORDER)
-
-            for class_label in CLASS_ORDER:
-                class_index = CLASS_ORDER.index(class_label)
-                if class_label in ["sghf", "sglf", "bbh"]:
-                    corner_plot_data[class_index] = loss_values_SNR[class_label][SNR_ind]
-                else:
-                    assert class_label in ["glitch", "background"]
-                    corner_plot_data[class_index] = loss_values[class_label]
-                corner_plot_data[class_index] = stack_dict_into_numpy(corner_plot_data[class_index])#[p]#[:, ]
-                corner_plot_data[class_index] = corner_plot_data[class_index][np.random.permutation(len(corner_plot_data[class_index]))]
-
-            corner_plotting(corner_plot_data, CLASS_ORDER, f"{args.savedir}", SNR_ind=SNR_ind, loglog=False)
-
-        #QUAK plots
-    #print(loss_values['background'])
 
     for SNR_ind in range(5):
         corner_plot_data = [0] * len(CLASS_ORDER)

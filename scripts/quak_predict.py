@@ -16,10 +16,9 @@ from config import (NUM_IFOS,
                     FACTOR,
                     GPU_NAME,
                     RECREATION_LIMIT)
-DEVICE = torch.device(GPU_NAME)
 
 
-def quak_eval(data, model_path, reduce_loss=True):
+def quak_eval(data, model_path, device, reduce_loss=True):
     # data required to be torch tensor at this point
 
     # check if the evaluation has to be done for one model or for several
@@ -39,11 +38,11 @@ def quak_eval(data, model_path, reduce_loss=True):
         if MODEL[model_name] == "lstm":
             model = LSTM_AE_SPLIT(num_ifos=NUM_IFOS,
                                   num_timesteps=SEG_NUM_TIMESTEPS,
-                                  BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
+                                  BOTTLENECK=BOTTLENECK[model_name]).to(device)
         elif MODEL[model_name] == "dense":
             model = FAT(num_ifos=NUM_IFOS,
                         num_timesteps=SEG_NUM_TIMESTEPS,
-                        BOTTLENECK=BOTTLENECK[model_name]).to(DEVICE)
+                        BOTTLENECK=BOTTLENECK[model_name]).to(device)
 
         model.load_state_dict(torch.load(dpath, map_location=GPU_NAME))
         if reduce_loss:
@@ -76,10 +75,12 @@ def quak_eval(data, model_path, reduce_loss=True):
 
 def main(args):
 
+    DEVICE = torch.device(GPU_NAME)
+
     # load the data
     data = np.load(args.test_data)['data']
     data = torch.from_numpy(data).float().to(DEVICE)
-    loss = quak_eval(data, args.model_path, args.reduce_loss)
+    loss = quak_eval(data, args.model_path, args.reduce_loss, device=DEVICE)
 
     if args.reduce_loss:
         # move to CPU
@@ -106,4 +107,5 @@ if __name__ == '__main__':
                         nargs='+', type=str)
     args = parser.parse_args()
     args.reduce_loss = args.reduce_loss == "True"
+
     main(args)

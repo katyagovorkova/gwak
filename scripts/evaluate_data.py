@@ -24,22 +24,21 @@ from config import (
     RETURN_INDIV_LOSSES,
     SCALE
 )
-DEVICE = torch.device(GPU_NAME)
 
 
-def full_evaluation(data, model_folder_path, return_midpoints=False):
+def full_evaluation(data, model_folder_path, device, return_midpoints=False):
     '''
     Passed in data is of shape (N_samples, 2, time_axis)
     '''
     if not torch.is_tensor(data):
-        data = torch.from_numpy(data).to(DEVICE)
+        data = torch.from_numpy(data).to(device)
 
     assert data.shape[1] == 2
 
     clipped_time_axis = (data.shape[2] // SEGMENT_OVERLAP) * SEGMENT_OVERLAP
     data = data[:, :, :clipped_time_axis]
 
-    segments = split_into_segments_torch(data)
+    segments = split_into_segments_torch(data, device=device)
     slice_midpoints = np.arange(SEG_NUM_TIMESTEPS // 2, segments.shape[1] * (
         SEGMENT_OVERLAP) + SEG_NUM_TIMESTEPS // 2, SEGMENT_OVERLAP)
 
@@ -52,7 +51,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
         0], segments_normalized.shape[1]
     segments_normalized = torch.reshape(
         segments_normalized, (N_batches * N_samples, 2, SEG_NUM_TIMESTEPS))
-    quak_predictions_dict = quak_eval(segments_normalized, model_folder_path)
+    quak_predictions_dict = quak_eval(segments_normalized, model_folder_path, device)
     quak_predictions = stack_dict_into_tensor(quak_predictions_dict)
 
     if RETURN_INDIV_LOSSES:
@@ -72,7 +71,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
     if DO_SMOOTHING:
         # do it before significance?
         kernel = torch.ones(
-            (N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(DEVICE) / N_SMOOTHING_KERNEL
+            (N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL)).float().to(device) / N_SMOOTHING_KERNEL
 
     if return_midpoints:
         return final_values, slice_midpoints
@@ -80,6 +79,7 @@ def full_evaluation(data, model_folder_path, return_midpoints=False):
 
 
 def main(args):
+    DEVICE = torch.device(GPU_NAME)
     data = np.load(args.data_path)['data']
     print(f'loaded data shape: {data.shape}')
     if data.shape[0] == 2:
@@ -87,14 +87,14 @@ def main(args):
     n_batches_total = data.shape[0]
 
     _, timeaxis_size, feature_size = full_evaluation(
-        data[:2], args.model_paths).cpu().numpy().shape
+        data[:2], args.model_paths, DEVICE).cpu().numpy().shape
     result = np.zeros((n_batches_total, timeaxis_size, feature_size))
     n_splits = n_batches_total // DATA_EVAL_MAX_BATCH
     if n_splits * DATA_EVAL_MAX_BATCH != n_batches_total:
         n_splits += 1
     for i in range(n_splits):
         result[DATA_EVAL_MAX_BATCH * i:DATA_EVAL_MAX_BATCH * (i + 1)] = full_evaluation(
-            data[DATA_EVAL_MAX_BATCH * i:DATA_EVAL_MAX_BATCH * (i + 1)], args.model_paths).cpu().numpy()
+            data[DATA_EVAL_MAX_BATCH * i:DATA_EVAL_MAX_BATCH * (i + 1)], args.model_paths, DEVICE).cpu().numpy()
 
     np.save(args.save_path, result)
 

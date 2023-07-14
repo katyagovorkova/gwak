@@ -8,6 +8,15 @@ from config import(
     SEG_NUM_TIMESTEPS
 )
 
+class LinearModel(nn.Module):
+
+    def __init__(self, n_dims):
+        super(LinearModel, self).__init__()
+        self.layer = nn.Linear(21, 1)
+
+    def forward(self, x):
+
+        return self.layer(x)
 
 class FAT(nn.Module):
 
@@ -64,12 +73,6 @@ class DUMMY_CNN_AE(nn.Module):
         x = x.view(batch_size, 5, self.num_timesteps)
         x = self.Conv2(x)
         return x
-
-
-# Third Party
-import torch
-import torch.nn as nn
-
 
 class Encoder(nn.Module):
 
