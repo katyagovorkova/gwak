@@ -1,20 +1,28 @@
 from config import VERSION
 
-signalclasses = ['bbh', 'sg']
+signalclasses = ['bbh', 'sglf', 'sghf']
 backgroundclasses = ['background', 'glitches']
 modelclasses = signalclasses + backgroundclasses
-dataclasses = [
-    'timeslides',
+fm_training_classes = [
     'bbh_fm_optimization',
-    'sg_fm_optimization',
+    'sghf_fm_optimization',
+    'sglf_fm_optimization']
+dataclasses = fm_training_classes +[
+    'wnblf',
+    'wnbhf',
+    'supernova',
+    'timeslides',
     'bbh_varying_snr',
-    'sg_varying_snr',
-    'wnb_varying_snr',
+    'sghf_varying_snr',
+    'sglf_varying_snr',
+    'wnbhf_varying_snr',
+    'wnblf_varying_snr',
     'supernova_varying_snr']
 
 wildcard_constraints:
     modelclass = '|'.join([x for x in modelclasses]),
-    dataclass = '|'.join([x for x in dataclasses+modelclasses])
+    dataclass = '|'.join([x for x in dataclasses + modelclasses])
+
 
 rule find_valid_segments:
     input:
@@ -53,7 +61,7 @@ rule generate_data:
         intersections = rules.find_valid_segments.output.save_path,
     params:
         dependencies = expand(rules.fetch_site_data.output,
-            site=['L1', 'H1'])
+                              site=['L1', 'H1'])
     output:
         file = 'output/data/{dataclass}.npz'
     shell:
@@ -64,7 +72,7 @@ rule generate_data:
 rule upload_data:
     input:
         expand(rules.generate_data.output.file,
-            dataclass='{dataclass}'),
+               dataclass='{dataclass}'),
     params:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
@@ -74,8 +82,8 @@ rule upload_data:
 rule validate_data:
     input:
         expand(rules.upload_data.params,
-            dataclass=modelclasses+dataclasses,
-            version=VERSION)
+               dataclass=modelclasses + dataclasses,
+               version=VERSION)
     shell:
         'mkdir -p data/{VERSION}/; '
         'python3 scripts/validate_data.py {input}'
@@ -83,54 +91,69 @@ rule validate_data:
 rule train_quak:
     input:
         data = expand(rules.upload_data.params,
-            dataclass='{dataclass}',
-            version=VERSION)
+                      dataclass='{dataclass}',
+                      version=VERSION)
     output:
         savedir = directory('output/trained/{dataclass}'),
         model_file = 'output/trained/models/{dataclass}.pt'
     shell:
         'mkdir -p {output.savedir}; '
-        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir}'
+        'python3 scripts/train_quak.py {input.data} {output.model_file} {output.savedir} '
 
-rule recreation_and_quak_plots:
-    input:
-        models = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION),
-        test_path = expand(rules.upload_data.params,
-            dataclass='bbh',
-            version=VERSION)
-    output:
-        savedir = directory('output/plots/')
-    shell:
-        'mkdir -p {output.savedir}; '
-        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.models} {output.savedir}'
-
-rule generate_timeslides_for_final_metric_train:
+rule generate_timeslides_for_fm:
     input:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION)
+            dataclass=modelclasses)
     params:
-        shorten_timeslides = True
+        shorten_timeslides = True,
+        save_path = directory('output/timeslides/')
     output:
-        save_folder_path = directory('output/timeslides/')
+        save_evals_path = directory('output/timeslides/evals/'),
+        save_normalizations_path = directory('output/timeslides/normalization/')
     shell:
-        'mkdir -p {output.save_folder_path}; '
-        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_folder_path} {input.model_path} \
-            --fm-shortened-timeslides {params.shorten_timeslides}'
+        'mkdir -p {params.save_path}; '
+        'mkdir -p {output.save_evals_path}; '
+        'mkdir -p {output.save_normalizations_path}; '
+        'python3 scripts/evaluate_timeslides.py {params.save_path} {input.model_path} \
+            --data-path {input.data_path} \
+            --save-evals-path {output.save_evals_path} \
+            --save-normalizations-path {output.save_normalizations_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides} '
+
+rule generate_timeslides_for_far:
+    input:
+        data_path = expand(rules.upload_data.params,
+            dataclass='timeslides',
+            version=VERSION),
+        model_path = expand(rules.train_quak.output.model_file,
+            dataclass=modelclasses)
+    params:
+        shorten_timeslides = False,
+        save_path = directory('output/timeslides_{id}/')
+    output:
+        save_evals_path = directory('output/timeslides_{id}/evals/'),
+        save_normalizations_path = directory('output/timeslides_{id}/normalization/')
+    shell:
+        'mkdir -p {params.save_path}; '
+        'mkdir -p {output.save_evals_path}; '
+        'mkdir -p {output.save_normalizations_path}; '
+        'python3 scripts/evaluate_timeslides.py {params.save_path} {input.model_path} \
+            --data-path {input.data_path} \
+            --save-evals-path {output.save_evals_path} \
+            --save-normalizations-path {output.save_normalizations_path} \
+            --fm-shortened-timeslides {params.shorten_timeslides} \
+            --gpu {wildcards.id}'
 
 rule evaluate_signals:
     input:
         source_file = expand(rules.upload_data.params,
-            dataclass='{signal_dataclass}',
-            version=VERSION),
+                             dataclass='{signal_dataclass}',
+                             version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION)
+                            dataclass=modelclasses)
     output:
         save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
     shell:
@@ -139,38 +162,54 @@ rule evaluate_signals:
 rule train_final_metric:
     input:
         signals = expand(rules.evaluate_signals.output.save_file,
-            signal_dataclass=['bbh_fm_optimization', 'sg_fm_optimization']),
-        dependencies = rules.generate_timeslides_for_final_metric_train.output
-    params:
-        timeslides = expand('output/timeslides/timeslide_evals_{i}.npy',
-            i=range(1, 140)),
-        normfactors = expand('output/timeslides/normalization_params_{i}.npy',
-            i=range(1, 140))
+                         signal_dataclass=fm_training_classes),
+        dependencies = rules.generate_timeslides_for_fm.output,
+        timeslides = 'output/timeslides/evals/',
+        normfactors = 'output/timeslides/normalization/'
     output:
         params_file = 'output/trained/final_metric_params.npy',
-        norm_factor_file = 'output/trained/norm_factor_params.npy'
+        norm_factor_file = 'output/trained/norm_factor_params.npy',
+        fm_model_path = 'output/trained/fm_model.pt'
     shell:
-        'python3 scripts/final_metric_optimization.py {output.params_file} {output.norm_factor_file} \
-            --timeslide-path {params.timeslides} \
+        'python3 scripts/final_metric_optimization.py {output.params_file} \
+            {output.fm_model_path} {output.norm_factor_file} \
+            --timeslide-path {input.timeslides} \
             --signal-path {input.signals} \
-            --norm-factor-path {params.normfactors}'
+            --norm-factor-path {input.normfactors}'
+
+rule recreation_and_quak_plots:
+    input:
+        models = expand(rules.train_quak.output.model_file,
+                        dataclass=modelclasses,
+                        version=VERSION),
+        test_path = expand(rules.upload_data.params,
+                           dataclass='bbh',
+                           version=VERSION),
+        fm_model_path = rules.train_final_metric.output.fm_model_path
+    params:
+        savedir = directory('output/paper/')
+    shell:
+        'mkdir -p {params.savedir}; '
+        'python3 scripts/rec_and_quak_plots.py {input.test_path} {input.models} \
+            {input.fm_model_path} {params.savedir}'
 
 rule compute_far:
     input:
-        data_path = expand(rules.upload_data.params,
-            dataclass='timeslides',
-            version=VERSION),
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION),
+            dataclass=modelclasses),
         metric_coefs_path = rules.train_final_metric.output.params_file,
-        norm_factors_path = rules.train_final_metric.output.norm_factor_file
+        norm_factors_path = rules.train_final_metric.output.norm_factor_file,
+        fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
+        data_path = expand(rules.generate_timeslides_for_far.output.save_evals_path,
+            id=[1,2]),
         shorten_timeslides = False
     output:
         save_path = 'output/far_bins.npy'
     shell:
-        'python3 scripts/evaluate_timeslides.py {input.data_path} {output.save_path} {input.model_path} \
+        'python3 scripts/evaluate_timeslides.py {output.save_path} {input.model_path} \
+            --data-path {params.data_path} \
+            --fm-model-path {input.fm_model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
             --norm-factor-path {input.norm_factors_path} \
             --fm-shortened-timeslides {params.shorten_timeslides}'
@@ -178,11 +217,10 @@ rule compute_far:
 rule quak_plotting_prediction_and_recreation:
     input:
         model_path = expand(rules.train_quak.output.model_file,
-            dataclass=modelclasses,
-            version=VERSION),
+                            dataclass=modelclasses),
         test_data = expand(rules.upload_data.params,
-            dataclass='{dataclass}',
-            version=VERSION)
+                           dataclass='{dataclass}',
+                           version=VERSION)
     params:
         reduce_loss = False
     output:
@@ -193,18 +231,17 @@ rule quak_plotting_prediction_and_recreation:
 
 rule plot_results:
     input:
-        rules.compute_far.output.save_path,
-        'output/evaluated/bbh_varying_snr_evals.npy',
-        'output/evaluated/sg_varying_snr_evals.npy',
-        'output/evaluated/wnb_varying_snr_evals.npy',
-        'output/evaluated/supernova_varying_snr_evals.npy'
+        dependencies = [rules.compute_far.output.save_path,
+            expand(rules.evaluate_signals.output, signal_dataclass=fm_training_classes)],
+        fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
         evaluation_dir = 'output/',
     output:
         save_path = directory('output/paper/')
     shell:
         'mkdir -p {output.save_path}; '
-        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path}'
+        'python3 scripts/plotting.py {params.evaluation_dir} {output.save_path} \
+            {input.fm_model_path}'
 
 rule make_pipeline_plot:
     shell:

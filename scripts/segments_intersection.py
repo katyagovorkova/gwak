@@ -14,7 +14,7 @@ def intersect(seg1, seg2):
     return None
 
 
-def main(hanford_path,livingston_path,save_path):
+def main(hanford_path, livingston_path, save_path):
     '''
     Function which takes the valid segments from both detectors
     and finds an "intersection", i.e. segments where both detectors

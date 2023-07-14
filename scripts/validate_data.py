@@ -12,9 +12,9 @@ from config import VERSION
 def main(args):
 
     fig, ax = plt.subplots(
-        nrows=len(args.datasets)+2,
+        nrows=len(args.datasets) + 3,
         ncols=2,
-        figsize=(15, len(args.datasets)*5))
+        figsize=(15, len(args.datasets) * 5))
 
     with open(f'data/{VERSION}/info.txt', 'w') as f:
         i = 0
@@ -31,8 +31,8 @@ def main(args):
                 f.write(f'{dataset_file} \n')
                 f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
 
-                ax[i][0].plot(dataset[0,0].flatten())
-                ax[i][1].plot(dataset[0,1].flatten())
+                ax[i][0].plot(dataset[0, 0].flatten())
+                ax[i][1].plot(dataset[0, 1].flatten())
                 ax[i][0].set_title(f'{dataset_file}')
             else:
 
@@ -41,25 +41,29 @@ def main(args):
                 f.write(f'{dataset_file} noisy \n')
                 f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
 
-                ax[i][0].plot(dataset[0,0,0,:].flatten(), label='noisy')
-                ax[i][1].plot(dataset[0,0,1,:].flatten(), label='noisy')
-                ax[i+1][0].plot(dataset[-1,0,0,:].flatten(), label='noisy')
-                ax[i+1][1].plot(dataset[-1,0,1,:].flatten(), label='noisy')
+                ax[i][0].plot(dataset[0, 0, 0, :].flatten(), label='noisy')
+                ax[i][1].plot(dataset[0, 0, 1, :].flatten(), label='noisy')
+                ax[i + 1][0].plot(dataset[-1, 0, 0,
+                                          :].flatten(), label='noisy')
+                ax[i + 1][1].plot(dataset[-1, 0, 1,
+                                          :].flatten(), label='noisy')
                 ax[i][0].set_title(f'{dataset_file} first batch')
-                ax[i+1][0].set_title(f'{dataset_file} last batch')
+                ax[i + 1][0].set_title(f'{dataset_file} last batch')
 
                 dataset = data['clean']
                 print(f'{dataset_file} clean')
                 f.write(f'{dataset_file} clean \n')
                 f.write(f'Dataset {dataname} shape is {dataset.shape} \n')
 
-                ax[i][0].plot(dataset[0,0,0,:].flatten(), label='clean')
-                ax[i][1].plot(dataset[0,0,1,:].flatten(), label='clean')
-                ax[i+1][0].plot(dataset[-1,0,0,:].flatten(), label='clean')
-                ax[i+1][1].plot(dataset[-1,0,1,:].flatten(), label='clean')
+                ax[i][0].plot(dataset[0, 0, 0, :].flatten(), label='clean')
+                ax[i][1].plot(dataset[0, 0, 1, :].flatten(), label='clean')
+                ax[i + 1][0].plot(dataset[-1, 0, 0,
+                                          :].flatten(), label='clean')
+                ax[i + 1][1].plot(dataset[-1, 0, 1,
+                                          :].flatten(), label='clean')
 
                 ax[i][0].legend()
-                ax[i+1][0].legend()
+                ax[i + 1][0].legend()
 
                 i += 1
 
@@ -74,6 +78,6 @@ if __name__ == '__main__':
 
     # Required arguments
     parser.add_argument('datasets', nargs='+', type=str,
-        help='Path to the Omicron output')
+                        help='Path to the Omicron output')
     args = parser.parse_args()
     main(args)

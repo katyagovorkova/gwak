@@ -60,7 +60,6 @@ def omicron_main_wrapper(
     log_file: Path,
     verbose: bool,
 ):
-
     """Parses args into a format compatible for Pyomicron,
     then launches omicron dag
     """
@@ -148,7 +147,6 @@ def main(
     force_generation: bool = False,
     verbose: bool = False,
 ):
-
     """Generates a set of glitches for both
         H1 and L1 that can be added to background
 
@@ -259,29 +257,29 @@ if __name__ == "__main__":
     segments = np.load(args.intersections)
     for segment in segments:
         if os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/H1/triggers/H1:{CHANNEL}/') \
-        and os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/L1/triggers/L1:{CHANNEL}/'):
+                and os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/L1/triggers/L1:{CHANNEL}/'):
             print(f'Skippping segment {segment[0]} {segment[1]} because it is already done')
             continue
 
         main(SNR_THRESH,
-            segment[0], # start
-            segment[1], # stop
-            None, # test_stop
-            Q_MIN,
-            Q_MAX,
-            F_MIN,
-            CLUSTER_DT,
-            CHUNK_DURATION,
-            SEGMENT_DURATION,
-            OVERLAP,
-            MISTMATCH_MAX,
-            WINDOW,
-            f'{args.outdir}/{segment[0]}_{segment[1]}/',
-            None, # logdir
-            CHANNEL,
-            FRAME_TYPE,
-            GLITCH_SAMPLE_RATE,
-            STATE_FLAG,
-            IFOS)
+             segment[0],  # start
+             segment[1],  # stop
+             None,  # test_stop
+             Q_MIN,
+             Q_MAX,
+             F_MIN,
+             CLUSTER_DT,
+             CHUNK_DURATION,
+             SEGMENT_DURATION,
+             OVERLAP,
+             MISTMATCH_MAX,
+             WINDOW,
+             f'{args.outdir}/{segment[0]}_{segment[1]}/',
+             None,  # logdir
+             CHANNEL,
+             FRAME_TYPE,
+             GLITCH_SAMPLE_RATE,
+             STATE_FLAG,
+             IFOS)
         # wait a minute before submitting the next job
         time.sleep(60)
