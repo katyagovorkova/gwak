@@ -633,7 +633,7 @@ def main(args):
         training_data = dict(data=training_data)
 
     elif args.stype == 'timeslides':
-        event_times_path = '/home/ryan.raikman/s22/LIGO_EVENT_TIMES.npy'
+        event_times_path = 'data/LIGO_EVENT_TIMES.npy'
         training_data = generate_timeslides(
             args.folder_path, event_times_path=event_times_path)
         training_data = dict(data=training_data)
@@ -785,6 +785,6 @@ if __name__ == '__main__':
     parser.add_argument('--stop', type=str, default=None)
     parser.add_argument('--intersections', type=str, default=None)
     parser.add_argument('--sn-polarization-path', type=str,
-                        default='/home/ryan.raikman/s22/forks/katya/gw-anomaly/data/z85_sfho/')
+                        default='data/z85_sfho/')
     args = parser.parse_args()
     main(args)

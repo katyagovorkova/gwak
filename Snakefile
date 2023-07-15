@@ -202,7 +202,7 @@ rule compute_far:
         fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
         data_path = expand(rules.generate_timeslides_for_far.output.save_evals_path,
-            id=[1,2]),
+            id=[1,2,3]),
         shorten_timeslides = False
     output:
         save_path = 'output/far_bins.npy'
