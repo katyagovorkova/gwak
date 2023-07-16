@@ -70,7 +70,15 @@ def calculate_means(metric_vals, snrs, bar):
     return snr_plot, means, stds
 
 
-def snr_vs_far_plotting(datas, snrss, metric_coefs, far_hist, tags, savedir, special, bias):
+def snr_vs_far_plotting(
+        datas,
+        snrss,
+        metric_coefs,
+        far_hist,
+        tags,
+        savedir,
+        special,
+        bias):
     fig, axs = plt.subplots(1, figsize=(12, 8))
     colors = {
         'bbh': 'blue',
@@ -514,8 +522,8 @@ def main(args):
         snrs = []
         ind = 1
         for tag in tags:
-            strain = np.load(f'output/data/{tag}_varying_snr.npy', mmap_mode='r')[inds[tag]][:, int((1680 + 50) * 4.096):int(4.096 * (1880 - 50))]
-            snr = np.load(f'output/data/{tag}_varying_snr_SNR.npy', mmap_mode='r')[inds[tag]]
+            strain = np.load(f'output/data/{tag}_varying_snr.npz', mmap_mode='r')['data'][inds[tag]][:, int((1680 + 50) * 4.096):int(4.096 * (1880 - 50))]
+            snr = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy', mmap_mode='r')[inds[tag]]
             strains.append(strain)
             snrs.append(snr)
 
@@ -525,7 +533,7 @@ def main(args):
                                    snrs)
 
         strains = []
-        timeslides = np.load('output/data/timeslides.npz', mmap_mode='r')
+        timeslides = np.load('output/data/timeslides.npz', mmap_mode='r')['data']
 
         a = int(340740 * 4.096)
         b = int(a + 100 * 4.096)

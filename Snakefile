@@ -6,7 +6,10 @@ modelclasses = signalclasses + backgroundclasses
 fm_training_classes = [
     'bbh_fm_optimization',
     'sghf_fm_optimization',
-    'sglf_fm_optimization']
+    'sglf_fm_optimization',
+    'supernova_fm_optimization',
+    'wnbhf_fm_optimization',
+    'wnblf_fm_optimization']
 dataclasses = fm_training_classes +[
     'wnblf',
     'wnbhf',
@@ -202,17 +205,26 @@ rule compute_far:
         fm_model_path = rules.train_final_metric.output.fm_model_path
     params:
         data_path = expand(rules.generate_timeslides_for_far.output.save_evals_path,
-            id=[1,2,3]),
-        shorten_timeslides = False
+            id='{far_id}'),
+        shorten_timeslides = False,
     output:
-        save_path = 'output/far_bins.npy'
+        save_path = 'output/far_bins_{far_id}.npy'
     shell:
         'python3 scripts/evaluate_timeslides.py {output.save_path} {input.model_path} \
             --data-path {params.data_path} \
             --fm-model-path {input.fm_model_path} \
             --metric-coefs-path {input.metric_coefs_path} \
             --norm-factor-path {input.norm_factors_path} \
-            --fm-shortened-timeslides {params.shorten_timeslides}'
+            --fm-shortened-timeslides {params.shorten_timeslides} \
+            --gpu {wildcards.far_id}'
+
+rule merge_far_hist:
+    input:
+        expand(rules.compute_far.output.save_path, far_id=[0,1,2,3])
+    output:
+        save_path = 'output/far_bins.npy'
+    script:
+        'scripts/merge_far_hist.py'
 
 rule quak_plotting_prediction_and_recreation:
     input:
@@ -231,7 +243,7 @@ rule quak_plotting_prediction_and_recreation:
 
 rule plot_results:
     input:
-        dependencies = [rules.compute_far.output.save_path,
+        dependencies = [rules.merge_far_hist.output.save_path,
             expand(rules.evaluate_signals.output, signal_dataclass=fm_training_classes)],
         fm_model_path = rules.train_final_metric.output.fm_model_path
     params:

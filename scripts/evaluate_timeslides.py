@@ -36,44 +36,50 @@ def main(args):
         metric_vals = torch.from_numpy(metric_vals).float().to(DEVICE)
         norm_factors = torch.from_numpy(norm_factors).float().to(DEVICE)
 
+        def update_hist(vals):
+            vals = torch.from_numpy(np.array(vals)).to(DEVICE)
+            # flatten batch dimension
+            vals = torch.reshape(vals, (vals.shape[
+                                         0] * vals.shape[1], vals.shape[2]))
+            means, stds = norm_factors[0], norm_factors[1]
+            vals = (vals - means) / stds
+
+            if RETURN_INDIV_LOSSES:
+                model = LinearModel(21).to(DEVICE)
+                model.load_state_dict(torch.load(
+                    args.fm_model_path, map_location=f'cuda:{args.gpu}'))
+                vals = model(vals).detach()
+            else:
+                vals = torch.matmul(vals, metric_vals)
+
+            update = torch.histc(vals, bins=n_bins,
+                                 min=-HISTOGRAM_BIN_MIN, max=HISTOGRAM_BIN_MIN)
+            past_hist = np.load(args.save_path)
+            new_hist = past_hist + update.cpu().numpy()
+            np.save(args.save_path, new_hist)
+
         # load pre-computed timeslides evaluations
-        final_values = []
         for folder in args.data_path:
-            for file_name in os.listdir(folder):
-                if '.npy' in file_name:
-                    final_values.append(
-                        np.load(os.path.join(folder, file_name)))
 
-        final_values = np.concatenate(final_values, axis=0)
-        final_values = torch.from_numpy(np.array(final_values)).to(DEVICE)
+            all_files = os.listdir(folder)
+            print(f'Analyzing {folder} from {args.data_path}')
 
-        # flatten batch dimension
-        final_values = torch.reshape(final_values, (final_values.shape[
-                                     0] * final_values.shape[1], final_values.shape[2]))
-        means, stds = norm_factors[0], norm_factors[1]
-        final_values = (final_values - means) / stds
+            for file_id in range(0,len(all_files)-len(all_files) % 5,5):
 
-        if RETURN_INDIV_LOSSES:
-            model = LinearModel(21).to(DEVICE)
-            model.load_state_dict(torch.load(
-                args.fm_model_path, map_location=f'cuda:{args.gpu}'))
-            final_values = model(final_values).detach()
-        else:
+                if file_id%10000==0: print(f'Analyzing {file_id} from {len(all_files)}')
+                all_vals = [ np.load(os.path.join(folder, all_files[file_id+local_id]))
+                            for local_id in range(5)
+                            if '.npy' in all_files[file_id+local_id] ]
 
-            final_values = torch.matmul(final_values, metric_vals)
-
-        update = torch.histc(final_values, bins=n_bins,
-                             min=-HISTOGRAM_BIN_MIN, max=HISTOGRAM_BIN_MIN)
-        past_hist = np.load(args.save_path)
-        new_hist = past_hist + update.cpu().numpy()
-        np.save(args.save_path, new_hist)
+                all_vals = np.concatenate(all_vals, axis=0)
+                update_hist(all_vals)
 
     else:
 
         data = np.load(args.data_path[0])['data']
         data = torch.from_numpy(data).to(DEVICE)
 
-        reduction = 40  # for things to fit into memory nicely
+        reduction = 10  # for things to fit into memory nicely
 
         timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
         if args.fm_shortened_timeslides:
