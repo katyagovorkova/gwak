@@ -4,6 +4,9 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+import matplotlib as mpl
 import scipy.stats as st
 import torch
 import torch.nn as nn
@@ -353,6 +356,108 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_trai
     fig.tight_layout()
     plt.savefig(savedir, dpi=300)
 
+def learned_fm_weights_colorplot(values, savedir):
+    values = np.array(values)
+    freq_corr = values[2::4]
+    freq_corr = np.sum(freq_corr)
+
+    pearson = values[-1]
+
+    weights = values[:-1].reshape(5, 4)
+    weights = weights[:, [True, True, False, True]]
+    minval = min( min(np.min(weights), pearson), freq_corr)
+    maxval = max( max(np.max(weights), pearson), freq_corr)
+    cmap = mpl.cm.coolwarm
+    scale_cmap = cm.get_cmap('coolwarm', 100)
+    def scale(x):
+        return scale_cmap((x - minval) / (maxval-minval))
+
+    # weights, freq_corr, pearson
+    #fig, axs = plt.subplots(1, 2, figsize=(12, 5), gridspec_kw={'width_ratios':[2, 1]})
+    FONTSIZE = 15
+    plt.grid(False)
+    fig = plt.figure(figsize=(12, 4), constrained_layout=True)
+
+    #widths = [5, 1, 0.3]
+    #widths = [5, 0.6, 1.1]
+    widths = [5, 1.25, 0.6]
+    heights = [2]
+    spec = fig.add_gridspec(ncols=3, nrows=1, width_ratios=widths,
+                            height_ratios=heights)
+    axs = []
+    for row in range(1):
+        for col in range(3):
+            axs.append(fig.add_subplot(spec[row, col]))
+
+    for elem in axs:
+        elem.grid(False)
+    fig.canvas.draw()
+    axs[0].tick_params(axis='y', labelsize=18, length = 0)
+    labels = [item.get_text() for item in axs[0].get_xticklabels()]
+    labels[1:] = ["Background", "BBH", "Glitch", " "*0 +"SG 64-512 Hz", " "*15 +"SG 512-1024 Hz"]
+    axs[0].set_xticklabels(labels, fontsize=FONTSIZE)
+
+    #$|\widetilde{H_O} \cdot \widetilde{H_R} |$, $|\widetilde{L_O} \cdot \widetilde{L_R} |$, and $|\widetilde{H_R} \cdot \widetilde{L_R} |$
+    labels = [item.get_text() for item in axs[0].get_yticklabels()]
+    labels = [None, r"$|\widetilde{H_O} \cdot \widetilde{H_R} |$",
+                None, r"$|\widetilde{L_O} \cdot \widetilde{L_R} |$",
+                None, r"$|\widetilde{H_R} \cdot \widetilde{L_R} |$"]
+    axs[0].set_yticklabels(labels, fontsize=FONTSIZE)
+    axs[0].set_title("Autoencoder Features", fontsize=FONTSIZE)
+    weight_img = axs[0].imshow(scale(weights.T))
+
+
+    #fig.colorbar(weight_img, ax=axs[0])
+
+    norm = mpl.colors.Normalize(vmin=minval, vmax=maxval)
+
+    cb1 = mpl.colorbar.ColorbarBase(axs[2], cmap=cmap,
+                                    norm=norm,
+                                    orientation='vertical')
+    axs[2].yaxis.tick_left()
+    axs[2].set_yticklabels([item.get_text() for item in axs[2].get_yticklabels()], fontsize=FONTSIZE)
+    axs[2].set_title("Scale",fontsize=FONTSIZE)
+
+    #axs[0].yaxis.set_visible(False)
+    corr_img = axs[1].imshow(scale(np.array([freq_corr, pearson]))[:, np.newaxis], alpha=1)
+    #fig.colorbar(corr_img, ax=axs[1])
+    axs[1].tick_params(axis='both', labelsize=18, length = 0)
+    labels = [item.get_text() for item in axs[1].get_yticklabels()]
+    print("20", labels)
+    #labels = [None, None, r"$|\widetilde{H_O} \cdot \widetilde{L_O} |$", None, None, None, "Pearson", None, None]
+    labels = [None, r"$|\widetilde{H_O} \cdot \widetilde{L_O} |$", None, "Pearson", None]
+    axs[1].set_yticklabels(labels, fontsize=FONTSIZE)
+    axs[1].xaxis.set_visible(False)
+    axs[1].set_title("Correlation Features", fontsize=FONTSIZE)
+    #fig.tight_layout()
+    #axs[0].grid(xdata = np.array([0, 1, 2]), color='w', linestyle='-', linewidth=2)
+
+    # manually do white line grid
+    for x in range(4):
+    #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
+        axs[0].plot([x+0.5, x+0.5], [-0.5, 2.5], c="white", linewidth=6)
+    for y in range(2):
+    #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
+        axs[0].plot([-0.5, 4.5], [0.5+y, 0.5+y], c="white", linewidth=6)
+
+    axs[1].plot([-0.5, 0.5], [0.5, 0.5], c="white", linewidth=6)
+
+    for y in range(3):
+        for x in range(5):
+            axs[0].text(x-0.15, y+0.05, f"{weights.T[y, x]:.2f}", fontsize=14)
+
+    for y in range(2):
+        axs[1].text( -0.15, y+0.05, f"{np.array([freq_corr, pearson])[y]:.2f}", fontsize=14)
+
+    #fig.suptitle("Learned dot product coefficients")
+    try:
+        fig.tight_layout()
+        None
+    except RuntimeError:
+        None
+
+
+    plt.savefig(savedir, dpi=300)
 
 def main(args):
 
@@ -360,6 +465,8 @@ def main(args):
     model.load_state_dict(torch.load(
         args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
+    learned_dp_weights = weight[:]
+
     bias = model.layer.bias.data.cpu().numpy()[0]
     print('bias!:', bias)
     weights = []
@@ -387,6 +494,7 @@ def main(args):
     do_combined_loss_curves = 1
     do_train_signal_example_plots = 1
     do_anomaly_signal_show = True
+    do_learned_fm_weights = 1
 
     if do_snr_vs_far:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
@@ -554,7 +662,7 @@ def main(args):
         strain_data = []
         for tag in tags:
             data = np.load(f'output/data/{tag}.npz')['data']
-            sample = data[0, :, 0, int(
+            sample = data[-1, :, 0, int(
                 (1000 - 50) * 4.096):int((1000 + 50) * 4.096)]
             strain_data.append(sample)
 
@@ -562,6 +670,11 @@ def main(args):
                                    ['WNB 400-1000Hz', 'WNB 40-400Hz', 'Supernova'],
                                    f'{args.plot_savedir}/anomaly_exs.pdf',
                                    do_train_sample=False)
+
+
+    if do_learned_fm_weights:
+        learned_fm_weights_colorplot(learned_dp_weights,
+            f'{args.plot_savedir}/learned_fm_weights.pdf')
 
 
 if __name__ == '__main__':
