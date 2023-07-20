@@ -170,7 +170,7 @@ rule evaluate_signals:
                             dataclass=modelclasses,
                             version=VERSION)
     output:
-        save_file = 'output/evaluated/{signal_dataclass}_evals.npy',
+        save_file = '/home/katya.govorkova/gw-anomaly/output/evaluated/{signal_dataclass}_evals.npy',
     shell:
         'python3 scripts/evaluate_data.py {params.source_file} {output.save_file} {params.model_path}'
 
@@ -181,20 +181,20 @@ rule train_final_metric:
         dependencies = rules.generate_timeslides_for_fm.output,
         timeslides = 'output/timeslides/evals/',
         normfactors = 'output/timeslides/normalization/'
-    output:
-        params_file = 'output/trained/final_metric_params.npy',
-        norm_factor_file = 'output/trained/norm_factor_params.npy',
-        fm_model_path = 'output/trained/fm_model.pt'
+    params:
+        params_file = '/home/katya.govorkova/gw-anomaly/output/trained/final_metric_params.npy',
+        norm_factor_file = '/home/katya.govorkova/gw-anomaly/output/trained/norm_factor_params.npy',
+        fm_model_path = '/home/katya.govorkova/gw-anomaly/output/trained/fm_model.pt'
     shell:
-        'python3 scripts/final_metric_optimization.py {output.params_file} \
-            {output.fm_model_path} {output.norm_factor_file} \
+        'python3 scripts/final_metric_optimization.py {params.params_file} \
+            {params.fm_model_path} {params.norm_factor_file} \
             --timeslide-path {input.timeslides} \
             --signal-path {input.signals} \
             --norm-factor-path {input.normfactors}'
 
 rule recreation_and_quak_plots:
     input:
-        fm_model_path = rules.train_final_metric.output.fm_model_path
+        fm_model_path = rules.train_final_metric.params.fm_model_path
     params:
         models = expand(rules.upload_models.params,
                         dataclass=modelclasses,
@@ -210,9 +210,9 @@ rule recreation_and_quak_plots:
 
 rule compute_far:
     input:
-        metric_coefs_path = rules.train_final_metric.output.params_file,
-        norm_factors_path = rules.train_final_metric.output.norm_factor_file,
-        fm_model_path = rules.train_final_metric.output.fm_model_path
+        metric_coefs_path = rules.train_final_metric.params.params_file,
+        norm_factors_path = rules.train_final_metric.params.norm_factor_file,
+        fm_model_path = rules.train_final_metric.params.fm_model_path
     params:
         model_path = expand(rules.upload_models.params,
             dataclass=modelclasses,
@@ -234,8 +234,8 @@ rule compute_far:
 rule merge_far_hist:
     input:
         expand(rules.compute_far.output.save_path, far_id=[0,1,2,3])
-    output:
-        save_path = 'output/far_bins.npy'
+    params:
+        save_path = '/home/katya.govorkova/gw-anomaly/output/far_bins.npy'
     script:
         'scripts/merge_far_hist.py'
 
@@ -248,18 +248,17 @@ rule quak_plotting_prediction_and_recreation:
         model_path = expand(rules.upload_models.params,
                             dataclass=modelclasses,
                             version=VERSION),
-        reduce_loss = False
-    output:
-        save_file = 'output/evaluated/quak_{dataclass}.npz'
+        reduce_loss = False,
+        save_file = '/home/katya.govorkova/gw-anomaly/output/evaluated/quak_{dataclass}.npz'
     shell:
-        'python3 scripts/quak_predict.py {input.test_data} {output.save_file} {params.reduce_loss} \
+        'python3 scripts/quak_predict.py {input.test_data} {params.save_file} {params.reduce_loss} \
             --model-path {params.model_path} '
 
 rule plot_results:
     input:
-        dependencies = [rules.merge_far_hist.output.save_path,
+        dependencies = [rules.merge_far_hist.params.save_path,
             expand(rules.evaluate_signals.output, signal_dataclass=fm_training_classes)],
-        fm_model_path = rules.train_final_metric.output.fm_model_path
+        fm_model_path = rules.train_final_metric.params.fm_model_path
     params:
         evaluation_dir = 'output/',
     output:
