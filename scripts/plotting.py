@@ -124,10 +124,10 @@ def snr_vs_far_plotting(
         }
         tag_ = rename_map[tag]
 
-        axs.plot(snr_plot, means_plot - bias, color=colors[tag], label=f'{tag_}', linewidth=2)
+        axs.plot(snr_plot,  means_plot - bias, color=colors[tag], label=f'{tag_}', linewidth=2)
         axs.fill_between(snr_plot,
-                         means_plot - bias - stds_plot / 2,
-                         means_plot - bias + stds_plot / 2,
+                         (means_plot - bias) - stds_plot / 2,
+                         (means_plot - bias) + stds_plot / 2,
                          alpha=0.15,
                          color=colors[tag])
 
@@ -138,12 +138,16 @@ def snr_vs_far_plotting(
             axs.axhline(y=metric_val_label - bias, alpha=0.8**i, label=f'1/{label}', c='black')
 
     labelLines(axs.get_lines(), zorder=2.5, xvals=(
-        30, 30, 30, 50, 60, 50, 50, 57, 64, 71, 78))
+        15, 20, 25, 35, 40, 45, 25, 30, 35, 40, 45))
     axs.set_title(special, fontsize=20)
-    axs.set_xlim(VARYING_SNR_LOW + SNR_VS_FAR_BAR / 2,
-                 VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
+    # axs.set_xlim(VARYING_SNR_LOW + SNR_VS_FAR_BAR / 2,
+    #              VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
 
-    plt.grid(False)
+    axs.set_xlim(12.5,50)
+    axs.set_ylim(-40,-5)
+
+    # plt.yscale('log')
+    plt.grid(True)
     fig.tight_layout()
     plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
     plt.show()
@@ -358,13 +362,13 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_trai
 
 def learned_fm_weights_colorplot(values, savedir):
     values = np.array(values)
-    freq_corr = values[2::4]
+    freq_corr = values[2::3]
     freq_corr = np.sum(freq_corr)
 
     pearson = values[-1]
 
-    weights = values[:-1].reshape(5, 4)
-    weights = weights[:, [True, True, False, True]]
+    weights = values[:-1].reshape(5, 3)
+    weights = weights[:, [True, True, False]]
     minval = min( min(np.min(weights), pearson), freq_corr)
     maxval = max( max(np.max(weights), pearson), freq_corr)
     cmap = mpl.cm.coolwarm
@@ -376,11 +380,11 @@ def learned_fm_weights_colorplot(values, savedir):
     #fig, axs = plt.subplots(1, 2, figsize=(12, 5), gridspec_kw={'width_ratios':[2, 1]})
     FONTSIZE = 15
     plt.grid(False)
-    fig = plt.figure(figsize=(12, 4), constrained_layout=True)
+    fig = plt.figure(figsize=(15, 4), constrained_layout=True)
 
     #widths = [5, 1, 0.3]
     #widths = [5, 0.6, 1.1]
-    widths = [5, 1.25, 0.6]
+    widths = [11, 2.25, 0.6]
     heights = [2]
     spec = fig.add_gridspec(ncols=3, nrows=1, width_ratios=widths,
                             height_ratios=heights)
@@ -400,8 +404,7 @@ def learned_fm_weights_colorplot(values, savedir):
     #$|\widetilde{H_O} \cdot \widetilde{H_R} |$, $|\widetilde{L_O} \cdot \widetilde{L_R} |$, and $|\widetilde{H_R} \cdot \widetilde{L_R} |$
     labels = [item.get_text() for item in axs[0].get_yticklabels()]
     labels = [None, r"$|\widetilde{H_O} \cdot \widetilde{H_R} |$",
-                None, r"$|\widetilde{L_O} \cdot \widetilde{L_R} |$",
-                None, r"$|\widetilde{H_R} \cdot \widetilde{L_R} |$"]
+                None, r"$|\widetilde{L_O} \cdot \widetilde{L_R} |$"]
     axs[0].set_yticklabels(labels, fontsize=FONTSIZE)
     axs[0].set_title("Autoencoder Features", fontsize=FONTSIZE)
     weight_img = axs[0].imshow(scale(weights.T))
@@ -435,14 +438,14 @@ def learned_fm_weights_colorplot(values, savedir):
     # manually do white line grid
     for x in range(4):
     #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
-        axs[0].plot([x+0.5, x+0.5], [-0.5, 2.5], c="white", linewidth=6)
-    for y in range(2):
+        axs[0].plot([x+0.5, x+0.5], [-0.5, 1.5], c="white", linewidth=6)
+    for y in range(1):
     #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
         axs[0].plot([-0.5, 4.5], [0.5+y, 0.5+y], c="white", linewidth=6)
 
     axs[1].plot([-0.5, 0.5], [0.5, 0.5], c="white", linewidth=6)
 
-    for y in range(3):
+    for y in range(2):
         for x in range(5):
             axs[0].text(x-0.15, y+0.05, f"{weights.T[y, x]:.2f}", fontsize=14)
 
@@ -450,18 +453,18 @@ def learned_fm_weights_colorplot(values, savedir):
         axs[1].text( -0.15, y+0.05, f"{np.array([freq_corr, pearson])[y]:.2f}", fontsize=14)
 
     #fig.suptitle("Learned dot product coefficients")
+    #fig.suptitle("Learned final metric weights", fontsize=FONTSIZE+5)
     try:
         fig.tight_layout()
         None
     except RuntimeError:
         None
 
-
-    plt.savefig(savedir, dpi=300)
+    plt.savefig(savedir, bbox_inches='tight',dpi=300)
 
 def main(args):
 
-    model = LinearModel(21).to(DEVICE)
+    model = LinearModel(21-5).to(DEVICE)
     model.load_state_dict(torch.load(
         args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
@@ -472,15 +475,14 @@ def main(args):
     weights = []
     for i in range(5):
         arr = np.zeros(weight.shape)
-        arr[4 * i] = weight[4 * i]
-        arr[4 * i + 1] = weight[4 * i + 1]
-        arr[4 * i + 3] = weight[4 * i + 3]
+        arr[3*i] = weight[3*i]
+        arr[3*i+1] = weight[3*i+1]
         weights.append(arr)
 
     # shared, original -> original coefficient
     arr = np.zeros(weight.shape)
     for i in range(5):
-        arr[4 * i + 2] = weight[4 * i + 2]
+        arr[3*i+2] = weight[3*i+2]
     weights.append(arr)
 
     # pearson coefficient
@@ -502,7 +504,7 @@ def main(args):
         means, stds = np.load(f'{args.data_predicted_path}/trained/norm_factor_params.npy')
         tags = ['bbh', 'wnbhf', 'supernova', 'wnblf', 'sglf', 'sghf']
         if RETURN_INDIV_LOSSES:
-            model = LinearModel(21).to(DEVICE)
+            model = LinearModel(21-5).to(DEVICE)
             model.load_state_dict(torch.load(
                 args.fm_model_path, map_location=GPU_NAME))
 
@@ -523,27 +525,27 @@ def main(args):
             data_dict[tag] = data
             snrs_dict[tag] = snrs
 
-        # do one for the GWAK signal classes
-        X1 = ['bbh', 'sglf', 'sghf']
-        snr_vs_far_plotting([data_dict[elem] for elem in X1],
-                            [snrs_dict[elem] for elem in X1],
-                            model,
-                            far_hist,
-                            X1,
-                            args.plot_savedir,
-                            'Known Signals Detection Efficiency',
-                            bias)
+        # # do one for the GWAK signal classes
+        # X1 = ['bbh', 'sglf', 'sghf']
+        # snr_vs_far_plotting([data_dict[elem] for elem in X1],
+        #                     [snrs_dict[elem] for elem in X1],
+        #                     model,
+        #                     far_hist,
+        #                     X1,
+        #                     args.plot_savedir,
+        #                     'Known Signals Detection Efficiency',
+        #                     bias)
 
-        # and for the anomalous classes
-        X2 = ['wnbhf', 'supernova', 'wnblf']
-        snr_vs_far_plotting([data_dict[elem] for elem in X2],
-                            [snrs_dict[elem] for elem in X2],
-                            model,
-                            far_hist,
-                            X2,
-                            args.plot_savedir,
-                            'Anomaly Detection Efficiency',
-                            bias)
+        # # and for the anomalous classes
+        # X2 = ['wnbhf', 'supernova', 'wnblf']
+        # snr_vs_far_plotting([data_dict[elem] for elem in X2],
+        #                     [snrs_dict[elem] for elem in X2],
+        #                     model,
+        #                     far_hist,
+        #                     X2,
+        #                     args.plot_savedir,
+        #                     'Anomaly Detection Efficiency',
+        #                     bias)
 
         X3 = ['bbh', 'sglf', 'sghf', 'wnbhf', 'supernova', 'wnblf']
         snr_vs_far_plotting([data_dict[elem] for elem in X3],
@@ -582,7 +584,7 @@ def main(args):
             snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[inds[tag]]
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(21).to(DEVICE)
+                model = LinearModel(21-5).to(DEVICE)
                 model.load_state_dict(torch.load(
                     args.fm_model_path, map_location=GPU_NAME))
                 three_panel_plotting(

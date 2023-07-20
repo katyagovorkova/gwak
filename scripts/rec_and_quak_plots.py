@@ -311,16 +311,16 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
 
 def main(args):
 
-    model = LinearModel(21).to(DEVICE)
+    model = LinearModel(21-5).to(DEVICE)
     model.load_state_dict(torch.load(
         args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
     weights = []
     for i in range(5):
         arr = np.zeros(weight.shape)
-        arr[4 * i] = weight[4 * i]
-        arr[4 * i + 1] = weight[4 * i + 1]
-        arr[4 * i + 3] = weight[4 * i + 3]
+        arr[3 * i] = weight[3 * i]
+        arr[3 * i + 1] = weight[3 * i + 1]
+        arr[3 * i + 3] = weight[3 * i + 3]
         weights.append(arr[:-1])  # cut out pearson
 
     model_paths = args.model_path

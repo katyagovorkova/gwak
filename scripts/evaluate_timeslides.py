@@ -37,7 +37,12 @@ def main(args):
         norm_factors = torch.from_numpy(norm_factors).float().to(DEVICE)
 
         def update_hist(vals):
-            vals = torch.from_numpy(np.array(vals)).to(DEVICE)
+            print(f'Origingal shape {vals.shape}')
+            vals = np.array(vals)
+            # a trick to not to re-evaluate saved timeslides
+            vals = np.delete(vals, [3, 7, 11, 15, 19], -1)
+            print(f'Shape after {vals.shape}')
+            vals = torch.from_numpy(vals).to(DEVICE)
             # flatten batch dimension
             vals = torch.reshape(vals, (vals.shape[
                                          0] * vals.shape[1], vals.shape[2]))
@@ -45,7 +50,7 @@ def main(args):
             vals = (vals - means) / stds
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(21).to(DEVICE)
+                model = LinearModel(21-5).to(DEVICE)
                 model.load_state_dict(torch.load(
                     args.fm_model_path, map_location=f'cuda:{args.gpu}'))
                 vals = model(vals).detach()
