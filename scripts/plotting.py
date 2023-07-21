@@ -53,7 +53,7 @@ def calculate_means(metric_vals, snrs, bar):
     means, stds = [], []
     snr_plot = []
 
-    for i in range(10, 100, bar):
+    for i in range(VARYING_SNR_LOW, VARYING_SNR_HIGH, bar):
 
         points = []
         for shift in range(bar):
@@ -138,12 +138,10 @@ def snr_vs_far_plotting(
             axs.axhline(y=metric_val_label - bias, alpha=0.8**i, label=f'1/{label}', c='black')
 
     labelLines(axs.get_lines(), zorder=2.5, xvals=(
-        15, 20, 25, 35, 40, 45, 25, 30, 35, 40, 45))
+        15, 20, 15, 30, 35, 40, 25, 30, 35, 40, 45))
     axs.set_title(special, fontsize=20)
-    # axs.set_xlim(VARYING_SNR_LOW + SNR_VS_FAR_BAR / 2,
-    #              VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
-
-    axs.set_xlim(12.5,50)
+    axs.set_xlim(VARYING_SNR_LOW + SNR_VS_FAR_BAR / 2,
+                 VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
     axs.set_ylim(-40,-5)
 
     # plt.yscale('log')
@@ -462,6 +460,88 @@ def learned_fm_weights_colorplot(values, savedir):
 
     plt.savefig(savedir, bbox_inches='tight',dpi=300)
 
+def make_roc_curves(datas,
+        snrss,
+        metric_coefs,
+        far_hist,
+        tags,
+        savedir,
+        special,
+        bias):
+    fig, axs = plt.subplots(1, figsize=(12, 8))
+    colors = {
+        'bbh': 'blue',
+        'sg': 'red',
+        'sglf': 'red',
+        'sghf': 'orange',
+        'wnbhf': 'darkviolet',
+        'wnblf': 'deeppink',
+        'supernova': 'goldenrod'
+    }
+
+    axs.set_xlabel(f'SNR', fontsize=20)
+    axs.set_ylabel('Fraction of events detected at FAR 1/year', fontsize=20)
+
+    for k in range(len(datas)):
+        data = datas[k]
+        snrs = snrss[k]
+        tag = tags[k]
+
+        if RETURN_INDIV_LOSSES:
+            fm_vals = metric_coefs(torch.from_numpy(
+                data).float().to(DEVICE)).detach().cpu().numpy()
+        else:
+            fm_vals = np.dot(data, metric_coefs)
+
+        fm_vals = np.min(fm_vals, axis=1)
+
+        rename_map = {
+            'background': 'Background',
+            'bbh': 'BBH',
+            'glitches': 'Glitch',
+            'sglf': 'SG 64-512 Hz',
+            'sghf': 'SG 512-1024 Hz',
+            'wnblf': 'WNB 40-400 Hz',
+            'wnbhf': 'WNB 400-1000 Hz',
+            'supernova': 'Supernova'
+        }
+        tag_ = rename_map[tag]
+        metric_val_label = far_to_metric(
+            365*24*3600, far_hist) #
+
+        snrs = [int(elem) for elem in snrs] #not necessary after update
+
+        #positive detection are the ones below the curve
+        snr_bins = np.arange(0, VARYING_SNR_HIGH, 1)
+        nbins = len(snr_bins)
+        snr_bin_detected = [0]*nbins
+        snr_bin_total = [0]*nbins
+        for i, snr in enumerate(snrs):
+            if snr < 50: #generating new signals with different prior not finished yet
+                snr_bin_total[snr] += 1
+                detec_stat = fm_vals[i]
+                if detec_stat <= metric_val_label:
+                    snr_bin_detected[snr] += 1
+
+        TPRs = []
+        snr_bins_plot = []
+        for i in range(nbins):
+            if snr_bin_total[i] != 0:
+                TPRs.append(snr_bin_detected[i]/snr_bin_total[i])
+                snr_bins_plot.append(snr_bins[i]) #only adding it if nonzero total in that bin
+
+        axs.plot(snr_bins_plot, TPRs, label = tag)
+
+
+    # plt.yscale('log')
+    axs.legend()
+    plt.grid(True)
+    fig.tight_layout()
+    plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
+    plt.show()
+    plt.close()
+
+
 def main(args):
 
     model = LinearModel(21-5).to(DEVICE)
@@ -497,8 +577,9 @@ def main(args):
     do_train_signal_example_plots = 1
     do_anomaly_signal_show = True
     do_learned_fm_weights = 1
+    do_make_roc_curves = 1
 
-    if do_snr_vs_far:
+    if do_snr_vs_far or do_make_roc_curves:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
         metric_coefs = np.load(f'{args.data_predicted_path}/trained/final_metric_params.npy')
         means, stds = np.load(f'{args.data_predicted_path}/trained/norm_factor_params.npy')
@@ -519,8 +600,8 @@ def main(args):
             print(f'{tag} loaded in {time.time()-ts:.3f} seconds')
 
             data = (data - means) / stds
-            data = data[1000:]
-            snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[1000:]
+            data = data#[1000:]
+            snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')#[1000:]
 
             data_dict[tag] = data
             snrs_dict[tag] = snrs
@@ -556,6 +637,25 @@ def main(args):
                             args.plot_savedir,
                             'Detection Efficiency',
                             bias)
+
+        if do_snr_vs_far: #regular detection efficiency plot
+            snr_vs_far_plotting([data_dict[elem] for elem in X3],
+                                [snrs_dict[elem] for elem in X3],
+                                model,
+                                far_hist,
+                                X3,
+                                args.plot_savedir,
+                                'Detection Efficiency',
+                                bias)
+        if do_make_roc_curves: #roc curve
+            make_roc_curves([data_dict[elem] for elem in X3],
+                                [snrs_dict[elem] for elem in X3],
+                                model,
+                                far_hist,
+                                X3,
+                                args.plot_savedir,
+                                'ROC plots',
+                                bias)
 
     if do_fake_roc:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')
@@ -692,5 +792,6 @@ if __name__ == '__main__':
 
     parser.add_argument('fm_model_path', help='Path to the final model',
                         type=str)
+
     args = parser.parse_args()
     main(args)

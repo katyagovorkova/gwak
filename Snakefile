@@ -10,7 +10,7 @@ fm_training_classes = [
     'supernova_fm_optimization',
     'wnbhf_fm_optimization',
     'wnblf_fm_optimization']
-dataclasses = fm_training_classes +[
+dataclasses = fm_training_classes+[
     'wnblf',
     'wnbhf',
     'supernova',
@@ -31,14 +31,14 @@ rule find_valid_segments:
     input:
         hanford_path = 'data/O3a_Hanford_segments.json',
         livingston_path = 'data/O3a_Livingston_segments.json'
-    output:
+    params:
         save_path = 'output/O3a_intersections.npy'
     script:
         'scripts/segments_intersection.py'
 
 rule run_omicron:
     input:
-        intersections = rules.find_valid_segments.output.save_path
+        intersections = rules.find_valid_segments.params.save_path
     params:
         user_name = 'katya.govorkova',
         folder = 'output/omicron/'
@@ -50,7 +50,7 @@ rule run_omicron:
 rule fetch_site_data:
     input:
         omicron = rules.run_omicron.params.folder,
-        intersections = rules.find_valid_segments.output.save_path
+        intersections = rules.find_valid_segments.params.save_path
     output:
         'tmp/dummy_{site}.txt'
     shell:
@@ -61,7 +61,7 @@ rule fetch_site_data:
 rule generate_data:
     input:
         omicron = 'output/omicron/',
-        intersections = rules.find_valid_segments.output.save_path,
+        intersections = rules.find_valid_segments.params.save_path,
     params:
         dependencies = expand(rules.fetch_site_data.output,
                               site=['L1', 'H1'])
@@ -75,7 +75,7 @@ rule generate_data:
 rule upload_data:
     input:
         expand(rules.generate_data.output.file,
-               dataclass='{dataclass}'),
+               dataclass='{dataclass}')
     params:
         '/home/katya.govorkova/gwak/{version}/data/{dataclass}.npz'
     shell:
@@ -85,7 +85,7 @@ rule upload_data:
 rule validate_data:
     input:
         expand(rules.upload_data.params,
-               dataclass=modelclasses + dataclasses,
+               dataclass=modelclasses+dataclasses,
                version=VERSION)
     shell:
         'mkdir -p data/{VERSION}/; '
@@ -107,11 +107,11 @@ rule upload_models:
     input:
         expand(rules.train_quak.output.model_file,
                dataclass='{dataclass}')
-    params:
+    output:
         '/home/katya.govorkova/gwak/{version}/models/{dataclass}.pt'
     shell:
         'mkdir -p /home/katya.govorkova/gwak/{wildcards.version}/models/; '
-        'cp {input} {params}; '
+        'cp {input} {output}; '
 
 rule generate_timeslides_for_fm:
     input:
@@ -119,7 +119,7 @@ rule generate_timeslides_for_fm:
             dataclass='timeslides',
             version=VERSION),
     params:
-        model_path = expand(rules.upload_models.params,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         shorten_timeslides = True,
@@ -142,7 +142,7 @@ rule generate_timeslides_for_far:
         data_path = expand(rules.upload_data.params,
             dataclass='timeslides',
             version=VERSION),
-        model_path = expand(rules.upload_models.params,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         shorten_timeslides = False,
@@ -166,7 +166,7 @@ rule evaluate_signals:
         source_file = expand(rules.upload_data.params,
                              dataclass='{signal_dataclass}',
                              version=VERSION),
-        model_path = expand(rules.upload_models.params,
+        model_path = expand(rules.train_quak.output.model_file,
                             dataclass=modelclasses,
                             version=VERSION)
     output:
@@ -196,7 +196,7 @@ rule recreation_and_quak_plots:
     input:
         fm_model_path = rules.train_final_metric.params.fm_model_path
     params:
-        models = expand(rules.upload_models.params,
+        models = expand(rules.train_quak.output.model_file,
                         dataclass=modelclasses,
                         version=VERSION),
         test_path = expand(rules.upload_data.params,
@@ -214,7 +214,7 @@ rule compute_far:
         norm_factors_path = rules.train_final_metric.params.norm_factor_file,
         fm_model_path = rules.train_final_metric.params.fm_model_path
     params:
-        model_path = expand(rules.upload_models.params,
+        model_path = expand(rules.train_quak.output.model_file,
             dataclass=modelclasses,
             version=VERSION),
         data_path = expand(rules.generate_timeslides_for_far.output.save_evals_path,
@@ -235,7 +235,7 @@ rule merge_far_hist:
     input:
         expand(rules.compute_far.output.save_path, far_id=[0,1,2,3])
     params:
-        save_path = '/home/katya.govorkova/gw-anomaly/output/far_bins.npy'
+        save_path = 'output/far_bins.npy'
     script:
         'scripts/merge_far_hist.py'
 
@@ -245,11 +245,11 @@ rule quak_plotting_prediction_and_recreation:
                            dataclass='{dataclass}',
                            version=VERSION)
     params:
-        model_path = expand(rules.upload_models.params,
+        model_path = expand(rules.train_quak.output.model_file,
                             dataclass=modelclasses,
                             version=VERSION),
         reduce_loss = False,
-        save_file = '/home/katya.govorkova/gw-anomaly/output/evaluated/quak_{dataclass}.npz'
+        save_file = 'output/evaluated/quak_{dataclass}.npz'
     shell:
         'python3 scripts/quak_predict.py {input.test_data} {params.save_file} {params.reduce_loss} \
             --model-path {params.model_path} '

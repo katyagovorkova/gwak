@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 hists = snakemake.input
-save_path = snakemake.output[0]
+save_path = snakemake.params[0]
 
 new_hist = np.zeros((np.load(hists[0]).shape))
 for hist in hists:

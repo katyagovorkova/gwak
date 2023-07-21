@@ -477,7 +477,7 @@ def curriculum_sampler(
 def make_snr_sampler(distribution, low, hi):
     if distribution == 'uniform':
         def sampler():
-            return np.random.uniform(low, hi)
+            return np.random.randint(low, hi)
     else:
         print('Invalid or unimplemented distribution choice', distribution)
         assert False

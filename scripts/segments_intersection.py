@@ -37,4 +37,4 @@ def main(hanford_path, livingston_path, save_path):
 
     np.save(save_path, np.array(valid_segments))
 
-main(snakemake.input[0], snakemake.input[1], snakemake.output[0])
+main(snakemake.input[0], snakemake.input[1], snakemake.params[0])
