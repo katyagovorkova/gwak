@@ -66,7 +66,9 @@ if RETURN_INDIV_LOSSES:
         a2b = torch.abs(torch.linalg.vecdot(a_, b_, axis=-1))
         a2a = torch.abs(torch.linalg.vecdot(
             a_[:, 0, :], a_[:, 1, :], axis=-1))[:, None]
-        return torch.hstack([a2b, a2a])
+        b2b = torch.abs(torch.linalg.vecdot(
+            b_[:, 0, :], b_[:, 1, :], axis=-1))[:, None]
+        return torch.hstack([a2b, a2a, b2b])
 
 else:
     def mae_torch_coherent(a, b):

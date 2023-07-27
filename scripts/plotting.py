@@ -43,7 +43,8 @@ from config import (
     VARYING_SNR_HIGH,
     GPU_NAME,
     RETURN_INDIV_LOSSES,
-    CURRICULUM_SNRS)
+    CURRICULUM_SNRS,
+    FACTORS_NOT_USED_FOR_FM)
 
 DEVICE = torch.device(GPU_NAME)
 
@@ -84,13 +85,12 @@ def snr_vs_far_plotting(
         bias):
     fig, axs = plt.subplots(1, figsize=(12, 8))
     colors = {
-        'bbh': 'blue',
-        'sg': 'red',
-        'sglf': 'red',
-        'sghf': 'orange',
-        'wnbhf': 'darkviolet',
-        'wnblf': 'deeppink',
-        'supernova': 'goldenrod'
+        'bbh': 'steelblue',
+        'sglf': 'salmon',
+        'sghf': 'goldenrod',
+        'wnbhf': 'purple',
+        'wnblf': 'hotpink',
+        'supernova': 'darkorange'
     }
 
     axs.set_xlabel(f'SNR', fontsize=20)
@@ -180,10 +180,10 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
 
     colors = [
         'purple',
-        'blue',
-        'green',
-        'red',
-        'orange',
+        'steelblue',
+        'darkgreen',
+        'salmon',
+        'goldenrod',
         'sienna',
         'black'
     ]
@@ -242,7 +242,7 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
         extracted = np.dot(data, weights[k])
 
         axs[1].plot(ts_farvals * 1000, extracted,
-                    color=colors[k], label=labels[k])
+                    color=colors[k], label=labels[k], linewidth=2)
     axs[1].set_xlabel('Time (ms)')
     axs[1].set_ylabel('Contribution')
     axs[1].grid()
@@ -280,11 +280,11 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
     centers = CURRICULUM_SNRS
     fig, ax = plt.subplots(1, figsize=(8, 5))
     cols = {
-        'BBH': 'blue',
-        'SG 64-512 Hz': 'red',
-        'SG 512-1024 Hz': 'orange',
+        'BBH': 'steelblue',
+        'SG 64-512 Hz': 'salmon',
+        'SG 512-1024 Hz': 'goldenrod',
         'Background': 'purple',
-        'Glitch': 'green'
+        'Glitch': 'darkgreen'
     }
     lines = []
     for k in range(len(train_losses)):
@@ -311,7 +311,7 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
             low, high = centers[i] - \
                 centers[i] // 4, centers[i] + centers[i] // 2
             snr_ln = ax_1.fill_between(epochs[i * epoch_count // n_currics:(
-                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='green', alpha=0.2)
+                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='darkgreen', alpha=0.2)
 
             if i == 0:
                 lines.append(snr_ln)
@@ -347,7 +347,7 @@ def train_signal_example_plots(strain_samples, tags, savedir, snrs=None, do_trai
             start = np.random.uniform(20, 40)
             axs[i].fill_between([start, start + 200 / 4096 * 1000],
                                 [low, low], [high, high],
-                                color='lightsteelblue', alpha=0.40, label='Example training data')
+                                color='lightsteelblue', alpha=0.5, label='Example training data')
             axs[i].set_ylim(low, high)
         snr = ''
         if snrs is not None:
@@ -380,8 +380,6 @@ def learned_fm_weights_colorplot(values, savedir):
     plt.grid(False)
     fig = plt.figure(figsize=(15, 4), constrained_layout=True)
 
-    #widths = [5, 1, 0.3]
-    #widths = [5, 0.6, 1.1]
     widths = [11, 2.25, 0.6]
     heights = [2]
     spec = fig.add_gridspec(ncols=3, nrows=1, width_ratios=widths,
@@ -470,13 +468,12 @@ def make_roc_curves(datas,
         bias):
     fig, axs = plt.subplots(1, figsize=(12, 8))
     colors = {
-        'bbh': 'blue',
-        'sg': 'red',
-        'sglf': 'red',
-        'sghf': 'orange',
-        'wnbhf': 'darkviolet',
-        'wnblf': 'deeppink',
-        'supernova': 'goldenrod'
+        'bbh': 'steelblue',
+        'sglf': 'salmon',
+        'sghf': 'goldenrod',
+        'wnbhf': 'purple',
+        'wnblf': 'hotpink',
+        'supernova': 'darkorange'
     }
 
     axs.set_xlabel(f'SNR', fontsize=20)
@@ -517,11 +514,10 @@ def make_roc_curves(datas,
         snr_bin_detected = [0]*nbins
         snr_bin_total = [0]*nbins
         for i, snr in enumerate(snrs):
-            if snr < 50: #generating new signals with different prior not finished yet
-                snr_bin_total[snr] += 1
-                detec_stat = fm_vals[i]
-                if detec_stat <= metric_val_label:
-                    snr_bin_detected[snr] += 1
+            snr_bin_total[snr] += 1
+            detec_stat = fm_vals[i]
+            if detec_stat <= metric_val_label:
+                snr_bin_detected[snr] += 1
 
         TPRs = []
         snr_bins_plot = []
@@ -530,13 +526,18 @@ def make_roc_curves(datas,
                 TPRs.append(snr_bin_detected[i]/snr_bin_total[i])
                 snr_bins_plot.append(snr_bins[i]) #only adding it if nonzero total in that bin
 
-        axs.plot(snr_bins_plot, TPRs, label = tag)
+        TPRs_shorten = []
+        snr_bins_plot_shorten = []
+        for i in range(0,len(snr_bins_plot)-1,2):
+            TPRs_shorten.append((TPRs[i]+TPRs[i+1])/2)
+            snr_bins_plot_shorten.append((snr_bins_plot[i]+snr_bins_plot[i+1])/2)
 
-
-    # plt.yscale('log')
+        axs.plot(snr_bins_plot_shorten, TPRs_shorten,
+            label=tag_, color=colors[tag], linewidth=2)
     axs.legend()
     plt.grid(True)
     fig.tight_layout()
+    axs.set_xlim()
     plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
     plt.show()
     plt.close()
@@ -544,15 +545,37 @@ def make_roc_curves(datas,
 
 def main(args):
 
-    model = LinearModel(21-5).to(DEVICE)
+    model = LinearModel(21-len(FACTORS_NOT_USED_FOR_FM)).to(DEVICE)
     model.load_state_dict(torch.load(
         args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
     learned_dp_weights = weight[:]
 
+    """
+        Factors to keep for the FM
+        0 - background AE (L_O * L_R)
+        1 - background AE (H_O * H_R)
+        2 - background AE (L_O * H_O)
+        3 - BBH AE (L_O * L_R)
+        4 - BBH AE (H_O * H_R)
+        5 - BBH AE (L_O * H_O)
+        6 - Glitches AE (L_O * L_R)
+        7 - Glitches AE (H_O * H_R)
+        8 - Glitches AE (L_O * H_O)
+        9 - SGLF AE (L_O * L_R)
+        10 - SGLF AE (H_O * H_R)
+        11 - SGLF AE (L_O * H_O)
+        12 - SGHF AE (L_O * L_R)
+        13 - SGHF AE (H_O * H_R)
+        14 - SGHF AE (L_O * H_O)
+        15 - Pearson
+    """
+
     bias = model.layer.bias.data.cpu().numpy()[0]
     print('bias!:', bias)
+
     weights = []
+
     for i in range(5):
         arr = np.zeros(weight.shape)
         arr[3*i] = weight[3*i]
@@ -584,8 +607,10 @@ def main(args):
         metric_coefs = np.load(f'{args.data_predicted_path}/trained/final_metric_params.npy')
         means, stds = np.load(f'{args.data_predicted_path}/trained/norm_factor_params.npy')
         tags = ['bbh', 'wnbhf', 'supernova', 'wnblf', 'sglf', 'sghf']
+
+
         if RETURN_INDIV_LOSSES:
-            model = LinearModel(21-5).to(DEVICE)
+            model = LinearModel(21-len(FACTORS_NOT_USED_FOR_FM)).to(DEVICE)
             model.load_state_dict(torch.load(
                 args.fm_model_path, map_location=GPU_NAME))
 
@@ -596,6 +621,7 @@ def main(args):
             print(f'loading {tag}')
             ts = time.time()
             data = np.load(f'{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy')
+            data = np.delete(data, FACTORS_NOT_USED_FOR_FM, -1)
 
             print(f'{tag} loaded in {time.time()-ts:.3f} seconds')
 
@@ -605,28 +631,6 @@ def main(args):
 
             data_dict[tag] = data
             snrs_dict[tag] = snrs
-
-        # # do one for the GWAK signal classes
-        # X1 = ['bbh', 'sglf', 'sghf']
-        # snr_vs_far_plotting([data_dict[elem] for elem in X1],
-        #                     [snrs_dict[elem] for elem in X1],
-        #                     model,
-        #                     far_hist,
-        #                     X1,
-        #                     args.plot_savedir,
-        #                     'Known Signals Detection Efficiency',
-        #                     bias)
-
-        # # and for the anomalous classes
-        # X2 = ['wnbhf', 'supernova', 'wnblf']
-        # snr_vs_far_plotting([data_dict[elem] for elem in X2],
-        #                     [snrs_dict[elem] for elem in X2],
-        #                     model,
-        #                     far_hist,
-        #                     X2,
-        #                     args.plot_savedir,
-        #                     'Anomaly Detection Efficiency',
-        #                     bias)
 
         X3 = ['bbh', 'sglf', 'sghf', 'wnbhf', 'supernova', 'wnblf']
         snr_vs_far_plotting([data_dict[elem] for elem in X3],
@@ -638,15 +642,6 @@ def main(args):
                             'Detection Efficiency',
                             bias)
 
-        if do_snr_vs_far: #regular detection efficiency plot
-            snr_vs_far_plotting([data_dict[elem] for elem in X3],
-                                [snrs_dict[elem] for elem in X3],
-                                model,
-                                far_hist,
-                                X3,
-                                args.plot_savedir,
-                                'Detection Efficiency',
-                                bias)
         if do_make_roc_curves: #roc curve
             make_roc_curves([data_dict[elem] for elem in X3],
                                 [snrs_dict[elem] for elem in X3],
@@ -680,11 +675,12 @@ def main(args):
         for tag in tags:
             strains = np.load(f'output/data/{tag}_varying_snr.npz')['data'][:, inds[tag]]
             data = np.load(f'{args.data_predicted_path}/evaluated/{tag}_varying_snr_evals.npy')[inds[tag]]
+            data = np.delete(data, FACTORS_NOT_USED_FOR_FM, -1)
             data = (data - means) / stds
             snrs = np.load(f'output/data/{tag}_varying_snr_SNR.npz.npy')[inds[tag]]
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(21-5).to(DEVICE)
+                model = LinearModel(21-len(FACTORS_NOT_USED_FOR_FM)).to(DEVICE)
                 model.load_state_dict(torch.load(
                     args.fm_model_path, map_location=GPU_NAME))
                 three_panel_plotting(

@@ -6,7 +6,8 @@ import os
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from config import(
-    SEG_NUM_TIMESTEPS
+    SEG_NUM_TIMESTEPS,
+    FACTORS_NOT_USED_FOR_FM
 )
 
 
@@ -14,7 +15,7 @@ class LinearModel(nn.Module):
 
     def __init__(self, n_dims):
         super(LinearModel, self).__init__()
-        self.layer = nn.Linear(21-5, 1)
+        self.layer = nn.Linear(21-len(FACTORS_NOT_USED_FOR_FM), 1)
 
     def forward(self, x):
 

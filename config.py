@@ -87,6 +87,33 @@ CURRICULUM_SNRS = [256, 128, 64, 32, 16]
 MAX_SHIFT = 10e-3
 SHIFT_STEP = 2
 
+"""
+    Factors to keep for the FM
+    0 - background AE (L_O * L_R)
+    1 - background AE (H_O * H_R)
+    2 - background AE (L_O * H_O)
+    3 - background AE (L_R * H_R)
+    4 - BBH AE (L_O * L_R)
+    5 - BBH AE (H_O * H_R)
+    6 - BBH AE (L_O * H_O)
+    7 - BBH AE (L_R * H_R)
+    8 - Glitches AE (L_O * L_R)
+    9 - Glitches AE (H_O * H_R)
+    10 - Glitches AE (L_O * H_O)
+    11 - Glitches AE (L_R * H_R)
+    12 - SGLF AE (L_O * L_R)
+    13 - SGLF AE (H_O * H_R)
+    14 - SGLF AE (L_O * H_O)
+    15 - SGLF AE (L_R * H_R)
+    16 - SGHF AE (L_O * L_R)
+    17 - SGHF AE (H_O * H_R)
+    18 - SGHF AE (L_O * H_O)
+    19 - SGHF AE (L_R * H_R)
+    20 - Pearson
+"""
+# Baseline
+FACTORS_NOT_USED_FOR_FM = [3,7,11,15,19]
+
 # timeslides
 GW_EVENT_CLEANING_WINDOW = 5
 TIMESLIDE_STEP = 0.5
@@ -94,7 +121,7 @@ TIMESLIDE_TOTAL_DURATION = 100 * 24 * 3600 # run on 4 different GPUs, so in tota
 FM_TIMESLIDE_TOTAL_DURATION = 0.1 * 30 * 24 * 3600
 
 # GPU
-GPU_NAME = 'cuda:1'
+GPU_NAME = 'cuda:3'
 
 # evolutionary search
 INIT_SIGMA = 0.5
@@ -119,7 +146,7 @@ SNR_VS_FAR_HORIZONTAL_LINES = [3600, 24 * 3600,
 SNR_VS_FAR_HL_LABELS = ['hour', 'day', 'week', 'month', 'year']
 
 # varying SNR injection
-N_VARYING_SNR_INJECTIONS = 5000
+N_VARYING_SNR_INJECTIONS = 10000
 VARYING_SNR_DISTRIBUTION = 'uniform'
 VARYING_SNR_LOW = 5
 VARYING_SNR_HIGH = 50
@@ -134,4 +161,4 @@ SNR_SN_LOW = VARYING_SNR_LOW
 SNR_SN_HIGH = VARYING_SNR_HIGH
 
 RETURN_INDIV_LOSSES = True
-SCALE = 3
+SCALE = 4

@@ -16,7 +16,8 @@ from config import (
     GPU_NAME,
     SVM_LR,
     N_SVM_EPOCHS,
-)
+    FACTORS_NOT_USED_FOR_FM
+    )
 DEVICE = torch.device(GPU_NAME)
 
 
@@ -58,20 +59,6 @@ def optimize_hyperplane(signals, backgrounds):
     return network.layer.weight.data.cpu().numpy()[0]
 
 
-def engineered_features(data):
-
-    newdata = np.zeros(data.shape)
-
-    for i in range(4):
-        a, b = data[:, :, 2 * i], data[:, :, 2 * i + 1]
-        newdata[:, :, 2 * i] = (a + b) / 2
-        newdata[:, :, 2 * i + 1] = abs(a - b)  # / (a+b + 0.01)
-
-    newdata[:, :, -1] = data[:, :, -1]
-
-    return newdata
-
-
 def main(args):
     '''
     Fit a hyperplane to distinguish background, signal classes
@@ -90,10 +77,10 @@ def main(args):
 
     for file_name in args.signal_path:
         mid = midp_map[file_name.split("/")[-1]]
-        # [:1000]
         signal_evals.append(np.load(f'{file_name}')[:, mid - 150:mid + 150, :])
 
     signal_evals = np.concatenate(signal_evals, axis=0)
+    signal_evals = np.delete(signal_evals, FACTORS_NOT_USED_FOR_FM, -1)
 
     timeslide_evals = []
     for file_name in os.listdir(args.timeslide_path):
@@ -109,9 +96,14 @@ def main(args):
 
     norm_factors = np.array(norm_factors)
     means = np.mean(norm_factors[:, 0, 0, :], axis=0)
+    means = np.delete(means, FACTORS_NOT_USED_FOR_FM, -1)
+
     stds = np.mean(norm_factors[:, 1, 0, :], axis=0)
+    stds = np.delete(stds, FACTORS_NOT_USED_FOR_FM, -1)
 
     timeslide_evals = np.concatenate(timeslide_evals, axis=0)
+    timeslide_evals = np.delete(timeslide_evals, FACTORS_NOT_USED_FOR_FM, -1)
+
     signal_evals = (signal_evals - means) / stds
     timeslide_evals = (timeslide_evals - means) / stds
 

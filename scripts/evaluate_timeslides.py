@@ -16,7 +16,8 @@ from config import (
     SAMPLE_RATE,
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
-    RETURN_INDIV_LOSSES
+    RETURN_INDIV_LOSSES,
+    FACTORS_NOT_USED_FOR_FM
 )
 
 
@@ -37,11 +38,9 @@ def main(args):
         norm_factors = torch.from_numpy(norm_factors).float().to(DEVICE)
 
         def update_hist(vals):
-            print(f'Origingal shape {vals.shape}')
             vals = np.array(vals)
             # a trick to not to re-evaluate saved timeslides
-            vals = np.delete(vals, [3, 7, 11, 15, 19], -1)
-            print(f'Shape after {vals.shape}')
+            vals = np.delete(vals, FACTORS_NOT_USED_FOR_FM, -1)
             vals = torch.from_numpy(vals).to(DEVICE)
             # flatten batch dimension
             vals = torch.reshape(vals, (vals.shape[
@@ -50,7 +49,7 @@ def main(args):
             vals = (vals - means) / stds
 
             if RETURN_INDIV_LOSSES:
-                model = LinearModel(21-5).to(DEVICE)
+                model = LinearModel(21-len(FACTORS_NOT_USED_FOR_FM)).to(DEVICE)
                 model.load_state_dict(torch.load(
                     args.fm_model_path, map_location=f'cuda:{args.gpu}'))
                 vals = model(vals).detach()
@@ -84,7 +83,7 @@ def main(args):
         data = np.load(args.data_path[0])['data']
         data = torch.from_numpy(data).to(DEVICE)
 
-        reduction = 10  # for things to fit into memory nicely
+        reduction = 20  # for things to fit into memory nicely
 
         timeslide_total_duration = TIMESLIDE_TOTAL_DURATION
         if args.fm_shortened_timeslides:

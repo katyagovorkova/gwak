@@ -37,7 +37,8 @@ from config import (
     SEGMENT_OVERLAP,
     HISTOGRAM_BIN_DIVISION,
     HISTOGRAM_BIN_MIN,
-    GPU_NAME
+    GPU_NAME,
+    FACTORS_NOT_USED_FOR_FM
 )
 DEVICE = torch.device(GPU_NAME)
 
@@ -76,7 +77,7 @@ def corner_plotting(
     N = len(labels)
     fig, axs = plt.subplots(N, N, figsize=(20, 20))
     oneD_hist_kwargs = dict(histtype='stepfilled',
-                            alpha=0.3, density=True, bins=40)
+                            alpha=1, density=True, bins=40)
     # hide all of the ones not used
     for i in range(N):
         for j in range(i + 1, N):
@@ -91,10 +92,10 @@ def corner_plotting(
 
     one_D_colors = [
         'purple',
-        'blue',
-        'green',
-        'red',
-        'orange'
+        'lightsteelblue',
+        'darkgreen',
+        'salmon',
+        'goldenrod'
     ]
 
     print('123')
@@ -194,10 +195,10 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
                      SAMPLE_RATE, SEG_NUM_TIMESTEPS)
     colors = [
         'purple',
-        'blue',
-        'green',
-        'red',
-        'orange'
+        'lightsteelblue',
+        'darkgreen',
+        'salmon',
+        'goldenrod'
     ]
     i = CLASS_ORDER.index(class_name)
     try:
@@ -311,7 +312,7 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
 
 def main(args):
 
-    model = LinearModel(21-5).to(DEVICE)
+    model = LinearModel(21-len(FACTORS_NOT_USED_FOR_FM)).to(DEVICE)
     model.load_state_dict(torch.load(
         args.fm_model_path, map_location=GPU_NAME))
     weight = (model.layer.weight.data.cpu().numpy()[0])
@@ -402,6 +403,7 @@ def main(args):
                 corner_plot_data[class_index]).cpu().numpy()  # [p]#[:, ]
             means, stds_ = np.load(
                 'output/trained/norm_factor_params.npy')
+            corner_plot_data[class_index] = np.delete(corner_plot_data[class_index], FACTORS_NOT_USED_FOR_FM, -1)
             corner_plot_data[class_index] = (
                 corner_plot_data[class_index] - means[:-1]) / stds_[:-1]
             all_dotted = np.zeros(
