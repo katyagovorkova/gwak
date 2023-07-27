@@ -309,7 +309,7 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
             low, high = centers[i] - \
                 centers[i] // 4, centers[i] + centers[i] // 2
             snr_ln = ax_1.fill_between(epochs[i * epoch_count // n_currics:(
-                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='darkgreen', alpha=0.2)
+                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='lightsteelblue', alpha=0.2)
 
             if i == 0:
                 lines.append(snr_ln)
