@@ -144,7 +144,6 @@ def snr_vs_far_plotting(
                  VARYING_SNR_HIGH - SNR_VS_FAR_BAR / 2)
     axs.set_ylim(-40,-5)
 
-    # plt.yscale('log')
     plt.grid(True)
     fig.tight_layout()
     plt.savefig(f'{savedir}/{special}.pdf', dpi=300)
@@ -272,7 +271,7 @@ def three_panel_plotting(strain, data, snr, metric_coefs, far_hist, tag, plot_sa
     axs[1].grid()
     for i in range(3):
         axs[i].set_xlim(xlims[tag])
-    # axs[2].grid()
+
     plt.savefig(f'{plot_savedir}/{tag}_3_panel_plot.pdf', dpi=300)
 
 
@@ -291,7 +290,6 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
         train_loss, val_loss = train_losses[k], val_losses[k]
         tag = tags[k]
         epoch_count = len(train_loss)
-        #EPOCHS = epoch_count
 
         epochs = np.linspace(1, epoch_count, epoch_count)
 
@@ -375,7 +373,6 @@ def learned_fm_weights_colorplot(values, savedir):
         return scale_cmap((x - minval) / (maxval-minval))
 
     # weights, freq_corr, pearson
-    #fig, axs = plt.subplots(1, 2, figsize=(12, 5), gridspec_kw={'width_ratios':[2, 1]})
     FONTSIZE = 15
     plt.grid(False)
     fig = plt.figure(figsize=(15, 4), constrained_layout=True)
@@ -406,8 +403,6 @@ def learned_fm_weights_colorplot(values, savedir):
     weight_img = axs[0].imshow(scale(weights.T))
 
 
-    #fig.colorbar(weight_img, ax=axs[0])
-
     norm = mpl.colors.Normalize(vmin=minval, vmax=maxval)
 
     cb1 = mpl.colorbar.ColorbarBase(axs[2], cmap=cmap,
@@ -417,26 +412,19 @@ def learned_fm_weights_colorplot(values, savedir):
     axs[2].set_yticklabels([item.get_text() for item in axs[2].get_yticklabels()], fontsize=FONTSIZE)
     axs[2].set_title("Scale",fontsize=FONTSIZE)
 
-    #axs[0].yaxis.set_visible(False)
     corr_img = axs[1].imshow(scale(np.array([freq_corr, pearson]))[:, np.newaxis], alpha=1)
-    #fig.colorbar(corr_img, ax=axs[1])
     axs[1].tick_params(axis='both', labelsize=18, length = 0)
     labels = [item.get_text() for item in axs[1].get_yticklabels()]
     print("20", labels)
-    #labels = [None, None, r"$|\widetilde{H_O} \cdot \widetilde{L_O} |$", None, None, None, "Pearson", None, None]
     labels = [None, r"$|\widetilde{H_O} \cdot \widetilde{L_O} |$", None, "Pearson", None]
     axs[1].set_yticklabels(labels, fontsize=FONTSIZE)
     axs[1].xaxis.set_visible(False)
     axs[1].set_title("Correlation Features", fontsize=FONTSIZE)
-    #fig.tight_layout()
-    #axs[0].grid(xdata = np.array([0, 1, 2]), color='w', linestyle='-', linewidth=2)
 
     # manually do white line grid
     for x in range(4):
-    #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
         axs[0].plot([x+0.5, x+0.5], [-0.5, 1.5], c="white", linewidth=6)
     for y in range(1):
-    #    axs[0].plot([x, x], [1, 4], c="white", linewidth=2)
         axs[0].plot([-0.5, 4.5], [0.5+y, 0.5+y], c="white", linewidth=6)
 
     axs[1].plot([-0.5, 0.5], [0.5, 0.5], c="white", linewidth=6)
@@ -448,8 +436,6 @@ def learned_fm_weights_colorplot(values, savedir):
     for y in range(2):
         axs[1].text( -0.15, y+0.05, f"{np.array([freq_corr, pearson])[y]:.2f}", fontsize=14)
 
-    #fig.suptitle("Learned dot product coefficients")
-    #fig.suptitle("Learned final metric weights", fontsize=FONTSIZE+5)
     try:
         fig.tight_layout()
         None

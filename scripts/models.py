@@ -34,7 +34,6 @@ class FAT(nn.Module):
         self.Linear4 = nn.Linear(BOTTLENECK, 2**9)
         self.Linear5 = nn.Linear(2**9, 2**7)
         self.Linear6 = nn.Linear(2**7, num_timesteps * 2)
-        #self.Conv2 = nn.Conv1d(in_channels=5, out_channels = 2, kernel_size = 5, padding = 'same')
 
     def forward(self, x):
 
@@ -108,17 +107,14 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         batch_size = x.shape[0]
-        #x = x.reshape((batch_size, self.seq_len, self.n_features))
         x, (hidden_n, cell_n) = self.rnn1(x)
-        #print("92", hidden_n.shape, cell_n.shape)
-        #print("x", x.shape)
+
         x, (hidden_n, cell_n) = self.rnn2(x)
         x = self.linear0(x.reshape(batch_size, -1))
         x = F.tanh(self.linear1(x))
         x = F.relu(self.linear2(x))
         x = F.relu(self.linear3(x))
-        # return hidden_n.reshape((batch_size, self.embedding_dim))
-        # #traditional way
+
         return x.reshape((batch_size, self.embedding_dim))  # phil harris way
 
 
@@ -147,23 +143,13 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         batch_size = x.shape[0]
-        #print("x.shape", x.shape)
-        if 0:
-            print("121", x.shape)
-            x = x.unsqueeze(1)
-            print("123", x.shape)
-            #print("unsqueezes.shape", x.shape)
-            x = x.repeat(1, self.seq_len, 1)
-            print("after repeat", x.shape)
-            #print("repeats.shape", x.shape)
+
         x = F.relu(self.linear1(x))
         x = F.tanh(self.linear2(x))
         x = x.reshape(batch_size, self.seq_len, self.hidden_dim)
-        #print("135", x.shape)
-        #x, (hidden_n, cell_n) = self.rnn1(x)
+
         x, (hidden_n, cell_n) = self.rnn2(x)
-        #print("138", x.shape)
-        #x = x.reshape((batch_size, self.seq_len, self.hidden_dim))
+
         return self.output_layer(x)
 
 
@@ -182,8 +168,6 @@ class LSTM_AE(nn.Module):
                                n_features=num_ifos, embedding_dim=BOTTLENECK)
         self.decoder = Decoder(seq_len=num_timesteps,
                                n_features=num_ifos, input_dim=BOTTLENECK)
-        #self.encoder = Encoder(seq_len=num_ifos, n_features=num_timesteps, embedding_dim=BOTTLENECK)
-        #self.decoder = Decoder(seq_len=num_ifos, n_features=num_timesteps, input_dim=BOTTLENECK)
 
     def forward(self, x):
         x = x.transpose(1, 2)
@@ -193,7 +177,6 @@ class LSTM_AE(nn.Module):
         return x
 
 
-# model which splits and uses separate LSTMs for each detecor channel
 # model which splits and uses separate LSTMs for each detecor channel
 # torch.manual_seed(42)
 def LSTM_N_params(hid, inp):
@@ -285,24 +268,12 @@ class Decoder_SPLIT(nn.Module):
         self.linearL = nn.Linear(2 * self.seq_len, self.seq_len)
 
         self.linear1 = nn.Linear(self.hidden_dim, 2**8)
-        #self.linear1_1 = nn.Linear(2**8, 2**9)
-        #self.linear1_2 = nn.Linear(2**9, 2**9)
         self.linear2 = nn.Linear(2**8, 2 * self.seq_len)
-
-        #self.output_layer = nn.Linear(self.hidden_dim, n_features)
-
-        #self.linearH_2 = nn.Linear(2*self.seq_len, self.seq_len)
-        #self.linearL_2 = nn.Linear(2*self.seq_len, self.seq_len)
 
     def forward(self, x):
         batch_size = x.shape[0]
 
         x = F.tanh(self.linear1(x))
-        #print("258", x.shape)
-        #x = torch.fft.irfft(x)
-        #print("260", x.shape)
-        #x = F.tanh(self.linear1_1(x))
-        #x = F.tanh(self.linear1_2(x))
         x = F.tanh(self.linear2(x))
 
         Hx = self.linearH(x)[:, :, None]
@@ -339,11 +310,9 @@ class LSTM_AE_SPLIT(nn.Module):
 
     def forward(self, x):
         x = x.transpose(1, 2)
-        # print("encoder")
         x = self.encoder(x)
 
         #(a(x))
-        # print("decoder")
         x = self.decoder(x)
 
         #(a(x))

@@ -121,7 +121,7 @@ TIMESLIDE_TOTAL_DURATION = 100 * 24 * 3600 # run on 4 different GPUs, so in tota
 FM_TIMESLIDE_TOTAL_DURATION = 0.1 * 30 * 24 * 3600
 
 # GPU
-GPU_NAME = 'cuda:3'
+GPU_NAME = 'cuda:1'
 
 # evolutionary search
 INIT_SIGMA = 0.5

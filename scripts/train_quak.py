@@ -60,7 +60,7 @@ def main(args):
 
     elif data_name in ['background', 'glitches']:
         noisy_data = np.load(args.data)['data']  # n_samples, ifo, timesteps
-        #noisy_data = noisy_data[:, :, :, :100]
+
         print('in', noisy_data.shape)
 
         n_currics = 1
@@ -134,7 +134,7 @@ def main(args):
             for batch in dataloader:
                 train_data_x, train_data_y = batch
                 optimizer.zero_grad()
-                #print('shape 83', batch.shape)
+
                 output = AE(train_data_x)
                 loss = loss_fn(train_data_y, output)
                 epoch_train_loss += loss.item()

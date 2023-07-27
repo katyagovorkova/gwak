@@ -89,28 +89,6 @@ To generate all the necessary samples for the analysis from downloaded data use 
 These rules are written using `Wildcards`, such that one rule can be used for
 each of four datasets, eg BBH, SG, glitches and background.
 
-## Training QUAK
-Now that the samples are prepared, we can move to training autoencoders to build the QUAK space:
-```
-snakemake -c1 train_all_quak
-```
-You do not need to run each rule by hand. In case for example you want to generate data and train the autoencoders
-from scratch, just run the rule above and `Snakemake` will figure out dependencies and will run needed rules to create
-missing data.
-
-## Pearson Evaluation
-Then we need to evaluate Pearson correlation between detector sites by running
-```
-snakemake -c1 calculate_pearson
-```
-the current implementation is quite slow, so prepare yourself to wait a lot...
-
-## Final metric training
-To find the optimal coefficients for the final metric, run the search with
-```
-snakemake -c1 train_metric
-```
-
 ## Plotting
 Finally, all the plots from the paper can be reproduced with the plotting rule
 ```

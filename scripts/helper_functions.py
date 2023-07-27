@@ -58,28 +58,27 @@ def mae_torch(a, b):
     return torch.abs(a - b).mean(axis=-1).mean(axis=-1)
 
 
-if RETURN_INDIV_LOSSES:
+def freq_loss_torch(a, b):
+    a_ = torch.fft.rfft(a, axis=-1)
+    b_ = torch.fft.rfft(b, axis=-1)
+    a2b = torch.abs(torch.linalg.vecdot(a_, b_, axis=-1))
+    a2a = torch.abs(torch.linalg.vecdot(
+        a_[:, 0, :], a_[:, 1, :], axis=-1))[:, None]
+    b2b = torch.abs(torch.linalg.vecdot(
+        b_[:, 0, :], b_[:, 1, :], axis=-1))[:, None]
+    return torch.hstack([a2b, a2a, b2b])
 
-    def freq_loss_torch(a, b):
-        a_ = torch.fft.rfft(a, axis=-1)
-        b_ = torch.fft.rfft(b, axis=-1)
-        a2b = torch.abs(torch.linalg.vecdot(a_, b_, axis=-1))
-        a2a = torch.abs(torch.linalg.vecdot(
-            a_[:, 0, :], a_[:, 1, :], axis=-1))[:, None]
-        b2b = torch.abs(torch.linalg.vecdot(
-            b_[:, 0, :], b_[:, 1, :], axis=-1))[:, None]
-        return torch.hstack([a2b, a2a, b2b])
 
-else:
-    def mae_torch_coherent(a, b):
-        loss = torch.abs(a - b).mean(axis=-1)
-        han, liv = loss[:, 0], loss[:, 1]
-        return 0.5 * (han + liv)
+def mae_torch_coherent(a, b):
+    loss = torch.abs(a - b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * (han + liv)
 
-    def mae_torch_noncoherent(a, b):
-        loss = torch.abs(a - b).mean(axis=-1)
-        han, liv = loss[:, 0], loss[:, 1]
-        return 0.5 * (han + liv)
+
+def mae_torch_noncoherent(a, b):
+    loss = torch.abs(a - b).mean(axis=-1)
+    han, liv = loss[:, 0], loss[:, 1]
+    return 0.5 * (han + liv)
 
 
 def mae_torch_(a, b):
@@ -98,13 +97,12 @@ def mae_torch_(a, b):
     # highly illegal!!!
     assert a.shape[1] == NUM_IFOS
     assert b.shape[1] == NUM_IFOS
-    #a, b = a.detach().cpu().numpy(), b.detach().cpu().numpy()
+
     result = ((torch.abs(torch.sum(torch.multiply(torch.conj(torch.fft.rfft(
         a, dim=2, n=256)), torch.fft.rfft(b, dim=2, n=256)), dim=2)))).mean(dim=1)
     norm = torch.abs(torch.sum(torch.multiply(torch.conj(torch.fft.rfft(
         a, dim=2, n=256)), torch.fft.rfft(a, dim=2, n=256)), dim=2)).mean(dim=1)
-    #norm = np.abs(np.sum(np.multiply( np.conjugate(np.fft.rfft(a, axis=2)), np.fft.rfft(a, axis=2) ), axis=2)).mean(axis=1)
-    # return torch.from_numpy(result/1).float().to(DEVICE)
+
     return result / norm
 
 
@@ -568,12 +566,10 @@ def inject_hplus_hcross(
     computed_SNR = calc_SNR_new(final_bothdetector_nonoise,
                                 background, sample_rate, detector_psds=detector_psds)
 
-    #print("SNR", SNR)
-    #print("computed_SNR", computed_SNR[0])
     response_scales = np.array(SNR / computed_SNR[0])
     if len(response_scales.shape) == 0:
         response_scales = [response_scales]
-    #print("response scales", response_scales)
+
     with_noise = []
     no_noise = []
     for response_scale in response_scales:
@@ -627,8 +623,7 @@ def inject_hplus_hcross(
         with_noise.append(final_bothdetector[:, np.newaxis, :])
         no_noise.append(final_bothdetector_nonoise[:, np.newaxis, :])
         # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
-        # return final_bothdetector[:, np.newaxis, :],
-        # final_bothdetector_nonoise
+
     if len(with_noise) == 1:
         return with_noise[0], no_noise[0]
     else:
@@ -977,7 +972,7 @@ def split_into_segments(data,
         for j in range(N_slices):
             start = j * overlap
             end = j * overlap + seg_len
-            #print("SHAPES 21", result[i, j, :, :].shape,data[i, start:end, :].shape)
+
             result[i, j, :, :] = data[i, start:end, :]
 
     return result

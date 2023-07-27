@@ -105,9 +105,6 @@ def corner_plotting(
     for i in range(N):
         norm_factor = 0
         for j, class_data in enumerate(data):
-            #print('128', class_data.shape)
-            #norm_factor = min(norm_factor, class_data[:, i].min())
-            #print('i, j', labels[i], labels[j])
 
             if labels[j] == 'glitches':
                 LBL = 'Glitches'
@@ -121,7 +118,7 @@ def corner_plotting(
                 LBL = 'Background'
             else:
                 LBL = labels[j]
-            #print('LBL', LBL)
+
             axs[i, i].hist(class_data[:, i], color=one_D_colors[j], **oneD_hist_kwargs, label=LBL)
             if save_1d_hist:
                 np.save(f'{plot_savedir}/one_d_hist_{i}_{j}.npy', class_data[:, i])
