@@ -309,7 +309,7 @@ def combined_loss_curves(train_losses, val_losses, tags, title, savedir, show_sn
             low, high = centers[i] - \
                 centers[i] // 4, centers[i] + centers[i] // 2
             snr_ln = ax_1.fill_between(epochs[i * epoch_count // n_currics:(
-                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='lightsteelblue', alpha=0.2)
+                i + 1) * epoch_count // n_currics + 1], low, high, label='SNR range', color='darkgreen', alpha=0.2)
 
             if i == 0:
                 lines.append(snr_ln)
@@ -367,8 +367,8 @@ def learned_fm_weights_colorplot(values, savedir):
     weights = weights[:, [True, True, False]]
     minval = min( min(np.min(weights), pearson), freq_corr)
     maxval = max( max(np.max(weights), pearson), freq_corr)
-    cmap = mpl.cm.coolwarm
-    scale_cmap = cm.get_cmap('coolwarm', 100)
+    cmap = plt.colormaps['PiYG_r']
+    scale_cmap = cm.get_cmap('PiYG_r', 100)
     def scale(x):
         return scale_cmap((x - minval) / (maxval-minval))
 
@@ -579,14 +579,14 @@ def main(args):
     arr[-1] = weight[-1]
     weights.append(arr)
 
-    do_snr_vs_far = 1
-    do_fake_roc = 1
-    do_3_panel_plot = 1
-    do_combined_loss_curves = 1
-    do_train_signal_example_plots = 1
-    do_anomaly_signal_show = True
+    do_snr_vs_far = 0
+    do_fake_roc = 0
+    do_3_panel_plot = 0
+    do_combined_loss_curves = 0
+    do_train_signal_example_plots = 0
+    do_anomaly_signal_show = 0
     do_learned_fm_weights = 1
-    do_make_roc_curves = 1
+    do_make_roc_curves = 0
 
     if do_snr_vs_far or do_make_roc_curves:
         far_hist = np.load(f'{args.data_predicted_path}/far_bins.npy')

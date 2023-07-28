@@ -92,7 +92,7 @@ def corner_plotting(
 
     one_D_colors = [
         'purple',
-        'lightsteelblue',
+        'steelblue',
         'darkgreen',
         'salmon',
         'goldenrod'
@@ -175,10 +175,10 @@ def corner_plotting(
         axs[-1, i].set_xlabel(lbl, fontsize=15)
     if not loglog:
         fig.tight_layout()
-        fig.savefig(plot_savedir + f'/quak_plot_{SNR_ind}.pdf')
+        fig.savefig(plot_savedir + f'/gwak_plot.pdf')
     else:
         fig.tight_layout()
-        fig.savefig(plot_savedir + f'/quak_plot_{SNR_ind}_freq.pdf')
+        fig.savefig(plot_savedir + f'/gwak_plot_freq.pdf')
 
     # save the corner plot hist
     corner_plot_hist = np.array(corner_plot_hist, dtype='object')
@@ -192,7 +192,7 @@ def recreation_plotting(data_original, data_recreated, data_cleaned, savedir, cl
                      SAMPLE_RATE, SEG_NUM_TIMESTEPS)
     colors = [
         'purple',
-        'lightsteelblue',
+        'steelblue',
         'darkgreen',
         'salmon',
         'goldenrod'
@@ -326,95 +326,91 @@ def main(args):
     loss_values_SNR = dict()
     loss_values = dict()
     do_recreation_plotting = True
-    if do_recreation_plotting:
-        # recreation plotting
-        for class_label in CLASS_ORDER:
-            if class_label in ['bbh', 'sglf', 'sghf']:
-                loss_values_SNR[class_label] = dict()
-                data = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['noisy']
-                data_clean = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['clean']
 
-                for SNR_ind in range(len(data)):
-                    datum = data[SNR_ind]
-                    dat_clean = data_clean[SNR_ind]
-                    stds = np.std(datum, axis=-1)[:, :, np.newaxis]
-                    datum = datum / stds
-                    dat_clean = dat_clean / stds
-                    datum = torch.from_numpy(datum).float().to(DEVICE)
-                    evals = quak_eval(datum, model_paths, device=DEVICE, reduce_loss=False)
-                    loss_values_SNR[class_label][SNR_ind] = evals['freq_loss']
-                    try:
-                        os.makedirs(f'{args.savedir}/SNR_{SNR_ind}_{class_label}')
-                    except FileExistsError:
-                        None
-                    original = []
-                    recreated = []
-                    for class_label_ in CLASS_ORDER:
-                        original.append(evals['original'][class_label_])
-                        recreated.append(evals['recreated'][class_label_])
-                    original = np.stack(original, axis=1)
-                    recreated = np.stack(recreated, axis=1)
-                    recreation_plotting(original,
-                                        recreated,
-                                        dat_clean,
-                                        f'{args.savedir}/SNR_{SNR_ind}_{class_label}',
-                                        class_label)
-            else:
-                data = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['data']
-                datum = data
-                stds = np.std(datum, axis=-1)[:, :, np.newaxis]
-                datum = datum / stds
-                datum = torch.from_numpy(datum).float().to(DEVICE)
-                evals = quak_eval(datum, model_paths, device=DEVICE, reduce_loss=False)
-                loss_values[class_label] = evals['freq_loss']
-                try:
-                    os.makedirs(f'{args.savedir}/{class_label}/')
-                except FileExistsError:
-                    None
-                original = []
-                recreated = []
-                for class_label_ in CLASS_ORDER:
-                    original.append(evals['original'][class_label_])
-                    recreated.append(evals['recreated'][class_label_])
-                original = np.stack(original, axis=1)
-                recreated = np.stack(recreated, axis=1)
-                recreation_plotting(original,
-                                    recreated,
-                                    None,
-                                    f'{args.savedir}/{class_label}/',
-                                    class_label)
+    # recreation plotting
+    for class_label in CLASS_ORDER:
+        if class_label in ['bbh', 'sglf', 'sghf']:
+            loss_values_SNR[class_label] = dict()
+            data = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['noisy']
+            data_clean = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['clean']
 
-    for SNR_ind in range(5):
-        corner_plot_data = [0] * len(CLASS_ORDER)
+            SNR_ind = 4
+            datum = data[SNR_ind]
+            dat_clean = data_clean[SNR_ind]
+            stds = np.std(datum, axis=-1)[:, :, np.newaxis]
+            datum = datum / stds
+            dat_clean = dat_clean / stds
+            datum = torch.from_numpy(datum).float().to(DEVICE)
+            evals = quak_eval(datum, model_paths, device=DEVICE, reduce_loss=False)
+            loss_values_SNR[class_label][SNR_ind] = evals['freq_loss']
+            original = []
+            recreated = []
+            for class_label_ in CLASS_ORDER:
+                original.append(evals['original'][class_label_])
+                recreated.append(evals['recreated'][class_label_])
+            original = np.stack(original, axis=1)
+            recreated = np.stack(recreated, axis=1)
+            recreation_plotting(original,
+                                recreated,
+                                dat_clean,
+                                f'{args.savedir}/{class_label}/',
+                                class_label)
+        else:
+            data = np.load(f'{args.test_data_path[:-7]}{class_label}.npz')['data']
+            datum = data
+            stds = np.std(datum, axis=-1)[:, :, np.newaxis]
+            datum = datum / stds
+            datum = torch.from_numpy(datum).float().to(DEVICE)
+            evals = quak_eval(datum, model_paths, device=DEVICE, reduce_loss=False)
+            loss_values[class_label] = evals['freq_loss']
+            try:
+                os.makedirs(f'{args.savedir}/{class_label}/')
+            except FileExistsError:
+                None
+            original = []
+            recreated = []
+            for class_label_ in CLASS_ORDER:
+                original.append(evals['original'][class_label_])
+                recreated.append(evals['recreated'][class_label_])
+            original = np.stack(original, axis=1)
+            recreated = np.stack(recreated, axis=1)
+            recreation_plotting(original,
+                                recreated,
+                                None,
+                                f'{args.savedir}/{class_label}/',
+                                class_label)
 
-        for class_label in CLASS_ORDER:
-            class_index = CLASS_ORDER.index(class_label)
-            if class_label in ['sghf', 'sglf', 'bbh']:
-                corner_plot_data[class_index] = loss_values_SNR[
-                    class_label][SNR_ind]
+    SNR_ind = 4
+    corner_plot_data = [0] * len(CLASS_ORDER)
 
-            else:
-                assert class_label in ['glitches', 'background']
-                corner_plot_data[class_index] = loss_values[class_label]
-            corner_plot_data[class_index] = stack_dict_into_tensor(
-                corner_plot_data[class_index]).cpu().numpy()  # [p]#[:, ]
-            means, stds_ = np.load(
-                'output/trained/norm_factor_params.npy')
-            corner_plot_data[class_index] = np.delete(corner_plot_data[class_index], FACTORS_NOT_USED_FOR_FM, -1)
-            corner_plot_data[class_index] = (
-                corner_plot_data[class_index] - means[:-1]) / stds_[:-1]
-            all_dotted = np.zeros(
-                (len(corner_plot_data[class_index]), len(CLASS_ORDER)))
-            for i in range(len(CLASS_ORDER)):
-                dotted = np.dot(corner_plot_data[class_index], weights[i])
-                all_dotted[:, i] = dotted
-            corner_plot_data[class_index] = all_dotted
-            corner_plot_data[class_index] = corner_plot_data[class_index][
-                np.random.permutation(len(corner_plot_data[class_index]))]
-            print(corner_plot_data[class_index].shape)
-        print(corner_plot_data)
-        print('class order', CLASS_ORDER)
-        corner_plotting(corner_plot_data, CLASS_ORDER, f'{args.savedir}', SNR_ind=SNR_ind, loglog=False, enforce_lim=False)
+    for class_label in CLASS_ORDER:
+        class_index = CLASS_ORDER.index(class_label)
+        if class_label in ['sghf', 'sglf', 'bbh']:
+            corner_plot_data[class_index] = loss_values_SNR[
+                class_label][SNR_ind]
+
+        else:
+            assert class_label in ['glitches', 'background']
+            corner_plot_data[class_index] = loss_values[class_label]
+        corner_plot_data[class_index] = stack_dict_into_tensor(
+            corner_plot_data[class_index]).cpu().numpy()  # [p]#[:, ]
+        means, stds_ = np.load(
+            'output/trained/norm_factor_params.npy')
+        corner_plot_data[class_index] = np.delete(corner_plot_data[class_index], FACTORS_NOT_USED_FOR_FM, -1)
+        corner_plot_data[class_index] = (
+            corner_plot_data[class_index] - means[:-1]) / stds_[:-1]
+        all_dotted = np.zeros(
+            (len(corner_plot_data[class_index]), len(CLASS_ORDER)))
+        for i in range(len(CLASS_ORDER)):
+            dotted = np.dot(corner_plot_data[class_index], weights[i])
+            all_dotted[:, i] = dotted
+        corner_plot_data[class_index] = all_dotted
+        corner_plot_data[class_index] = corner_plot_data[class_index][
+            np.random.permutation(len(corner_plot_data[class_index]))]
+        print(corner_plot_data[class_index].shape)
+    print(corner_plot_data)
+    print('class order', CLASS_ORDER)
+    corner_plotting(corner_plot_data, CLASS_ORDER, f'{args.savedir}', SNR_ind=SNR_ind, loglog=False, enforce_lim=False)
 
 
 if __name__ == '__main__':
