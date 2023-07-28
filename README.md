@@ -1,5 +1,9 @@
 # Introduction
-This repo contains complimentary code for the QUAK LIGO paper.
+This repo contains a complimentary code for the QUAK LIGO paper.
+
+<img width="1728" alt="3d_gwak" src="https://github.com/ML4GW/gwak/assets/4249113/7fc6c348-9483-4ff7-8344-59e3b17063d0">
+
+
 
 # Set up
 To start, install [`Miniconda`](https://docs.conda.io/en/latest/miniconda.html)
