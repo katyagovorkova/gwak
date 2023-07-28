@@ -1,5 +1,5 @@
 # Introduction
-This repo contains a complimentary code for the QUAK LIGO paper.
+This repo contains a complimentary code for the GWAK LIGO paper.
 
 <img width="1728" alt="3d_gwak" src="https://github.com/ML4GW/gwak/assets/4249113/7fc6c348-9483-4ff7-8344-59e3b17063d0">
 
@@ -12,7 +12,7 @@ To start, install [`Miniconda`](https://docs.conda.io/en/latest/miniconda.html)
 Once conda is there, setup a virtual environment using the file from the repo
 ```
 conda env create --file environment.yaml
-conda activate quak
+conda activate gwak
 ```
 
 Install additional package inside the create virtual environment
@@ -36,7 +36,7 @@ Otherwise `Snakemake` will create `output/` directory in the same location this 
 
 Now every time you want to run the code, first activate the virtual environment
 ```
-conda activate quak
+conda activate gwak
 ```
 
 
@@ -68,7 +68,7 @@ Sending Snakemake process to `HTCondor`:
 # Analysis Pipeline
 Each step of the analysis is represented as a corresponding rule in the `Snakefile`.
 There are several steps starting with downloading and generating data samples,
-pre-processing them and training the QUAK space using these samples.
+pre-processing them and training the GWAK space using these samples.
 Followed by the Pearson correlation calculation and the evaluation step.
 The details of all the available rules are given below.
 ## Configuration parameters
