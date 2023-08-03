@@ -1,7 +1,7 @@
 # Introduction
 This repo contains a complimentary code for the GWAK LIGO paper.
 
-<img width="1728" alt="3d_gwak" src="https://github.com/ML4GW/gwak/assets/4249113/7fc6c348-9483-4ff7-8344-59e3b17063d0">
+<img width="593" alt="3d_gwak" src="https://github.com/ML4GW/gwak/assets/4249113/8b00eced-9bad-4bee-b5cb-dad50e51d422">
 
 
 
