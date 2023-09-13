@@ -2,12 +2,10 @@
 Script that generates a dataset of glitches from omicron triggers.
 Taken from https://github.com/ML4GW/BBHNet/blob/main/projects/sandbox/datagen/datagen/scripts/glitches.py
 """
+import time
 import argparse
 import configparser
 import logging
-import os.path
-import sys
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable, List
@@ -16,27 +14,30 @@ import h5py
 import numpy as np
 from omicron.cli.process import main as omicron_main
 
+import sys
+import os.path
+
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
-    CHANNEL,
-    CHUNK_DURATION,
-    CLUSTER_DT,
-    F_MIN,
-    FRAME_TYPE,
-    GLITCH_SAMPLE_RATE,
-    IFOS,
-    MISTMATCH_MAX,
-    OVERLAP,
-    Q_MAX,
-    Q_MIN,
-    SEGMENT_DURATION,
     SNR_THRESH,
-    STATE_FLAG,
     STRAIN_START,
     STRAIN_STOP,
+    Q_MIN,
+    Q_MAX,
+    F_MIN,
+    CLUSTER_DT,
+    CHUNK_DURATION,
+    SEGMENT_DURATION,
+    OVERLAP,
+    MISTMATCH_MAX,
     WINDOW,
+    CHANNEL,
+    FRAME_TYPE,
+    GLITCH_SAMPLE_RATE,
+    STATE_FLAG,
+    IFOS,
 )
 
 
@@ -253,6 +254,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     segments = np.load(args.intersections)
+    # dirty trick for O3b
+    if len(segments) == 2:
+        segments = [segments]
     for segment in segments:
         if os.path.exists(
             f"{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/H1/triggers/H1:{CHANNEL}/"

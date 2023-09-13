@@ -1,36 +1,37 @@
-import argparse
 import os
-import sys
-import time
-
+import argparse
 import numpy as np
+from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from matplotlib import pyplot as plt
-from models import FAT, LSTM_AE, LSTM_AE_SPLIT
-from scipy.linalg import dft
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import time
+from scipy.linalg import dft
+
+from models import LSTM_AE, LSTM_AE_SPLIT, FAT
+
+import sys
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
-    BATCH_SIZE,
     BOTTLENECK,
-    CURRICULUM_SNRS,
-    EPOCHS,
     FACTOR,
-    GPU_NAME,
-    LIMIT_TRAINING_DATA,
+    EPOCHS,
+    BATCH_SIZE,
     LOSS,
     MODEL,
-    NUM_IFOS,
     OPTIMIZER,
-    SEG_NUM_TIMESTEPS,
-    TRAINING_VERBOSE,
     VALIDATION_SPLIT,
+    TRAINING_VERBOSE,
+    NUM_IFOS,
+    SEG_NUM_TIMESTEPS,
+    GPU_NAME,
+    LIMIT_TRAINING_DATA,
+    CURRICULUM_SNRS,
 )
 
 DEVICE = torch.device(GPU_NAME)

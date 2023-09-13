@@ -1,23 +1,24 @@
-import argparse
 import os
-import sys
-
 import numpy as np
+import argparse
 import torch
-from helper_functions import freq_loss_torch, mae_torch
-from models import DUMMY_CNN_AE, FAT, LSTM_AE, LSTM_AE_SPLIT
+
+from helper_functions import mae_torch, freq_loss_torch
+from models import LSTM_AE, LSTM_AE_SPLIT, DUMMY_CNN_AE, FAT
+
+import sys
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
+    NUM_IFOS,
+    SEG_NUM_TIMESTEPS,
     BOTTLENECK,
+    MODEL,
     FACTOR,
     GPU_NAME,
-    MODEL,
-    NUM_IFOS,
     RECREATION_LIMIT,
-    SEG_NUM_TIMESTEPS,
 )
 
 

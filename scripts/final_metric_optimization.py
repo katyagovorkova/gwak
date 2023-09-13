@@ -1,18 +1,20 @@
-import argparse
 import os
-import sys
-
+import argparse
 import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
 from models import LinearModel
+
+import sys
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
-from config import FACTORS_NOT_USED_FOR_FM, GPU_NAME, N_SVM_EPOCHS, SVM_LR
+from config import GPU_NAME, SVM_LR, N_SVM_EPOCHS, FACTORS_NOT_USED_FOR_FM
 
 DEVICE = torch.device(GPU_NAME)
 
@@ -24,28 +26,36 @@ def optimize_hyperplane(signals, backgrounds):
     )
 
     sigs = torch.from_numpy(signals).float().to(DEVICE)
-    bkgs = torch.from_numpy(backgrounds).float().to(DEVICE)
+    # bkgs = torch.from_numpy(backgrounds).float().to(DEVICE)
     network = LinearModel(n_dims=sigs.shape[2]).to(DEVICE)
     optimizer = optim.Adam(network.parameters(), lr=SVM_LR)
 
-    for epoch in range(N_SVM_EPOCHS):
-        optimizer.zero_grad()
-        background_MV = network(bkgs)
-        signal_MV = network(sigs)
+    new_shape = backgrounds.shape[0] // 10
+    for i in range(10):
+        small_bkgs = (
+            torch.from_numpy(backgrounds[i * new_shape : (i + 1) * new_shape])
+            .float()
+            .to(DEVICE)
+        )
 
-        # second index are the indicies
-        signal_MV = torch.min(signal_MV, dim=1)[0]
-        zero = torch.tensor(0).to(DEVICE)
+        for epoch in range(N_SVM_EPOCHS):
+            optimizer.zero_grad()
+            background_MV = network(small_bkgs)
+            signal_MV = network(sigs)
 
-        background_loss = torch.maximum(zero, 1 - background_MV).mean()
-        signal_loss = torch.maximum(zero, 1 + signal_MV).mean()
+            # second index are the indicies
+            signal_MV = torch.min(signal_MV, dim=1)[0]
+            zero = torch.tensor(0).to(DEVICE)
 
-        loss = background_loss + signal_loss
-        if epoch % 50 == 0:
-            print(network.layer.weight.data.cpu().numpy()[0])
-            print(loss.item())
-        loss.backward()
-        optimizer.step()
+            background_loss = torch.maximum(zero, 1 - background_MV).mean()
+            signal_loss = torch.maximum(zero, 1 + signal_MV).mean()
+
+            loss = background_loss + signal_loss
+            if epoch % 50 == 0:
+                print(network.layer.weight.data.cpu().numpy()[0])
+                print(loss.item())
+            loss.backward()
+            optimizer.step()
 
     torch.save(network.state_dict(), args.fm_model_path)
     return np.zeros(5)

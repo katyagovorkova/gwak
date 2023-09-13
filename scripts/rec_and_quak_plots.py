@@ -1,47 +1,46 @@
-import argparse
 import os
 import sys
-
-import matplotlib.pyplot as plt
+import argparse
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy.stats as st
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+from quak_predict import quak_eval
+from helper_functions import mae_torch, freq_loss_torch
+from models import LinearModel
 from helper_functions import (
-    compute_fars,
-    far_to_metric,
-    freq_loss_torch,
-    mae_torch,
     stack_dict_into_numpy,
     stack_dict_into_numpy_segments,
+    compute_fars,
+    far_to_metric,
     stack_dict_into_tensor,
 )
-from models import LinearModel
-from quak_predict import quak_eval
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
+    SEG_NUM_TIMESTEPS,
+    SAMPLE_RATE,
     CLASS_ORDER,
-    FACTORS_NOT_USED_FOR_FM,
-    GPU_NAME,
-    HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN,
-    IFO_LABELS,
+    SPEED,
     NUM_IFOS,
+    IFO_LABELS,
+    RECREATION_WIDTH,
     RECREATION_HEIGHT_PER_SAMPLE,
     RECREATION_SAMPLES_PER_PLOT,
-    RECREATION_WIDTH,
-    SAMPLE_RATE,
-    SEG_NUM_TIMESTEPS,
-    SEGMENT_OVERLAP,
     SNR_VS_FAR_BAR,
-    SNR_VS_FAR_HL_LABELS,
     SNR_VS_FAR_HORIZONTAL_LINES,
-    SPEED,
+    SNR_VS_FAR_HL_LABELS,
+    SEGMENT_OVERLAP,
+    HISTOGRAM_BIN_DIVISION,
+    HISTOGRAM_BIN_MIN,
+    GPU_NAME,
+    FACTORS_NOT_USED_FOR_FM,
 )
 
 DEVICE = torch.device(GPU_NAME)

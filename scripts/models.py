@@ -1,14 +1,13 @@
-import os
-import sys
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import sys
+import os
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
-from config import FACTORS_NOT_USED_FOR_FM, SEG_NUM_TIMESTEPS
+from config import SEG_NUM_TIMESTEPS, FACTORS_NOT_USED_FOR_FM, VERSION
 
 
 class LinearModel(nn.Module):
@@ -16,9 +15,22 @@ class LinearModel(nn.Module):
         super(LinearModel, self).__init__()
         self.layer = nn.Linear(21 - len(FACTORS_NOT_USED_FOR_FM), 1)
 
+        if "_non_linear_bbh_only" in VERSION:
+
+            self.layer1 = nn.Linear(21 - len(FACTORS_NOT_USED_FOR_FM), 32)
+            self.layer2 = nn.Linear(32, 32)
+            self.layer3 = nn.Linear(32, 32)
+            self.layer4 = nn.Linear(32, 1)
+
     def forward(self, x):
 
-        return self.layer(x)
+        if "_non_linear_bbh_only" in VERSION:
+            x = F.relu(self.layer1(x))
+            x = F.relu(self.layer2(x))
+            x = F.relu(self.layer3(x))
+            return self.layer4(x)
+        else:
+            return self.layer(x)
 
 
 class FAT(nn.Module):

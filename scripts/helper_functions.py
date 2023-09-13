@@ -1,42 +1,42 @@
 import os
 import sys
-import time
-
-import bilby
 import h5py
+import time
+import bilby
 import numpy as np
 import torch
+
+from scipy.stats import cosine as cosine_distribution
 from gwpy.timeseries import TimeSeries
 from lalinference import BurstSineGaussian, BurstSineGaussianF
-from scipy.stats import cosine as cosine_distribution
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
-    BANDPASS_HIGH,
-    BANDPASS_LOW,
-    CHANNEL,
-    CLASS_ORDER,
+    IFOS,
+    SAMPLE_RATE,
     EDGE_INJECT_SPACING,
     GLITCH_SNR_BAR,
-    GPU_NAME,
-    GW_EVENT_CLEANING_WINDOW,
-    HISTOGRAM_BIN_DIVISION,
-    HISTOGRAM_BIN_MIN,
-    IFOS,
-    LOADED_DATA_SAMPLE_RATE,
-    MAX_SHIFT,
-    NUM_IFOS,
-    RETURN_INDIV_LOSSES,
-    SAMPLE_RATE,
-    SCALE,
-    SEG_NUM_TIMESTEPS,
-    SEGMENT_OVERLAP,
-    SHIFT_STEP,
-    SIGNIFICANCE_NORMALIZATION_DURATION,
     STRAIN_START,
     STRAIN_STOP,
+    LOADED_DATA_SAMPLE_RATE,
+    BANDPASS_LOW,
+    BANDPASS_HIGH,
+    GW_EVENT_CLEANING_WINDOW,
+    SEG_NUM_TIMESTEPS,
+    SEGMENT_OVERLAP,
+    CLASS_ORDER,
+    SIGNIFICANCE_NORMALIZATION_DURATION,
+    GPU_NAME,
+    MAX_SHIFT,
+    SHIFT_STEP,
+    HISTOGRAM_BIN_DIVISION,
+    HISTOGRAM_BIN_MIN,
+    CHANNEL,
+    NUM_IFOS,
+    RETURN_INDIV_LOSSES,
+    SCALE,
 )
 
 
@@ -528,6 +528,7 @@ def inject_hplus_hcross(
     get_psds=False,
     detector_psds=None,
     inject_at_end=False,
+    return_scale=False,
 ):
 
     final_injects = []
@@ -658,7 +659,11 @@ def inject_hplus_hcross(
         # np.newaxis changes shape from (detector, timeaxis) to (detector, 1, timeaxis) for stacking into batches
 
     if len(with_noise) == 1:
+        if return_scale == True:
+            return with_noise[0], response_scales[0]
         return with_noise[0], no_noise[0]
+    elif return_scale == True:
+        return with_noise, response_scales
     else:
         return with_noise, no_noise
 

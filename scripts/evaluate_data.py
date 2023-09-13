@@ -1,30 +1,28 @@
-import argparse
 import os
-import sys
-
+import argparse
 import numpy as np
 import torch
+
+from quak_predict import quak_eval
 from helper_functions import (
-    pearson_computation,
+    std_normalizer_torch,
     split_into_segments_torch,
     stack_dict_into_tensor,
-    std_normalizer_torch,
+    pearson_computation,
 )
-from quak_predict import quak_eval
+import sys
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from config import (
+    SEGMENT_OVERLAP,
+    GPU_NAME,
     CLASS_ORDER,
     DATA_EVAL_MAX_BATCH,
-    DO_SMOOTHING,
-    GPU_NAME,
-    N_SMOOTHING_KERNEL,
+    SEG_NUM_TIMESTEPS,
     RETURN_INDIV_LOSSES,
     SCALE,
-    SEG_NUM_TIMESTEPS,
-    SEGMENT_OVERLAP,
 )
 
 
@@ -74,15 +72,6 @@ def full_evaluation(data, model_folder_path, device, return_midpoints=False):
     quak_predictions = quak_predictions[:, edge_start:edge_end, :]
     slice_midpoints = slice_midpoints[edge_start:edge_end]
     final_values = torch.cat([quak_predictions, pearson_values], dim=-1)
-
-    if DO_SMOOTHING:
-        # do it before significance?
-        kernel = (
-            torch.ones((N_batches, final_values.shape[-1], N_SMOOTHING_KERNEL))
-            .float()
-            .to(device)
-            / N_SMOOTHING_KERNEL
-        )
 
     if return_midpoints:
         return final_values, slice_midpoints
