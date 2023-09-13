@@ -1,3 +1,6 @@
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
+
 # Introduction
 This repo contains a complimentary code for the GWAK LIGO paper.
 
@@ -21,7 +24,7 @@ pip install snakemake
 pip install matplotlib-label-lines
 ```
 
-To make pytorch available, do 
+To make pytorch available, do
 ```
 pip install torch==2.0.1
 ```
@@ -62,7 +65,7 @@ to force it. Use `-F` to also force all the upstream rules to be re-run.
 In order to be able to submit jobs to `HTCondor`, install [snakemake-condor-profile](https://github.com/msto/snakemake-condor-profile).
 
 Sending Snakemake process to `HTCondor`:
- 
+
     $ snakemake --profile HTCondor
 
 # Analysis Pipeline

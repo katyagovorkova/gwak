@@ -2,10 +2,12 @@
 Script that generates a dataset of glitches from omicron triggers.
 Taken from https://github.com/ML4GW/BBHNet/blob/main/projects/sandbox/datagen/datagen/scripts/glitches.py
 """
-import time
 import argparse
 import configparser
 import logging
+import os.path
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable, List
@@ -14,28 +16,28 @@ import h5py
 import numpy as np
 from omicron.cli.process import main as omicron_main
 
-import sys
-import os.path
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+)
 from config import (
-    SNR_THRESH,
-    STRAIN_START,
-    STRAIN_STOP,
-    Q_MIN,
-    Q_MAX,
-    F_MIN,
-    CLUSTER_DT,
-    CHUNK_DURATION,
-    SEGMENT_DURATION,
-    OVERLAP,
-    MISTMATCH_MAX,
-    WINDOW,
     CHANNEL,
+    CHUNK_DURATION,
+    CLUSTER_DT,
+    F_MIN,
     FRAME_TYPE,
     GLITCH_SAMPLE_RATE,
+    IFOS,
+    MISTMATCH_MAX,
+    OVERLAP,
+    Q_MAX,
+    Q_MIN,
+    SEGMENT_DURATION,
+    SNR_THRESH,
     STATE_FLAG,
-    IFOS)
+    STRAIN_START,
+    STRAIN_STOP,
+    WINDOW,
+)
 
 
 def omicron_main_wrapper(
@@ -238,9 +240,7 @@ def main(
 
         if analyze_testing_set:
             test_ifo_dir.mkdir(exist_ok=True, parents=True)
-            pool.submit(
-                omicron_main_wrapper, stop, test_stop, test_ifo_dir, *args
-            )
+            pool.submit(omicron_main_wrapper, stop, test_stop, test_ifo_dir, *args)
 
 
 if __name__ == "__main__":
@@ -248,38 +248,43 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Required arguments
-    parser.add_argument('intersections', help='Path to the Omicron output',
-                        type=str)
-    parser.add_argument('outdir', help='Path to the Omicron output',
-                        type=str)
+    parser.add_argument("intersections", help="Path to the Omicron output", type=str)
+    parser.add_argument("outdir", help="Path to the Omicron output", type=str)
     args = parser.parse_args()
 
     segments = np.load(args.intersections)
     for segment in segments:
-        if os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/H1/triggers/H1:{CHANNEL}/') \
-                and os.path.exists(f'{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/L1/triggers/L1:{CHANNEL}/'):
-            print(f'Skippping segment {segment[0]} {segment[1]} because it is already done')
+        if os.path.exists(
+            f"{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/H1/triggers/H1:{CHANNEL}/"
+        ) and os.path.exists(
+            f"{args.outdir}/{segment[0]}_{segment[1]}/omicron/training/L1/triggers/L1:{CHANNEL}/"
+        ):
+            print(
+                f"Skippping segment {segment[0]} {segment[1]} because it is already done"
+            )
             continue
 
-        main(SNR_THRESH,
-             segment[0],  # start
-             segment[1],  # stop
-             None,  # test_stop
-             Q_MIN,
-             Q_MAX,
-             F_MIN,
-             CLUSTER_DT,
-             CHUNK_DURATION,
-             SEGMENT_DURATION,
-             OVERLAP,
-             MISTMATCH_MAX,
-             WINDOW,
-             f'{args.outdir}/{segment[0]}_{segment[1]}/',
-             None,  # logdir
-             CHANNEL,
-             FRAME_TYPE,
-             GLITCH_SAMPLE_RATE,
-             STATE_FLAG,
-             IFOS)
+        main(
+            SNR_THRESH,
+            segment[0],  # start
+            segment[1],  # stop
+            None,  # test_stop
+            Q_MIN,
+            Q_MAX,
+            F_MIN,
+            CLUSTER_DT,
+            CHUNK_DURATION,
+            SEGMENT_DURATION,
+            OVERLAP,
+            MISTMATCH_MAX,
+            WINDOW,
+            f"{args.outdir}/{segment[0]}_{segment[1]}/",
+            None,  # logdir
+            CHANNEL,
+            FRAME_TYPE,
+            GLITCH_SAMPLE_RATE,
+            STATE_FLAG,
+            IFOS,
+        )
         # wait a minute before submitting the next job
         time.sleep(60)
